@@ -3,15 +3,16 @@ import os
 import numpy as np
 import pytest
 
-from py21cmmc import LightCone
-from py21cmmc import mcmc
-from py21cmmc.mcmc.cosmoHammer import CosmoHammerSampler, HDFStorageUtil, Params
-
+from py21cmfast import LightCone
+import py21cmmc as mcmc
+from py21cmmc.cosmoHammer import (
+    CosmoHammerSampler, HDFStorageUtil, Params, LikelihoodComputationChain
+)
 
 @pytest.fixture(scope="module")
 def core():
     return mcmc.CoreCoevalModule(redshift=9, user_params={"HII_DIM": 35, "DIM": 70},
-                                 cache_ionize=False, cache_init=False)
+                                 cache_mcmc=False, cache_init=False)
 
 
 @pytest.fixture(scope="module")
@@ -51,7 +52,7 @@ def test_core_coeval_setup(core, likelihood_coeval):
 
     chain = mcmc.build_computation_chain(core, likelihood_coeval)
 
-    assert isinstance(core.chain, mcmc.cosmoHammer.LikelihoodComputationChain)
+    assert isinstance(core.chain, LikelihoodComputationChain)
     assert core.initial_conditions_seed is not None
 
     ctx = chain.build_model_data()
@@ -159,7 +160,7 @@ def test_bad_continuation(core, likelihood_coeval, tmpdirec):
     with pytest.raises(RuntimeError):
         # core with different redshift
         core = mcmc.CoreCoevalModule(redshift=8, user_params={"HII_DIM": 35, "DIM": 70},
-                                     cache_ionize=False, cache_init=False)
+                                     cache_mcmc=False, cache_init=False)
         mcmc.run_mcmc(
             core, likelihood_coeval, model_name="TESTBURNIN", continue_sampling=True, datadir=tmpdirec.strpath,
             params=dict(HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]),

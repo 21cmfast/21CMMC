@@ -6,7 +6,7 @@ from os.path import join
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import yaml
+from py21cmfast import yaml
 from .cosmoHammer import CosmoHammerSampler
 from .cosmoHammer.storage import HDFStorage
 

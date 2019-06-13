@@ -11,3 +11,5 @@ corner
 pytest
 pytest-cov
 coveralls
+pre-commit
+tox

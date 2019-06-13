@@ -9,7 +9,6 @@ py21cmmc
     :toctree: _autosummary
     :template: module.rst
 
-    py21cmmc._21cmfast.wrapper
     py21cmmc.mcmc.mcmc
     py21cmmc.mcmc.core
     py21cmmc.mcmc.likelihood

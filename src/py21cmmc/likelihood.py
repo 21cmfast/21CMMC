@@ -11,9 +11,9 @@ from powerbox.tools import get_power
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 from . import core
-from .._21cmfast import wrapper as lib
+from py21cmfast import wrapper as lib
 
-logger = logging.getLogger("21CMMC")
+logger = logging.getLogger("21cmFAST")
 
 np.seterr(invalid='ignore', divide='ignore')
 

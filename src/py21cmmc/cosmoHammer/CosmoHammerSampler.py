@@ -12,7 +12,7 @@ import emcee
 import numpy as np
 from cosmoHammer import CosmoHammerSampler as CHS, getLogger
 
-from py21cmmc.mcmc.ensemble import EnsembleSampler
+from py21cmmc.ensemble import EnsembleSampler
 
 
 class CosmoHammerSampler(CHS):

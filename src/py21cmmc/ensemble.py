@@ -4,7 +4,7 @@ import emcee
 import numpy as np
 from concurrent.futures.process import BrokenProcessPool
 
-logger = logging.getLogger("21CMMC")
+logger = logging.getLogger("21cmFAST")
 
 
 class EnsembleSampler(emcee.EnsembleSampler):

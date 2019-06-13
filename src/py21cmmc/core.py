@@ -7,9 +7,9 @@ import logging
 import warnings
 import numpy as np
 
-import py21cmmc as p21
+import py21cmfast as p21
 
-logger = logging.getLogger("21CMMC")
+logger = logging.getLogger("21cmFAST")
 
 
 class NotSetupError(AttributeError):

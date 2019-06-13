@@ -2,10 +2,10 @@ import logging
 from concurrent.futures import ProcessPoolExecutor
 from os import path, mkdir
 
-from . import yaml
+from py21cmfast import yaml
 from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 
-logger = logging.getLogger("21CMMC")
+logger = logging.getLogger("21cmFAST")
 
 
 def build_computation_chain(core_modules, likelihood_modules, params=None, setup=True):
