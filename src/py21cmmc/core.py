@@ -450,7 +450,7 @@ class CoreLightConeModule(CoreCoevalModule):
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
-            write=self.io_options['cache_ionize'],
+            write=self.io_options['cache_mcmc'],
             direc=self.io_options['cache_dir'],
         )
 
