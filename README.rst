@@ -5,8 +5,8 @@
 .. start-badges
 .. image:: https://travis-ci.org/21cmFAST/21CMMC.svg
     :target: https://travis-ci.org/21cmFAST/21CMMC
-.. image:: https://coveralls.io/repos/github/21cmFAST/21CMMC/badge.svg
-    :target: https://coveralls.io/github/21cmFAST/21CMMC
+.. image:: https://coveralls.io/repos/github/21cmfast/21CMMC/badge.svg?branch=master
+    :target: https://coveralls.io/github/21cmfast/21CMMC?branch=master
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/ambv/black
 .. image:: https://readthedocs.org/projects/21cmmc/badge/?version=latest
