@@ -8,10 +8,10 @@ from os import path, rename
 import numpy as np
 from cached_property import cached_property
 from powerbox.tools import get_power
+from py21cmfast import wrapper as lib
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 from . import core
-from py21cmfast import wrapper as lib
 
 logger = logging.getLogger("21cmFAST")
 
@@ -828,20 +828,11 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
 
         # Read in data files.
         nf = np.load(
-            path.expanduser(
-                path.join(
-                    "~", ".21CMMC", "External_tables", "NeutralFractionsForPDF.npy"
-                )
-            )
+            path.join(path.dirname(__file__), "data", "NeutralFractionsForPDF.npy")
         )
         pdf = np.load(
-            path.expanduser(
-                path.join(
-                    "~", ".21CMMC", "External_tables", "NeutralFractionPDF_SmallHII.npy"
-                )
-            )
+            path.join(path.dirname(__file__), "data", "NeutralFractionPDF_SmallHII.npy")
         )
-
         # Normalising the PDF to have a peak probability of unity (consistent with how other priors are treated)
         # Ultimately, this step does not matter
         pdf /= np.amax(pdf)

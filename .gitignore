@@ -32,4 +32,5 @@ docs/tutorials/data/
 
 htmlcov/
 
-data/
+
+pip-wheel-metadata/
