@@ -76,7 +76,7 @@ setup(
         "emcee<3",
         "powerbox>=0.5.7",
         "cached_property",
-        "py21cmfast @ https://github.com/21cmFAST/21cmFAST",  # TODO: publish to pypi
+        "py21cmfast",
     ],
     # entry_points={
     #     'console_scripts': [
