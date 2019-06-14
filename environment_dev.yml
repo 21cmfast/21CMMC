@@ -28,6 +28,8 @@ dependencies:
   - gmp=6.1.2=h6c8ec71_1
   - gst-plugins-base=1.14.0=hbbd80ab_1
   - gstreamer=1.14.0=hb453b48_1
+  - h5py=2.9.0=py37h7918eee_0
+  - hdf5=1.10.4=hb1b8bf9_0
   - icu=58.2=h9c2bf20_1
   - idna=2.8=py37_0
   - imagesize=1.1.0=py37_0
@@ -125,6 +127,7 @@ dependencies:
   - pip:
     - aspy-yaml==1.3.0
     - bleach==3.1.0
+    - cached-property==1.5.1
     - cfgv==2.0.0
     - cosmohammer==0.6.1
     - defusedxml==0.6.0
@@ -137,6 +140,7 @@ dependencies:
     - nodeenv==1.3.3
     - powerbox==0.6.0
     - pre-commit==1.17.0
+    - py21cmfast==0.1.0
     - pyrsistent==0.15.2
     - pytest-cov==2.7.1
     - sphinx-rtd-theme==0.4.3
