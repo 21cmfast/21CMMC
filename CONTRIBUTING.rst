@@ -8,7 +8,7 @@ little bit helps, and credit will always be given.
 Bug reports
 ===========
 
-When `reporting a bug <https://github.com/BradGreig/21CMMC/issues>`_ please include:
+When `reporting a bug <https://github.com/21cmFAST/21CMMC/issues>`_ please include:
 
     * Your operating system name and version.
     * Any details about your local setup that might be helpful in troubleshooting.
@@ -17,14 +17,14 @@ When `reporting a bug <https://github.com/BradGreig/21CMMC/issues>`_ please incl
 Documentation improvements
 ==========================
 
-21CMMC could always use more documentation, whether as part of the
+`21CMMC` could always use more documentation, whether as part of the
 official py21cmmc docs, in docstrings, or even on the web in blog posts,
 articles, and such.
 
 Feature requests and feedback
 =============================
 
-The best way to send feedback is to file an issue at https://github.com/BradGreig/21CMMC/issues.
+The best way to send feedback is to file an issue at https://github.com/21cmFAST/21CMMC/issues.
 
 If you are proposing a feature:
 
@@ -35,31 +35,54 @@ If you are proposing a feature:
 Development
 ===========
 
-To set up `21CMMC` for local development:
+There are two avenues for you to develop `21CMMC`. If you plan on making significant
+changes, and working with `21CMMC` for a long period of time, please consider
+becoming a member of the 21cmFAST GitHub organisation (by emailing any of the owners
+or admins). You may develop as a member or as a non-member.
 
-1. Fork `21CMMC <https://github.com/BradGreig/21CMMC>`_
-   (look for the "Fork" button).
-2. Clone your fork locally::
+The difference between members and non-members only applies to the first two steps
+of the development process.
+
+Note that it is highly recommended to work in an isolated python environment with
+all requirements installed from ``requirements_dev.txt``. This will also ensure that
+pre-commit hooks will run that enforce the ``black`` coding style. If you do not
+install these requirements, you must manually run black before committing your changes,
+otherwise your changes will likely fail continuous integration.
+
+As a member:
+
+1. Clone the repo::
+
+    git clone git@github.com:21cmFAST/21CMMC.git
+
+As a non-member:
+
+1. First fork `21cmFAST <https://github.com/21cmFAST/21CMMC>`_
+   (look for the "Fork" button), then clone the fork locally::
 
     git clone git@github.com:your_name_here/21CMMC.git
 
-3. Create a branch for local development::
+The following steps are the same for both members and non-members:
+
+2. Create a branch for local development::
 
     git checkout -b name-of-your-bugfix-or-feature
 
-   Now you can make your changes locally.
+   Now you can make your changes locally. **Note: you _must_ do this step. If you
+   make changes on master, you will _not_ be able to push them, as a member**.
 
-4. When you're done making changes, run all the checks, doc builder and spell checker with `tox <http://tox.readthedocs.io/en/latest/install.html>`_ one command::
+3. When you're done making changes, run all the checks, doc builder and spell checker
+   with `tox <http://tox.readthedocs.io/en/latest/install.html>`_ one command::
 
     tox
 
-5. Commit your changes and push your branch to GitHub::
+4. Commit your changes and push your branch to GitHub::
 
     git add .
     git commit -m "Your detailed description of your changes."
     git push origin name-of-your-bugfix-or-feature
 
-6. Submit a pull request through the GitHub website.
+5. Submit a pull request through the GitHub website.
 
 Pull Request Guidelines
 -----------------------
@@ -73,8 +96,10 @@ For merging, you should:
 3. Add a note to ``CHANGELOG.rst`` about the changes.
 4. Add yourself to ``AUTHORS.rst``.
 
-.. [1] If you don't have all the necessary python versions available locally you can rely on Travis - it will
-       `run the tests <https://travis-ci.org/BradGreig/21CMMC/pull_requests>`_ for each change you add in the pull request.
+.. [1] If you don't have all the necessary python versions available locally you can
+       rely on Travis - it will
+       `run the tests <https://travis-ci.org/BradGreig/21CMMC/pull_requests>`_ for each
+       change you add in the pull request.
 
        It will be slower though ...
 
