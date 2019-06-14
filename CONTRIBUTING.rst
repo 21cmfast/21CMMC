@@ -49,6 +49,9 @@ pre-commit hooks will run that enforce the ``black`` coding style. If you do not
 install these requirements, you must manually run black before committing your changes,
 otherwise your changes will likely fail continuous integration.
 
+To install dependencies to create documentation, you will also need to install
+requirements in ``docs/requirements.txt``.
+
 As a member:
 
 1. Clone the repo::
