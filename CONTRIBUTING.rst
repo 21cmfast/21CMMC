@@ -5,32 +5,24 @@ Contributing
 Contributions are welcome, and they are greatly appreciated! Every
 little bit helps, and credit will always be given.
 
-Bug reports
-===========
+Bug reports/Feature Requests/Feedback/Questions
+===============================================
+It is incredibly helpful to us when users report bugs, unexpected behaviour, or request
+features. You can do the following:
 
-When `reporting a bug <https://github.com/21cmFAST/21CMMC/issues>`_ please include:
+    * `Report a bug <https://github.com/21cmFAST/21CMMC/issues/new?template=bug_report.md>`
+    * `Request a Feature <https://github.com/21cmFAST/21CMMC/issues/new?template=feature_request.md>`
+    * `Ask a Question <https://github.com/21cmFAST/21CMMC/issues/new?template=question.md>`
 
-    * Your operating system name and version.
-    * Any details about your local setup that might be helpful in troubleshooting.
-    * Detailed steps to reproduce the bug.
+When doing any of these, please try to be as succinct, but detailed, as possible, and use
+a "Minimum Working Example" whenever applicable.
 
 Documentation improvements
 ==========================
 
 `21CMMC` could always use more documentation, whether as part of the
-official py21cmmc docs, in docstrings, or even on the web in blog posts,
+official `21CMMC` docs, in docstrings, or even on the web in blog posts,
 articles, and such.
-
-Feature requests and feedback
-=============================
-
-The best way to send feedback is to file an issue at https://github.com/21cmFAST/21CMMC/issues.
-
-If you are proposing a feature:
-
-* Explain in detail how it would work.
-* Keep the scope as narrow as possible, to make it easier to implement.
-* Remember that this is a volunteer-driven project, and that code contributions are welcome :)
 
 Development
 ===========
@@ -60,7 +52,7 @@ As a member:
 
 As a non-member:
 
-1. First fork `21cmFAST <https://github.com/21cmFAST/21CMMC>`_
+1. First fork `21CMMC <https://github.com/21cmFAST/21CMMC>`_
    (look for the "Fork" button), then clone the fork locally::
 
     git clone git@github.com:your_name_here/21CMMC.git
@@ -90,21 +82,9 @@ The following steps are the same for both members and non-members:
 Pull Request Guidelines
 -----------------------
 
-If you need some code review or feedback while you're developing the code just make the pull request.
+If you need some code review or feedback while you're developing the code just make the
+pull request. You can mark the PR as a draft until you are happy for it to be merged.
 
-For merging, you should:
-
-1. Include passing tests (run ``tox``) [1]_.
-2. Update documentation when there's new API, functionality etc.
-3. Add a note to ``CHANGELOG.rst`` about the changes.
-4. Add yourself to ``AUTHORS.rst``.
-
-.. [1] If you don't have all the necessary python versions available locally you can
-       rely on Travis - it will
-       `run the tests <https://travis-ci.org/BradGreig/21CMMC/pull_requests>`_ for each
-       change you add in the pull request.
-
-       It will be slower though ...
 
 Tips
 ----
