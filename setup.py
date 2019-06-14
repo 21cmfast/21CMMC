@@ -18,15 +18,13 @@ from setuptools import setup
 
 def read(*names, **kwargs):
     return io.open(
-        join(dirname(__file__), *names),
-        encoding=kwargs.get('encoding', 'utf8')
+        join(dirname(__file__), *names), encoding=kwargs.get("encoding", "utf8")
     ).read()
 
 
 def find_version(*file_paths):
     version_file = read(*file_paths)
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
-                              version_file, re.M)
+    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
@@ -35,49 +33,50 @@ def find_version(*file_paths):
 # ======================================================================================================================
 
 setup(
-    name='py21cmmc',
+    name="py21cmmc",
     version=find_version("src", "py21cmmc", "__init__.py"),
-    license='MIT license',
-    description='An extensible MCMC framework for 21cmFAST',
-    long_description='%s\n%s' % (
-        re.compile('^.. start-badges.*^.. end-badges', re.M | re.S).sub('', read('README.rst')),
-        re.sub(':[a-z]+:`~?(.*?)`', r'``\1``', read('CHANGELOG.rst'))
+    license="MIT license",
+    description="An extensible MCMC framework for 21cmFAST",
+    long_description="%s\n%s"
+    % (
+        re.compile("^.. start-badges.*^.. end-badges", re.M | re.S).sub(
+            "", read("README.rst")
+        ),
+        re.sub(":[a-z]+:`~?(.*?)`", r"``\1``", read("CHANGELOG.rst")),
     ),
-    author='Brad Greig',
-    author_email='greigb@unimelb.edu.au',
-    url='https://github.com/21cmFAST/21CMMC',
-    packages=find_packages('src'),
-    package_dir={'': 'src'},
-    py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
+    author="Brad Greig",
+    author_email="greigb@unimelb.edu.au",
+    url="https://github.com/21cmFAST/21CMMC",
+    packages=find_packages("src"),
+    package_dir={"": "src"},
+    py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
     include_package_data=True,
     zip_safe=False,
     classifiers=[
         # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
-        'Development Status :: 5 - Production/Stable',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: MIT License',
-        'Operating System :: Unix',
-        'Operating System :: POSIX',
-        'Programming Language :: Python',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: Implementation :: CPython',
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: Unix",
+        "Operating System :: POSIX",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: Implementation :: CPython",
     ],
-    keywords=[
-        "Epoch of Reionization", "Cosmology"
-    ],
+    keywords=["Epoch of Reionization", "Cosmology"],
     install_requires=[
-        'click',
+        "click",
         # 'tqdm',
-        'numpy',
-        'cosmoHammer',
-        'scipy',
-        'astropy>=2.0',
-        'emcee<3',
-        'powerbox>=0.5.7',
-        'cached_property',
-        'py21cmfast'
+        "numpy",
+        "cosmoHammer",
+        "scipy",
+        "astropy>=2.0",
+        "emcee<3",
+        "powerbox>=0.5.7",
+        "cached_property",
+        "py21cmfast",
     ],
     # entry_points={
     #     'console_scripts': [

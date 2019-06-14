@@ -12,14 +12,16 @@ from py21cmfast.wrapper import ParameterError
 
 logger = getLogger()
 
-class LikelihoodComputationChain(LCC):
 
+class LikelihoodComputationChain(LCC):
     def __init__(self, params, *args, **kwargs):
         self.params = params
         self._setup = False  # flag to say if this chain has been setup yet.
 
-        super().__init__(min=params[:, 1] if params is not None else None,
-                         max=params[:, 2] if params is not None else None)
+        super().__init__(
+            min=params[:, 1] if params is not None else None,
+            max=params[:, 2] if params is not None else None,
+        )
 
     def build_model_data(self, p=None):
         """
@@ -103,11 +105,15 @@ class LikelihoodComputationChain(LCC):
         if not self._setup:
             self.setup()
 
-        logger.debug("Invoking {}...".format(os.getpid(), coremodule.__class__.__name__))
+        logger.debug(
+            "Invoking {}...".format(os.getpid(), coremodule.__class__.__name__)
+        )
         coremodule(ctx)
         logger.debug("... finished.".format(os.getpid()))
 
-        coremodule.prepare_storage(ctx, ctx.getData())  # This adds the ability to store stuff.
+        coremodule.prepare_storage(
+            ctx, ctx.getData()
+        )  # This adds the ability to store stuff.
 
     def invokeLikelihoodModule(self, module, ctx):
         # Ensure that the chain is setup before invoking anything.
@@ -164,7 +170,9 @@ class LikelihoodComputationChain(LCC):
 
             self._setup = True
         else:
-            warnings.warn("Attempting to setup LikelihoodComputationChain when it is already setup! Ignoring...")
+            warnings.warn(
+                "Attempting to setup LikelihoodComputationChain when it is already setup! Ignoring..."
+            )
 
     def __eq__(self, other):
         if self.__class__.__name__ != other.__class__.__name__:
@@ -177,7 +185,9 @@ class LikelihoodComputationChain(LCC):
             if thisc != thatc:
                 return False
 
-        for thisc, thatc in zip(self.getLikelihoodModules(), other.getLikelihoodModules()):
+        for thisc, thatc in zip(
+            self.getLikelihoodModules(), other.getLikelihoodModules()
+        ):
             if thisc != thatc:
                 return False
 

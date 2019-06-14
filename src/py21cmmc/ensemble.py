@@ -12,6 +12,7 @@ class EnsembleSampler(emcee.EnsembleSampler):
     An over-write of the standard emcee EnsembleSampler which ensures that sampled parameters are never outside their
     range.
     """
+
     max_attempts = 100
 
     def __init__(self, pmin=None, pmax=None, *args, **kwargs):
@@ -50,7 +51,7 @@ class EnsembleSampler(emcee.EnsembleSampler):
         i = 0
         while not np.all(qgood) and i < self.max_attempts:
             # Generate the vectors of random numbers that will produce the proposal.
-            zz = ((self.a - 1.) * self._random.rand(Ns) + 1) ** 2. / self.a
+            zz = ((self.a - 1.0) * self._random.rand(Ns) + 1) ** 2.0 / self.a
             rint = self._random.randint(Nc, size=(Ns,))
 
             # Calculate the proposed positions
@@ -71,19 +72,30 @@ class EnsembleSampler(emcee.EnsembleSampler):
                 """
                 EnsembleSampler could not find a suitable selection of parameters in {max_attempts} attempts.
                 {msg}
-                """.format(max_attempts=self.max_attempts)
+                """.format(
+                    max_attempts=self.max_attempts
+                )
             )
 
         newlnprob, blob = self._get_lnprob(q)
 
         # Decide whether or not the proposals should be accepted.
-        lnpdiff = (self.dim - 1.) * np.log(zz) + newlnprob - lnprob0
-        accept = (lnpdiff > np.log(self._random.rand(len(lnpdiff))))
+        lnpdiff = (self.dim - 1.0) * np.log(zz) + newlnprob - lnprob0
+        accept = lnpdiff > np.log(self._random.rand(len(lnpdiff)))
 
         return q, newlnprob, accept, blob
 
-    def sample(self, p0, lnprob0=None, rstate0=None, blobs0=None,
-               iterations=1, thin=1, storechain=True, mh_proposal=None):
+    def sample(
+        self,
+        p0,
+        lnprob0=None,
+        rstate0=None,
+        blobs0=None,
+        iterations=1,
+        thin=1,
+        storechain=True,
+        mh_proposal=None,
+    ):
         """
         Advance the chain ``iterations`` steps as a generator.
 
@@ -156,7 +168,6 @@ class EnsembleSampler(emcee.EnsembleSampler):
         if lnprob is None:
             lnprob, blobs = self._get_lnprob(p)
 
-
         newlnp = np.zeros_like(lnprob)
 
         # Check to make sure that the probability function didn't return
@@ -171,11 +182,10 @@ class EnsembleSampler(emcee.EnsembleSampler):
         # makes a pretty big difference.
         if storechain:
             N = int(iterations / thin)
-            self._chain = np.concatenate((self._chain,
-                                          np.zeros((self.k, N, self.dim))),
-                                         axis=1)
-            self._lnprob = np.concatenate((self._lnprob,
-                                           np.zeros((self.k, N))), axis=1)
+            self._chain = np.concatenate(
+                (self._chain, np.zeros((self.k, N, self.dim))), axis=1
+            )
+            self._lnprob = np.concatenate((self._lnprob, np.zeros((self.k, N))), axis=1)
 
         for i in range(int(iterations)):
             self.iterations += 1
@@ -188,12 +198,13 @@ class EnsembleSampler(emcee.EnsembleSampler):
                 newlnp, blob = self._get_lnprob(q)
 
                 # Accept if newlnp is better; and ...
-                acc = (newlnp > lnprob)
+                acc = newlnp > lnprob
 
                 # ... sometimes accept for steps that got worse
                 worse = np.flatnonzero(~acc)
-                acc[worse] = ((newlnp[worse] - lnprob[worse]) >
-                              np.log(self._random.rand(len(worse))))
+                acc[worse] = (newlnp[worse] - lnprob[worse]) > np.log(
+                    self._random.rand(len(worse))
+                )
                 del worse
 
                 # Update the accepted walkers.
@@ -205,7 +216,8 @@ class EnsembleSampler(emcee.EnsembleSampler):
                     assert blobs is not None, (
                         "If you start sampling with a given lnprob, you also "
                         "need to provide the current list of blobs at that "
-                        "position.")
+                        "position."
+                    )
                     ind = np.arange(self.k)[acc]
                     for j in ind:
                         blobs[j] = blob[j]
@@ -217,8 +229,9 @@ class EnsembleSampler(emcee.EnsembleSampler):
                 # Slices for the first and second halves
                 first, second = slice(halfk), slice(halfk, self.k)
                 for S0, S1 in [(first, second), (second, first)]:
-                    q[S0], newlnp[S0], acc, blob = self._propose_stretch(p[S0], p[S1],
-                                                                 lnprob[S0])
+                    q[S0], newlnp[S0], acc, blob = self._propose_stretch(
+                        p[S0], p[S1], lnprob[S0]
+                    )
                     if np.any(acc):
                         # Update the positions, log probabilities and
                         # acceptance counts.
@@ -230,7 +243,8 @@ class EnsembleSampler(emcee.EnsembleSampler):
                             assert blobs is not None, (
                                 "If you start sampling with a given lnprob, "
                                 "you also need to provide the current list of "
-                                "blobs at that position.")
+                                "blobs at that position."
+                            )
                             ind = np.arange(len(acc))[acc]
                             indfull = np.arange(self.k)[S0][acc]
                             for j in range(len(ind)):
@@ -258,16 +272,20 @@ class EnsembleSampler(emcee.EnsembleSampler):
             return super()._get_lnprob(pos)
         except BrokenProcessPool:
             import traceback
+
             print(
                 """
-BrokenProcessPool exception (most likely an unrecoverable crash in C-code).  
+BrokenProcessPool exception (most likely an unrecoverable crash in C-code).
 
-  Due to the nature of this exception, it is impossible to know which of the following parameter 
+  Due to the nature of this exception, it is impossible to know which of the following parameter
   vectors were responsible for the crash. Running your likelihood function with each set
   of parameters in serial may help identify the problem.
 """
             )
-            print("  params:", str(pos if pos is not None else self.pos).replace("\n", "\n          "))
+            print(
+                "  params:",
+                str(pos if pos is not None else self.pos).replace("\n", "\n          "),
+            )
             print("  args:", self.args)
             print("  kwargs:", self.kwargs)
             print("  exception:\n")

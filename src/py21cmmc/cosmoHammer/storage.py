@@ -39,9 +39,9 @@ class HDFStorage:
             params (Params): The parameter input
         """
         if os.path.exists(self.filename):
-            mode = 'a'
+            mode = "a"
         else:
-            mode = 'w'
+            mode = "w"
 
         ndim = len(params.keys)
 
@@ -60,46 +60,54 @@ class HDFStorage:
                 "guess",
                 data=np.array(
                     [tuple([v[0] for v in params.values])],
-                    dtype=[(k, np.float64) for k in params.keys]
-                )
+                    dtype=[(k, np.float64) for k in params.keys],
+                ),
             )
-            g.create_dataset("accepted",
-                             (0, nwalkers),
-                             maxshape=(None, nwalkers),
-                             dtype=np.int)
-            g.create_dataset("chain",
-                             (0, nwalkers, ndim),
-                             maxshape=(None, nwalkers, ndim),
-                             dtype=np.float64)
-            g.create_dataset("log_prob",
-                             (0, nwalkers),
-                             maxshape=(None, nwalkers),
-                             dtype=np.float64)
+            g.create_dataset(
+                "accepted", (0, nwalkers), maxshape=(None, nwalkers), dtype=np.int
+            )
+            g.create_dataset(
+                "chain",
+                (0, nwalkers, ndim),
+                maxshape=(None, nwalkers, ndim),
+                dtype=np.float64,
+            )
+            g.create_dataset(
+                "log_prob", (0, nwalkers), maxshape=(None, nwalkers), dtype=np.float64
+            )
 
-            g.create_dataset("trials",
-                             (0, nwalkers, ndim),
-                             maxshape=(None, nwalkers, ndim),
-                             dtype=np.float64)
-            g.create_dataset("trial_log_prob",
-                             (0, nwalkers),
-                             maxshape=(None, nwalkers),
-                             dtype=np.float64)
+            g.create_dataset(
+                "trials",
+                (0, nwalkers, ndim),
+                maxshape=(None, nwalkers, ndim),
+                dtype=np.float64,
+            )
+            g.create_dataset(
+                "trial_log_prob",
+                (0, nwalkers),
+                maxshape=(None, nwalkers),
+                dtype=np.float64,
+            )
 
     @property
     def param_names(self):
         if not self.initialized:
-            raise ValueError("storage needs to be initialized to access parameter names")
+            raise ValueError(
+                "storage needs to be initialized to access parameter names"
+            )
 
         with self.open() as f:
-            return f[self.name]['guess'].dtype.names
+            return f[self.name]["guess"].dtype.names
 
     @property
     def param_guess(self):
         if not self.initialized:
-            raise ValueError("storage needs to be initialized to access parameter guess")
+            raise ValueError(
+                "storage needs to be initialized to access parameter guess"
+            )
 
         with self.open() as f:
-            return f[self.name]['guess'][...]
+            return f[self.name]["guess"][...]
 
     @property
     def blob_names(self):
@@ -127,7 +135,7 @@ class HDFStorage:
             if name == "blobs" and not g.attrs["has_blobs"]:
                 return None
 
-            v = g[name][discard + thin - 1:self.iteration:thin]
+            v = g[name][discard + thin - 1 : self.iteration : thin]
             if flat:
                 s = list(v.shape[1:])
                 s[0] = np.prod(v.shape[:2])
@@ -139,7 +147,7 @@ class HDFStorage:
     def size(self):
         with self.open() as f:
             g = f[self.name]
-            return g['chain'].shape[0]
+            return g["chain"].shape[0]
 
     @property
     def shape(self):
@@ -196,18 +204,24 @@ class HDFStorage:
                     blobs_dtype = []
                     for k, v in blobs.items():
                         shape = np.atleast_1d(v).shape
-                        if len(shape) == 1: shape = shape[0]
+                        if len(shape) == 1:
+                            shape = shape[0]
                         blobs_dtype += [(k, (np.atleast_1d(v).dtype, shape))]
 
-                    g.create_dataset("blobs", (ntot, nwalkers),
-                                     maxshape=(None, nwalkers),
-                                     dtype=blobs_dtype)
+                    g.create_dataset(
+                        "blobs",
+                        (ntot, nwalkers),
+                        maxshape=(None, nwalkers),
+                        dtype=blobs_dtype,
+                    )
                 else:
                     g["blobs"].resize(ntot, axis=0)
 
                 g.attrs["has_blobs"] = True
 
-    def save_step(self, coords, log_prob, blobs, truepos, trueprob, accepted, random_state):
+    def save_step(
+        self, coords, log_prob, blobs, truepos, trueprob, accepted, random_state
+    ):
         """Save a step to the file
         Args:
             coords (ndarray): The coordinates of the walkers in the ensemble.
@@ -226,14 +240,21 @@ class HDFStorage:
 
             g["chain"][iteration, :, :] = coords
             g["log_prob"][iteration, :] = log_prob
-            g['trials'][iteration, :, :] = truepos
-            g['trial_log_prob'][iteration, :] = trueprob
+            g["trials"][iteration, :, :] = truepos
+            g["trial_log_prob"][iteration, :] = trueprob
 
-            if blobs[0]:  # i.e. blobs is a list of dicts, and if the first dict is non-empty...
-                blobs = np.array([tuple([b[name] for name in g['blobs'].dtype.names]) for b in blobs],
-                                 dtype=g['blobs'].dtype)
+            if blobs[
+                0
+            ]:  # i.e. blobs is a list of dicts, and if the first dict is non-empty...
+                blobs = np.array(
+                    [
+                        tuple([b[name] for name in g["blobs"].dtype.names])
+                        for b in blobs
+                    ],
+                    dtype=g["blobs"].dtype,
+                )
                 # Blobs must be a dict
-                g['blobs'][iteration, ...] = blobs
+                g["blobs"][iteration, ...] = blobs
 
             g["accepted"][iteration, :] = accepted
 
@@ -382,9 +403,11 @@ class HDFStorage:
               saved during sampling.
         """
         if (not self.initialized) or self.iteration <= 0:
-            raise AttributeError("you must run the sampler with "
-                                 "'store == True' before accessing the "
-                                 "results")
+            raise AttributeError(
+                "you must run the sampler with "
+                "'store == True' before accessing the "
+                "results"
+            )
         it = self.iteration
         last = [
             self.get_chain(discard=it - 1)[0],
@@ -401,29 +424,31 @@ class HDFStorage:
         return tuple(last)
 
     def _check(self, coords, log_prob, blobs, accepted):
-        
+
         self._check_blobs(blobs[0])
         nwalkers, ndim = self.shape
-        
+
         if coords.shape != (nwalkers, ndim):
-            raise ValueError("invalid coordinate dimensions; expected {0}"
-                             .format((nwalkers, ndim)))
+            raise ValueError(
+                "invalid coordinate dimensions; expected {0}".format((nwalkers, ndim))
+            )
         if log_prob.shape != (nwalkers,):
-            raise ValueError("invalid log probability size; expected {0}"
-                             .format(nwalkers))
+            raise ValueError(
+                "invalid log probability size; expected {0}".format(nwalkers)
+            )
         if blobs and len(blobs) != nwalkers:
-            raise ValueError("invalid blobs size; expected {0}"
-                             .format(nwalkers))
+            raise ValueError("invalid blobs size; expected {0}".format(nwalkers))
         if accepted.shape != (nwalkers,):
-            raise ValueError("invalid acceptance size; expected {0}"
-                             .format(nwalkers))
+            raise ValueError("invalid acceptance size; expected {0}".format(nwalkers))
 
 
 class HDFStorageUtil:
     def __init__(self, file_prefix, chain_number=0):
         self.file_prefix = file_prefix
-        self.burnin_storage = HDFStorage(file_prefix + '.h5', name='burnin')
-        self.sample_storage = HDFStorage(file_prefix + '.h5', name='sample_%s' % chain_number)
+        self.burnin_storage = HDFStorage(file_prefix + ".h5", name="burnin")
+        self.sample_storage = HDFStorage(
+            file_prefix + ".h5", name="sample_%s" % chain_number
+        )
 
     def reset(self, nwalkers, params, burnin=True, samples=True):
         if burnin:
@@ -439,7 +464,9 @@ class HDFStorageUtil:
     def samples_initialized(self):
         return self.sample_storage.initialized
 
-    def persistValues(self, pos, prob, data, truepos, trueprob, accepted, random_state, burnin=False):
+    def persistValues(
+        self, pos, prob, data, truepos, trueprob, accepted, random_state, burnin=False
+    ):
         st = self.burnin_storage if burnin else self.sample_storage
         st.save_step(pos, prob, data, truepos, trueprob, accepted, random_state)
 

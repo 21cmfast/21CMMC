@@ -8,9 +8,9 @@ class Params(_util.Params):
 
     def __eq__(self, other):
         if self.__class__.__name__ != other.__class__.__name__:
-            return  False
+            return False
 
-        for i, (k,v) in enumerate(self.items()):
+        for i, (k, v) in enumerate(self.items()):
             if k not in other.keys:
                 return False
             for j, val in enumerate(v):

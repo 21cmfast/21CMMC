@@ -14,13 +14,15 @@ logger = logging.getLogger("21cmFAST")
 
 class NotSetupError(AttributeError):
     def __init__(self):
-        default_message = 'setup() must have been called on the chain to use this method/attribute!'
+        default_message = (
+            "setup() must have been called on the chain to use this method/attribute!"
+        )
         super().__init__(default_message)
 
 
 class NotAChain(AttributeError):
     def __init__(self):
-        default_message = 'this Core or Likelihood must be part of a LikelihoodComputationChain to enable this method/attribute!'
+        default_message = "this Core or Likelihood must be part of a LikelihoodComputationChain to enable this method/attribute!"
         super().__init__(default_message)
 
 
@@ -29,8 +31,12 @@ class AlreadySetupError(Exception):
 
 
 class ModuleBase:
-    extra_defining_attributes = []  # extra attributes (in addition to those passed to init) that define equality
-    ignore_attributes = []  # attributes to ignore (from those passed to init) for determining equality
+    extra_defining_attributes = (
+        []
+    )  # extra attributes (in addition to those passed to init) that define equality
+    ignore_attributes = (
+        []
+    )  # attributes to ignore (from those passed to init) for determining equality
     required_cores = []
 
     def __init__(self):
@@ -39,7 +45,10 @@ class ModuleBase:
     def _check_required_cores(self):
         for rc in self.required_cores:
             if not any([isinstance(m, rc) for m in self._cores]):
-                raise ValueError("%s needs the %s to be loaded." % (self.__class__.__name__, rc.__class__.__name__))
+                raise ValueError(
+                    "%s needs the %s to be loaded."
+                    % (self.__class__.__name__, rc.__class__.__name__)
+                )
 
     @property
     def chain(self):
@@ -78,10 +87,16 @@ class ModuleBase:
                     if getattr(self, arg) != getattr(other, arg):
                         return False
                 else:
-                    logger.warning("parameter {arg} not found in instance".format(arg=arg))
+                    logger.warning(
+                        "parameter {arg} not found in instance".format(arg=arg)
+                    )
 
             except ValueError:
-                logger.warning("parameter {arg} has type which does not allow for comparison".format(arg=arg))
+                logger.warning(
+                    "parameter {arg} has type which does not allow for comparison".format(
+                        arg=arg
+                    )
+                )
 
         return True
 
@@ -95,7 +110,6 @@ class ModuleBase:
 
 
 class CoreBase(ModuleBase):
-
     def __init__(self, store=None):
         self.store = store or {}
 
@@ -106,8 +120,10 @@ class CoreBase(ModuleBase):
                     break
                 if core.__class__.__name__ == self.__class__.__name__:
                     raise ValueError(
-                        "{this} requires {that} to be loaded.".format(this=self.__class__.__name__,
-                                                                      that=rc.__class__.__name__))
+                        "{this} requires {that} to be loaded.".format(
+                            this=self.__class__.__name__, that=rc.__class__.__name__
+                        )
+                    )
 
     def prepare_storage(self, ctx, storage):
         """Add variables to special dict which cosmoHammer will automatically store with the chain."""
@@ -115,7 +131,9 @@ class CoreBase(ModuleBase):
             try:
                 storage[name] = storage_function(ctx)
             except Exception:
-                logger.error("Exception while trying to evaluate storage function %s" % name)
+                logger.error(
+                    "Exception while trying to evaluate storage function %s" % name
+                )
                 raise
 
     def build_model_data(self, ctx):
@@ -175,14 +193,24 @@ class CoreCoevalModule(CoreBase):
     3. ``xHI``: an :class:`~py21cmmc._21cmfast.wrapper.IonizedBox` instance
     4. ``brightness_temp``: a :class:`~py21cmmc._21cmfast.wrapper.BrightnessTemp` instance
     """
-    ignore_attributes = ['keep_data_in_memory']
 
-    def __init__(self, redshift,
-                 user_params=None, flag_options=None, astro_params=None,
-                 cosmo_params=None, regenerate=True, z_step_factor=1.02,
-                 z_heat_max=None, change_seed_every_iter=False, ctx_variables=None,
-                 initial_conditions_seed=None,
-                 **io_options):
+    ignore_attributes = ["keep_data_in_memory"]
+
+    def __init__(
+        self,
+        redshift,
+        user_params=None,
+        flag_options=None,
+        astro_params=None,
+        cosmo_params=None,
+        regenerate=True,
+        z_step_factor=1.02,
+        z_heat_max=None,
+        change_seed_every_iter=False,
+        ctx_variables=None,
+        initial_conditions_seed=None,
+        **io_options,
+    ):
         """
         Initialize the class.
 
@@ -286,7 +314,8 @@ class CoreCoevalModule(CoreBase):
 
         if self.initial_conditions_seed and self.change_seed_every_iter:
             logger.warning(
-                "Attempting to set initial conditions seed while desiring to change seeds every iteration. Unsetting initial conditions seed.")
+                "Attempting to set initial conditions seed while desiring to change seeds every iteration. Unsetting initial conditions seed."
+            )
             self.initial_conditions_seed = None
 
     def setup(self):
@@ -301,7 +330,9 @@ class CoreCoevalModule(CoreBase):
         super().setup()
 
         # If the chain has different parameter truths, we want to use those for our defaults.
-        self.astro_params, self.cosmo_params = self._update_params(self.chain.createChainContext().getParams())
+        self.astro_params, self.cosmo_params = self._update_params(
+            self.chain.createChainContext().getParams()
+        )
 
         if self.z_heat_max is not None:
             p21.global_params.Z_HEAT_MAX = self.z_heat_max
@@ -309,16 +340,18 @@ class CoreCoevalModule(CoreBase):
         # Here we initialize the init and perturb boxes.
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
-        if not any(
-                [p in self.cosmo_params.self.keys() for p in self.parameter_names]) and not self.change_seed_every_iter:
+        if (
+            not any([p in self.cosmo_params.self.keys() for p in self.parameter_names])
+            and not self.change_seed_every_iter
+        ):
             logger.info("Initializing init and perturb boxes for the entire chain.")
 
             initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
-                direc=self.io_options['cache_dir'],
+                direc=self.io_options["cache_dir"],
                 regenerate=self.regenerate,
-                random_seed=self.initial_conditions_seed
+                random_seed=self.initial_conditions_seed,
             )
 
             # update the seed
@@ -326,33 +359,37 @@ class CoreCoevalModule(CoreBase):
 
             perturb_field = []
             for z in self.redshift:
-                perturb_field += [p21.perturb_field(
-                    redshift=z,
-                    init_boxes=initial_conditions,
-                    direc=self.io_options['cache_dir'],
-                    regenerate=self.regenerate,
-                )]
+                perturb_field += [
+                    p21.perturb_field(
+                        redshift=z,
+                        init_boxes=initial_conditions,
+                        direc=self.io_options["cache_dir"],
+                        regenerate=self.regenerate,
+                    )
+                ]
             logger.info("Initialization done.")
 
     def get_current_init_and_perturb(self, cosmo_params):
         initial_conditions = p21.initial_conditions(
             user_params=self.user_params,
             cosmo_params=cosmo_params,
-            direc=self.io_options['cache_dir'],
+            direc=self.io_options["cache_dir"],
             regenerate=False,
             random_seed=self.initial_conditions_seed,
-            write=self.io_options['cache_mcmc'],
+            write=self.io_options["cache_mcmc"],
         )
 
         perturb_field = []
         for z in self.redshift:
-            perturb_field += [p21.perturb_field(
-                redshift=z,
-                init_boxes=initial_conditions,
-                direc=self.io_options['cache_dir'],
-                regenerate=False,
-                write=self.io_options['cache_mcmc'],
-            )]
+            perturb_field += [
+                p21.perturb_field(
+                    redshift=z,
+                    init_boxes=initial_conditions,
+                    direc=self.io_options["cache_dir"],
+                    regenerate=False,
+                    write=self.io_options["cache_mcmc"],
+                )
+            ]
 
         return initial_conditions, perturb_field
 
@@ -365,19 +402,22 @@ class CoreCoevalModule(CoreBase):
         # Explicitly get the init and perturb boxes, because we don't want to
         # regenerate them (they will be read in *unless* we are changing
         # cosmo or seed)
-        initial_conditions, perturb_field = self.get_current_init_and_perturb(cosmo_params)
+        initial_conditions, perturb_field = self.get_current_init_and_perturb(
+            cosmo_params
+        )
 
         # Call C-code
         init, perturb, xHI, brightness_temp = p21.run_coeval(
             redshift=self.redshift,
-            astro_params=astro_params, flag_options=self.flag_options,
+            astro_params=astro_params,
+            flag_options=self.flag_options,
             init_box=initial_conditions,
             perturb=perturb_field,
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
-            write=self.io_options['cache_mcmc'],
-            direc=self.io_options['cache_dir'],
+            write=self.io_options["cache_mcmc"],
+            direc=self.io_options["cache_dir"],
         )
 
         logger.debug("Adding {} to context data".format(self.ctx_variables))
@@ -386,7 +426,8 @@ class CoreCoevalModule(CoreBase):
                 ctx.add(key, locals()[key])
             except KeyError:
                 raise KeyError(
-                    "ctx_variables must be drawn from the list ['init', 'perturb', 'xHI', 'brightness_temp']")
+                    "ctx_variables must be drawn from the list ['init', 'perturb', 'xHI', 'brightness_temp']"
+                )
 
     def _update_params(self, params):
         """
@@ -400,8 +441,20 @@ class CoreCoevalModule(CoreBase):
         ap_dict = copy.copy(self.astro_params.self)
         cp_dict = copy.copy(self.cosmo_params.self)
 
-        ap_dict.update(**{k: getattr(params, k) for k, v in params.items() if k in self.astro_params.defining_dict})
-        cp_dict.update(**{k: getattr(params, k) for k, v in params.items() if k in self.cosmo_params.defining_dict})
+        ap_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.astro_params.defining_dict
+            }
+        )
+        cp_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.cosmo_params.defining_dict
+            }
+        )
 
         return p21.AstroParams(**ap_dict), p21.CosmoParams(**cp_dict)
 
@@ -421,7 +474,8 @@ class CoreLightConeModule(CoreCoevalModule):
     def __init__(self, *, max_redshift=None, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn(
-                "ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored.")
+                "ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored."
+            )
 
         super().__init__(**kwargs)
         self.max_redshift = max_redshift
@@ -433,8 +487,11 @@ class CoreLightConeModule(CoreCoevalModule):
         """
         # noinspection PyProtectedMember
         return p21.wrapper._get_lightcone_redshifts(
-            self.cosmo_params, self.max_redshift, self.redshift[0],
-            self.user_params, self.z_step_factor
+            self.cosmo_params,
+            self.max_redshift,
+            self.redshift[0],
+            self.user_params,
+            self.z_step_factor,
         )
 
     def build_model_data(self, ctx):
@@ -445,22 +502,25 @@ class CoreLightConeModule(CoreCoevalModule):
         lightcone = p21.run_lightcone(
             redshift=self.redshift[0],
             max_redshift=self.max_redshift,
-            astro_params=astro_params, flag_options=self.flag_options,
-            cosmo_params=cosmo_params, user_params=self.user_params,
+            astro_params=astro_params,
+            flag_options=self.flag_options,
+            cosmo_params=cosmo_params,
+            user_params=self.user_params,
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
-            write=self.io_options['cache_mcmc'],
-            direc=self.io_options['cache_dir'],
+            write=self.io_options["cache_mcmc"],
+            direc=self.io_options["cache_dir"],
         )
 
-        ctx.add('lightcone', lightcone)
+        ctx.add("lightcone", lightcone)
 
 
 class CoreLuminosityFunction(CoreCoevalModule):
     """
     A Core Module that produces model luminosity functions at a range of redshifts.
     """
+
     def __init__(self, sigma, **kwargs):
         self._sigma = sigma
         super().__init__(**kwargs)
@@ -469,13 +529,17 @@ class CoreLuminosityFunction(CoreCoevalModule):
         CoreBase.setup(self)
 
         # If the chain has different parameter truths, we want to use those for our defaults.
-        self.astro_params, self.cosmo_params = self._update_params(self.chain.createChainContext().getParams())
+        self.astro_params, self.cosmo_params = self._update_params(
+            self.chain.createChainContext().getParams()
+        )
 
     def run(self, astro_params, cosmo_params):
         return p21.compute_luminosity_function(
             redshifts=self.redshift,
-            astro_params=astro_params, flag_options=self.flag_options,
-            cosmo_params=cosmo_params, user_params=self.user_params,
+            astro_params=astro_params,
+            flag_options=self.flag_options,
+            cosmo_params=cosmo_params,
+            user_params=self.user_params,
         )
 
     def build_model_data(self, ctx):
@@ -489,20 +553,22 @@ class CoreLuminosityFunction(CoreCoevalModule):
         mhalo = [m[~np.isnan(l)] for l, m in zip(lfunc, mhalo)]
         lfunc = [m[~np.isnan(l)] for l, m in zip(lfunc, lfunc)]
 
-        ctx.add('luminosity_function', {"Muv":Muv, "mhalo":mhalo, "lfunc":lfunc})
+        ctx.add("luminosity_function", {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc})
 
     @property
     def sigma(self):
-        if not hasattr(self._sigma, "__len__") or len(self._sigma) != len(self.redshift):
-            return [self._sigma]*len(self.redshift)
+        if not hasattr(self._sigma, "__len__") or len(self._sigma) != len(
+            self.redshift
+        ):
+            return [self._sigma] * len(self.redshift)
         else:
             return self._sigma
 
     def convert_model_to_mock(self, ctx):
-        lfunc = ctx.get("luminosity_function")['lfunc']
-        muv = ctx.get("luminosity_function")['Muv']
+        lfunc = ctx.get("luminosity_function")["lfunc"]
+        muv = ctx.get("luminosity_function")["Muv"]
 
-        for i, s in enumerate(self.sigma): # each redshift
+        for i, s in enumerate(self.sigma):  # each redshift
             try:
                 lfunc[i] += np.random.normal(loc=0, scale=s(muv), size=len(lfunc[i]))
             except TypeError:

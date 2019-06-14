@@ -3,7 +3,12 @@ from concurrent.futures import ProcessPoolExecutor
 from os import path, mkdir
 
 from py21cmfast import yaml
-from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
+from .cosmoHammer import (
+    CosmoHammerSampler,
+    LikelihoodComputationChain,
+    HDFStorageUtil,
+    Params,
+)
 
 logger = logging.getLogger("21cmFAST")
 
@@ -40,15 +45,22 @@ def build_computation_chain(core_modules, likelihood_modules, params=None, setup
     for lk in likelihood_modules:
         chain.addLikelihoodModule(lk)
 
-    if setup: chain.setup()
+    if setup:
+        chain.setup()
     return chain
 
 
-def run_mcmc(core_modules, likelihood_modules, params,
-             datadir='.', model_name='21CMMC',
-             continue_sampling=True, reuse_burnin=True,
-             log_level_21CMMC=None,
-             **mcmc_options):
+def run_mcmc(
+    core_modules,
+    likelihood_modules,
+    params,
+    datadir=".",
+    model_name="21CMMC",
+    continue_sampling=True,
+    reuse_burnin=True,
+    log_level_21CMMC=None,
+    **mcmc_options,
+):
     """
 
     Parameters
@@ -108,18 +120,22 @@ def run_mcmc(core_modules, likelihood_modules, params,
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
 
-    chain = build_computation_chain(core_modules, likelihood_modules, params, setup=False)
+    chain = build_computation_chain(
+        core_modules, likelihood_modules, params, setup=False
+    )
 
     if continue_sampling:
         try:
-            with open(file_prefix + ".LCC.yml", 'r') as f:
+            with open(file_prefix + ".LCC.yml", "r") as f:
                 old_chain = yaml.load(f)
 
             if old_chain != chain:
                 raise RuntimeError(
-                    "Attempting to continue chain, but chain parameters are different. " +
-                    "Check your parameters against {file_prefix}.LCC.yml".format(
-                        file_prefix=file_prefix))
+                    "Attempting to continue chain, but chain parameters are different. "
+                    + "Check your parameters against {file_prefix}.LCC.yml".format(
+                        file_prefix=file_prefix
+                    )
+                )
 
         except FileNotFoundError:
             pass
@@ -129,19 +145,22 @@ def run_mcmc(core_modules, likelihood_modules, params,
             if hasattr(lk, "_simulate") and lk._simulate:
                 logger.warning(
                     """
-Likelihood {} was defined to re-simulate data/noise, but this is incompatible with `continue_sampling`. 
-Setting simulate=False and continuing...
-""")
+Likelihood {} was defined to re-simulate data/noise, but this is incompatible with
+`continue_sampling`. Setting simulate=False and continuing...
+"""
+                )
                 lk._simulate = False
 
     # Write out the parameters *before* setup.
     # TODO: not sure if this is the best idea -- should it be after setup()?
     try:
-        with open(file_prefix + ".LCC.yml", 'w') as f:
+        with open(file_prefix + ".LCC.yml", "w") as f:
             yaml.dump(chain, f)
     except Exception as e:
         logger.warning(
-            "Attempt to write out YAML file containing LikelihoodComputationChain failed. Boldly continuing...")
+            "Attempt to write out YAML file containing LikelihoodComputationChain failed. "
+            "Boldly continuing..."
+        )
         print(e)
 
     chain.setup()
@@ -156,8 +175,10 @@ Setting simulate=False and continuing...
         storageUtil=HDFStorageUtil(file_prefix),
         filePrefix=file_prefix,
         reuseBurnin=reuse_burnin,
-        pool=mcmc_options.get("pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))),
-        **mcmc_options
+        pool=mcmc_options.get(
+            "pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))
+        ),
+        **mcmc_options,
     )
 
     # The sampler writes to file, so no need to save anything ourselves.
