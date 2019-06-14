@@ -4,7 +4,6 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import io
-import os
 import re
 from glob import glob
 from os.path import basename
@@ -73,11 +72,11 @@ setup(
         "numpy",
         "cosmoHammer",
         "scipy",
-        "astropy>=2.0",
+        "matplotlib>=2.1",
         "emcee<3",
         "powerbox>=0.5.7",
         "cached_property",
-        "py21cmfast",
+        "py21cmfast @ https://github.com/21cmFAST/21cmFAST",  # TODO: publish to pypi
     ],
     # entry_points={
     #     'console_scripts': [
