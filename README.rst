@@ -16,6 +16,10 @@
 
 An extensible MCMC framework for 21cmFAST.
 
+
+This code uses `semantic versioning <https://semver.org>`_, though this will strictly
+begin when `v1.0.0` is officially shipped.
+
 * Free software: MIT license
 
 Features
