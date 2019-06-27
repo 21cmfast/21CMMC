@@ -32,7 +32,7 @@ def find_version(*file_paths):
 # ======================================================================================================================
 
 setup(
-    name="py21cmmc",
+    name="21CMMC",
     version=find_version("src", "py21cmmc", "__init__.py"),
     license="MIT license",
     description="An extensible MCMC framework for 21cmFAST",
@@ -76,7 +76,7 @@ setup(
         "emcee<3",
         "powerbox>=0.5.7",
         "cached_property",
-        "py21cmfast",
+        "21cmFAST>=3.0.0dev",
     ],
     # entry_points={
     #     'console_scripts': [
