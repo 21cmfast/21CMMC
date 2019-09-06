@@ -4,20 +4,13 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-
-[packages]
-click = "*"
-numpy = "*"
-cffi = "*"
-scipy = "*"
-astropy = "*"
 corner = "*"
-pytest = "*"
 pytest-cov = "*"
 pre-commit = "*"
 tox = "*"
-21cmfast = {git = "git://github.com/21cmFAST/21cmFAST"}
-PyYAML = "*"
+
+[packages]
+21cmfast = {editable = true,git = "git://github.com/21cmfast/21cmFAST"}
 21cmmc = {editable = true,path = "."}
 
 [requires]
