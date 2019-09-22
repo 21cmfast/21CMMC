@@ -76,7 +76,7 @@ setup(
         "emcee<3",
         "powerbox>=0.5.7",
         "cached_property",
-        "21cmFAST @ git+git://github.com/21cmfast/21cmFAST#egg=21cmFAST",
+        "21cmFAST>=3.0.0dev",
     ],
     # entry_points={
     #     'console_scripts': [
