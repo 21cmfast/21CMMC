@@ -423,12 +423,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         """
         The redshifts of coeval simulations.
         """
-
-        for c in self._cores:
-            try:
-                return c.redshift
-            except AttributeError:
-                pass
+        return self.core_primary.redshift
 
     def computeLikelihood(self, model):
 
@@ -602,6 +597,8 @@ class LikelihoodPlanck(LikelihoodBase):
     `tau_mean` and `tau_sigma`.
     """
 
+    required_cores = [(core.CoreCoevalModule, core.CoreLightConeModule)]
+
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012 (https://arxiv.org/abs/1605.03507)
     tau_mean = 0.058
@@ -634,26 +631,8 @@ class LikelihoodPlanck(LikelihoodBase):
         return ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
 
     @property
-    def _core(self):
-        """The core module used for the xHI global value"""
-        # Try using a lightcone
-        for m in self._cores:
-            if isinstance(m, core.CoreLightConeModule):
-                return m
-
-        # Otherwise try using a Coeval
-        for m in self._cores:
-            if isinstance(m, core.CoreCoevalModule):
-                return m
-
-        # Otherwise, give an error
-        raise AttributeError(
-            "The Planck Likelihood requires either a LightCone (preferred) or Coeval core module"
-        )
-
-    @property
     def _is_lightcone(self):
-        return isinstance(self._core, core.CoreLightConeModule)
+        return isinstance(self.core_primary, core.CoreLightConeModule)
 
     def reduce_data(self, ctx):
         # Extract relevant info from the context.
@@ -666,7 +645,7 @@ class LikelihoodPlanck(LikelihoodBase):
             xHI = lc.global_xHI
 
         else:
-            redshifts = self._core.redshift
+            redshifts = self.core_primary.redshift
             xHI = [np.mean(x.xH_box) for x in ctx.get("xHI")]
 
         if len(redshifts) < 3:
@@ -692,8 +671,8 @@ class LikelihoodPlanck(LikelihoodBase):
         # line code.
         # TODO: not sure if this works.
         tau_value = lib.compute_tau(
-            user_params=self._core.user_params,
-            cosmo_params=self._core.cosmo_params,
+            user_params=self.core_primary.user_params,
+            cosmo_params=self.core_primary.cosmo_params,
             redshifts=z_extrap,
             global_xHI=xHI,
         )
@@ -708,6 +687,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     The log-likelihood statistic is a simple chi^2 if the model has xHI > threshold, and 0 otherwise.
     """
 
+    required_cores = [(core.CoreLightConeModule, core.CoreCoevalModule)]
     threshold = 0.06
 
     def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
@@ -757,11 +737,6 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         ]
 
     def setup(self):
-        if not self.lightcone_modules + self.coeval_modules:
-            raise ValueError(
-                "LikelihoodNeutralFraction needs the CoreLightConeModule *or* CoreCoevalModule to be loaded."
-            )
-
         if not self.lightcone_modules:
             # Get all unique redshifts from all coeval boxes in cores.
             self.redshifts = list(
@@ -771,7 +746,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             for z in self.redshift:
                 if z not in self.redshifts and len(self.redshifts) < 3:
                     raise ValueError(
-                        "To use LikelihoodNeutralFraction, the core must be a lightcone, or coeval with >=3 redshifts, or containing the desired redshift"
+                        "To use LikelihoodNeutralFraction, the core must be a lightcone, "
+                        "or coeval with >=3 redshifts, or containing the desired redshift"
                     )
                 elif z not in self.redshifts:
                     self._require_spline = True
@@ -924,14 +900,8 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     required_cores = [core.CoreLuminosityFunction]
 
     @property
-    def lfcore(self):
-        for m in self._cores:
-            if isinstance(m, core.CoreLuminosityFunction):
-                return m
-
-    @property
     def redshifts(self):
-        return self.lfcore.redshift
+        return self.core_primary.redshift
 
     def reduce_data(self, ctx):
         return ctx.get("luminosity_function")
@@ -950,7 +920,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             return lnl
 
     def define_noise(self, ctx, model):
-        sig = self.lfcore.sigma
+        sig = self.core_primary.sigma
 
         if callable(sig[0]):
             return [{"sigma": s(m["Muv"])} for s, m in zip(sig, model)]

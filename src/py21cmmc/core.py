@@ -6,10 +6,20 @@ import inspect
 import logging
 import warnings
 import numpy as np
+from collections import Iterable
 
 import py21cmfast as p21
 
 logger = logging.getLogger("21cmFAST")
+
+
+def flatten(items):
+    """Yield items from any nested iterable; see Reference."""
+    for x in items:
+        if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
+            yield from flatten(x)
+        else:
+            yield x
 
 
 class NotSetupError(AttributeError):
@@ -37,14 +47,21 @@ class ModuleBase:
     ignore_attributes = (
         []
     )  # attributes to ignore (from those passed to init) for determining equality
-    required_cores = []
+
+    required_cores = []  # Specifies required cores that need to be loaded if this core
+    # is loaded. Tuples in the list indicate "or" relationship.
 
     def __init__(self):
         self._is_setup = False
 
     def _check_required_cores(self):
         for rc in self.required_cores:
-            if not any([isinstance(m, rc) for m in self._cores]):
+            # Ensure the required_core is a tuple -- we check that at least *one*
+            # of the cores in the tuple is in the _cores.
+            if not hasattr(rc, "__len__"):
+                rc = (rc,)
+
+            if not any([any([isinstance(m, r) for r in rc]) for m in self._cores]):
                 raise ValueError(
                     "%s needs the %s to be loaded."
                     % (self.__class__.__name__, rc.__class__.__name__)
@@ -104,6 +121,17 @@ class ModuleBase:
     def _cores(self):
         """List of all loaded cores"""
         return self.chain.getCoreModules()
+
+    @property
+    def _rq_cores(self):
+        """List of all loaded cores that are in the requirements, in order of the requirements"""
+        req = flatten(self.required_cores)
+        return tuple([core for core in self._cores for r in req if isinstance(core, r)])
+
+    @property
+    def core_primary(self):
+        """The first core that appears in the requirements"""
+        return self._rq_cores[0] if self._rq_cores else self._cores[0]
 
     def setup(self):
         self._check_required_cores()
