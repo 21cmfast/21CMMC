@@ -381,6 +381,29 @@ def test_global_signal(lc_core, lc_core_ctx):
     assert "frequencies" in model
 
 
+def test_edges_timing_only(lc_core, lc_core_ctx):
+    lk = mcmc.LikelihoodEDGEStimingOnly(simulate=True)
+
+    mcmc.build_computation_chain(lc_core, lk, setup=False)
+    lk.setup()
+
+    model = lk.reduce_data(lc_core_ctx)
+
+    assert "Freq_Tbmin" in model
+
+
+def test_edges(lc_core, lc_core_ctx):
+    lk = mcmc.LikelihoodEDGES(simulate=True)
+
+    mcmc.build_computation_chain(lc_core, lk, setup=False)
+    lk.setup()
+
+    model = lk.reduce_data(lc_core_ctx)
+
+    assert "Freq_Tbmin" in model
+    assert "FWHM" in model
+
+
 def test_load_chain(core, likelihood_coeval, tmpdirec):
     mcmc.run_mcmc(
         core,

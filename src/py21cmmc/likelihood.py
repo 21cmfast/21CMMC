@@ -956,3 +956,101 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             return [{"sigma": s(m["Muv"])} for s, m in zip(sig, model)]
         else:
             return [{"sigma": s} for s in sig]
+
+
+class LikelihoodEDGES(LikelihoodBaseFile):
+    """
+    A likelihood based on chi^2 comparison to Global Signal of EDGES timing and FWHM
+    """
+
+    FREQ_EDGES = 78.
+    FREQ_ERR_EDGES = 1.
+    FWHM_EDGES = 19.
+    FWHM_ERR_UPP_EDGES = 4.
+    FWHM_ERR_LOW_EDGES = 2.
+
+    required_cores = [core.CoreLightConeModule]
+
+    def reduce_data(self, ctx):
+        frequencies=1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
+        global_signal=ctx.get("lightcone").global_brightness_temp,
+        f = InterpolatedUnivariateSpline(frequencies, global_signal,k=4)
+        cr_pts = f.derivative().roots()
+        cr_vals = f(cr_pts)
+        if (len(cr_vals) == 0):
+            return dict(Freq_Tbmin = None, FWHM = None)
+        else:
+            Freq_Tbmin = cr_pts[np.argmin(cr_vals)]
+            Freqs_HM= InterpolatedUnivariateSpline(frequencies,global_signal-f(Freq_Tbmin) * 0.5, k=3).roots()
+            if len(Freqs_HM) == 2:
+                Freq_r = Freqs_HM[1]
+                Freq_l = Freqs_HM[0]
+            elif len(Freqs_HM) == 1:
+                if Freqs_HM[0] > Freq_Tbmin:
+                    Freq_r = Freqs_HM[0]
+                    Freq_l = frequencies[0]
+                else:
+                    Freq_l = Freqs_HM[0]
+                    Freq_r = frequencies[-1]
+            elif len(Freqs_HM) > 2:
+                Freq_1 = Freqs_HM[np.argmin(np.abs(Freqs_HM - Freq_Tbmin))]
+                if (Freq_1 < Freq_Tbmin):
+                    Freq_l = Freq_1
+                    Freq_rs = Freqs_HM[Freqs_HM > Freq_Tbmin]
+                    if len(Freq_rs) > 0:
+                        Freq_r = Freq_rs[0]
+                    else:
+                        Freq_r = frequencies[-1]
+                else:
+                    Freq_r = Freq_1
+                    Freq_ls = Freqs_HM[Freqs_HM < Freq_Tbmin]
+                    if len(Freq_ls) >0:
+                        Freq_l = Freq_ls[-1]
+                    else:
+                        Freq_l = frequencies[0]
+            if len(Freqs_HM) == 0:
+                return dict(Freq_Tbmin = Freq_Tbmin, FWHM = None)
+            else:
+                return dict(Freq_Tbmin = Freq_Tbmin, FWHM = Freq_r - Freq_l)
+
+    def computeLikelihood(self, model):
+        """
+        Compute the likelihood, given the lightcone output from 21cmFAST.
+        """
+
+        if model["Freq_Tbmin"] is None or model["FWHM"] is None:
+            return -10000000000.
+        else:
+            return -0.5 * np.square((model["Freq_Tbmin"] - self.FREQ_EDGES ) / self.FREQ_ERR_EDGES) +\
+                   -0.5 * np.square(model["FWHM"] - self.FWHM_EDGES) / (self.FWHM_ERR_UPP_EDGES * self.FWHM_ERR_LOW_EDGES + (self.FWHM_ERR_UPP_EDGES - self.FWHM_ERR_LOW_EDGES) * ( model["FWHM"] - self.FWHM_EDGES))
+
+class LikelihoodEDGEStimingOnly(LikelihoodBaseFile):
+    """
+    A likelihood based on chi^2 comparison to Global Signal of EDGES timing only
+    """
+
+    FREQ_EDGES = 78.
+    FREQ_ERR_EDGES = 1.
+
+    required_cores = [core.CoreLightConeModule]
+
+    def reduce_data(self, ctx):
+        frequencies=1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
+        global_signal=ctx.get("lightcone").global_brightness_temp,
+        f = InterpolatedUnivariateSpline(frequencies, global_signal,k=4)
+        cr_pts = f.derivative().roots()
+        cr_vals = f(cr_pts)
+        if (len(cr_vals) == 0):
+            return dict(Freq_Tbmin = None)
+        else:
+            return dict(Freq_Tbmin = cr_pts[np.argmin(cr_vals)])
+
+    def computeLikelihood(self, model):
+        """
+        Compute the likelihood, given the lightcone output from 21cmFAST.
+        """
+        
+        if model["Freq_Tbmin"] is None:
+            return -10000000000.
+        else:
+            return -0.5 * np.square((model["Freq_Tbmin"] - self.FREQ_EDGES ) / self.FREQ_ERR_EDGES)
