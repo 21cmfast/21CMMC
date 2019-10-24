@@ -68,7 +68,6 @@ setup(
     keywords=["Epoch of Reionization", "Cosmology"],
     install_requires=[
         "click",
-        # 'tqdm',
         "numpy",
         "cosmoHammer",
         "scipy",

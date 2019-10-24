@@ -698,7 +698,7 @@ class LikelihoodPlanck(LikelihoodBase):
             global_xHI=xHI,
         )
 
-        return dict(tau=tau_value)
+        return {"tau": tau_value}
 
 
 class LikelihoodNeutralFraction(LikelihoodBase):
@@ -791,7 +791,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             redshifts = ctx.get("lightcone").node_redshifts
 
         redshifts, xHI = np.sort([redshifts, xHI])
-        return dict(xHI=xHI, redshifts=redshifts)
+        return {"xHI": xHI, "redshifts": redshifts}
 
     def computeLikelihood(self, model):
         lnprob = 0
@@ -899,10 +899,10 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
     required_cores = [core.CoreLightConeModule]
 
     def reduce_data(self, ctx):
-        return dict(
-            frequencies=1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
-            global_signal=ctx.get("lightcone").global_brightness_temp,
-        )
+        return {
+            "frequencies": 1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
+            "global_signal": ctx.get("lightcone").global_brightness_temp,
+        }
 
     def computeLikelihood(self, model):
         """

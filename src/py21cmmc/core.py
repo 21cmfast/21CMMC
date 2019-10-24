@@ -44,7 +44,7 @@ class ModuleBase:
 
     def _check_required_cores(self):
         for rc in self.required_cores:
-            if not any([isinstance(m, rc) for m in self._cores]):
+            if not any(isinstance(m, rc) for m in self._cores):
                 raise ValueError(
                     "%s needs the %s to be loaded."
                     % (self.__class__.__name__, rc.__class__.__name__)
@@ -304,11 +304,12 @@ class CoreCoevalModule(CoreBase):
         self.z_step_factor = z_step_factor
         self.z_heat_max = z_heat_max
 
-        self.io_options = dict(
-            store={},  # (derived) quantities to store in the MCMC chain.
-            cache_dir=None,  # where full data sets will be written/read from.
-            cache_mcmc=False,  # whether to cache ionization data sets (done before parameter retention step)
-        )
+        self.io_options = {
+            "store": {},  # (derived) quantities to store in the MCMC chain.
+            "cache_dir": None,  # where full data sets will be written/read from.
+            "cache_mcmc": False,  # whether to cache ionization data sets
+            # (done before parameter retention step)
+        }
 
         self.io_options.update(io_options)
 
@@ -341,7 +342,7 @@ class CoreCoevalModule(CoreBase):
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
         if (
-            not any([p in self.cosmo_params.self.keys() for p in self.parameter_names])
+            not any(p in self.cosmo_params.self.keys() for p in self.parameter_names)
             and not self.change_seed_every_iter
         ):
             logger.info("Initializing init and perturb boxes for the entire chain.")
