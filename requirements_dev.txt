@@ -1,3 +1,4 @@
+21cmFAST>=3.0.0dev
 astropy
 cffi
 click
@@ -10,4 +11,3 @@ pytest-cov
 pyyaml
 scipy
 tox
-21cmFAST @ git+git://github.com/21cmFAST/21cmFAST#egg=21cmFAST
