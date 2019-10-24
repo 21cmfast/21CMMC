@@ -242,11 +242,10 @@ class HDFStorage:
             g["trials"][iteration, :, :] = truepos
             g["trial_log_prob"][iteration, :] = trueprob
 
-            if blobs[
-                0
-            ]:  # i.e. blobs is a list of dicts, and if the first dict is non-empty...
+            # i.e. blobs is a list of dicts, and if the first dict is non-empty...
+            if blobs[0]:
                 blobs = np.array(
-                    [tuple(b[name] for name in g["blobs"].dtype.name) for b in blobs],
+                    [tuple(b[name] for name in g["blobs"].dtype.names) for b in blobs],
                     dtype=g["blobs"].dtype,
                 )
                 # Blobs must be a dict
