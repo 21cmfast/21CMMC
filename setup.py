@@ -48,7 +48,7 @@ setup(
     url="https://github.com/21cmFAST/21CMMC",
     packages=find_packages("src"),
     package_dir={"": "src"},
-    package_data={"py21cmmc": "data/*"},
+    package_data={"py21cmmc": ["data/*"]},
     py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
     include_package_data=True,
     zip_safe=False,
