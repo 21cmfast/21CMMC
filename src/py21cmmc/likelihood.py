@@ -644,25 +644,6 @@ class LikelihoodPlanck(LikelihoodBase):
         return -0.5 * ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
 
     @property
-    def _core(self):
-        """The core module used for the xHI global value"""
-        # Try using a lightcone
-        for m in self._cores:
-            if isinstance(m, core.CoreLightConeModule):
-                return m
-
-        # Otherwise try using a Coeval
-        for m in self._cores:
-            if isinstance(m, core.CoreCoevalModule):
-                return m
-
-        # Otherwise, give an error
-        raise AttributeError(
-            "The Planck Likelihood requires either a LightCone (preferred) or "
-            "Coeval core module"
-        )
-
-    @property
     def _is_lightcone(self):
         return isinstance(self.core_primary, core.CoreLightConeModule)
 
