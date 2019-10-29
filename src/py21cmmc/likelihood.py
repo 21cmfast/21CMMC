@@ -956,7 +956,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 (self.data["lfunc"][i] - model_spline(self.data["Muv"][i])) ** 2
                 / self.noise[i]["sigma"] ** 2
             )
-            return lnl
+        return lnl
 
     def define_noise(self, ctx, model):
         sig = self.core_primary.sigma
