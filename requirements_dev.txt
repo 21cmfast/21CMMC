@@ -9,4 +9,4 @@ pytest
 pytest-cov
 pre-commit
 tox
-21cmFAST @ git+git://github.com/21cmFAST/21cmFAST#egg=21cmFAST
+21cmFAST>=3.0.0dev
