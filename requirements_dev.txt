@@ -11,3 +11,4 @@ pytest-cov
 pyyaml
 scipy
 tox
+21cmFAST>=3.0.0dev

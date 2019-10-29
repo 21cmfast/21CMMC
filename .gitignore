@@ -3,7 +3,7 @@
 
 *.pyc
 
-src/21CMMC.egg-info/
+src/py21cmmc\.egg-info/
 devel/cosmohammer_data/
 
 *.so
