@@ -341,6 +341,14 @@ def test_planck(lc_core, lc_core_ctx):
 
 
 def test_neutral_fraction(lc_core, lc_core_ctx):
+    with pytest.raises(ValueError):
+        mcmc.build_computation_chain(
+            mcmc.CoreLuminosityFunction(
+                redshift=7, sigma=1
+            ),  # Bad core for neutral fraction
+            mcmc.LikelihoodNeutralFraction(),
+        )
+
     lk = mcmc.LikelihoodNeutralFraction()
 
     mcmc.build_computation_chain(lc_core, lk, setup=False)
