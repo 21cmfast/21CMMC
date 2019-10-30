@@ -1,9 +1,9 @@
-sphinx>=1.3
-sphinx-rtd-theme
-numpydoc
-nbsphinx
-ipython
-# redundant requirements (if package is installed), but useful for readthedocs
-powerbox
 cached_property
 emcee<3
+ipython
+nbsphinx
+numpydoc
+# redundant requirements (if package is installed), but useful for readthedocs
+powerbox
+sphinx-rtd-theme
+sphinx>=1.3
