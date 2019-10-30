@@ -13,6 +13,24 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 
 from . import core
 
+try:
+    import clik
+except:
+    raise AttributeError(
+        "You must first activate the binaries from the Clik " +
+        "distribution. Please run : \n " +
+        "]$ source /path/to/clik/bin/clik_profile.sh \n " +
+        "and try again.")
+
+try:
+    from classy import Class
+except:
+    raise AttributeError (
+        "You must have compiled the classy.pyx file. Please go to " +
+        "/path/to/class/python and run the command\n " +
+        "python setup.py build")
+
+
 logger = logging.getLogger("21cmFAST")
 
 np.seterr(invalid="ignore", divide="ignore")
@@ -594,6 +612,335 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             storage.update({k + "_%s" % i: v for k, v in m.items()})
 
 
+class LikelihoodPlanckPowerSpectra(LikelihoodBase):
+    """
+    A general likelihood template to use Planck power spectrum.
+
+    """
+    required_cores = [core.CoreLightConeModule]
+    tau_mean = 0.058
+    tau_sigma = 0.012
+
+
+    def __init__(self, *args,datafolder='blah',name_lkl='lowlEE', A_planck_prior_center=1, A_planck_prior_variance = 0.1, **kwargs):
+        """
+        Parameters
+        ----------
+        name_lkl : str, default = lowlEE
+            the planck likelihood to compute. choice: lite,lowlEE,lowlTT, lowl, lensing
+        """
+        super().__init__(*args, **kwargs)
+        self.path_clik = datafolder
+        self.name = name_lkl
+        self.A_planck_prior_center = A_planck_prior_center
+        self.A_planck_prior_variance = A_planck_prior_variance
+        self.initialize = True
+        if 'lensing' in self.name and 'Planck' in self.name:
+            self.lensing = True
+        else:
+            self.lensing = False
+        try:
+            import clik
+        except:
+            raise AttributeError(
+                "You must first activate the binaries from the Clik " +
+                "distribution. Please run : \n " +
+                "]$ source /path/to/clik/bin/clik_profile.sh \n " +
+                "and try again.")
+        try:
+            from classy import Class
+        except:
+            raise AttributeError(
+                "You must have compiled the classy.pyx file. Please go to " +
+                "/path/to/class/python and run the command\n " +
+                "python setup.py build")
+
+    # def setup(self):
+        # super().setup()
+
+    def reduce_data(self, ctx):
+        """
+        compute the CMB power spectra from a ionization history
+
+        """
+
+
+        # Simple linear extrapolation of the redshift range provided by the user, to be able to estimate the optical depth
+        n_z_interp = 15
+
+        # Minimum of extrapolation is chosen to 5.9, to correspond to the McGreer et al. prior on the IGM neutral fraction.
+        # The maximum is chosed to be z = 18., which is arbitrary.
+        z_extrap_min = 5.9
+        z_extrap_max = 20.0
+
+        ##option for class
+        z_class_min = 0
+        z_HeI = 4
+        z_HeII = 3
+        z_class_max = z_extrap_max
+        z_xe_0 = z_class_max+1
+
+        ##output option for class
+        thermodynamics_verbose = 10
+
+        lightcone = ctx.get('lightcone')
+
+        ##cosmological parameters for class
+        h = ctx.get('h',0.67556)
+        omega_b = ctx.get('omega_b',0.022032)
+        omega_cdm = ctx.get('omega_cdm',0.12038)
+        A_s = ctx.get('A_s',2.215e-9)
+        n_s = ctx.get('n_s',0.9619)
+        # Extract relevant info from the context.
+
+
+        xHI = lightcone.global_xHI
+        redshifts = lightcone.node_redshifts
+
+        if len(redshifts) < 3:
+            raise ValueError(
+                "You cannot use the Planck prior likelihood with less than 3 redshifts"
+            )
+
+        # Order the redshifts in increasing order
+        redshifts, xHI = np.sort(np.array([redshifts, xHI]))
+
+        xe = 1-xHI
+        # The linear interpolation/extrapolation function, taking as input the redshift supplied by the user and
+        # the corresponding neutral fractions recovered for the specific EoR parameter set
+        # neutral_frac_func = InterpolatedUnivariateSpline(redshifts, 1-xHI, k=1)
+        #
+        # # Perform extrapolation
+        # z_extrap = np.linspace(self.z_extrap_min, self.z_extrap_max, self.n_z_interp)
+        # xHI = neutral_frac_func(z_extrap)
+        # np.clip(xHI, 0, 1, xHI)
+
+        xe = np.concatenate(([-2,-2,-1], xe,[0]))
+        redshift_class =np.concatenate(([0,z_HeII,z_HeI],redshifts,[z_xe_0]))
+        #print(','.join([str(x) for x in redshift_class]))
+        # print('xe',xe)
+        # print('z',redshift_class)
+        # print(len(xe))
+        # print(len(redshift_class))
+        # print('before compute')
+        common_settings = {
+                   'output' : 'tCl, pCl, lCl',
+                   'lensing':'yes',
+                   'l_max_scalars':3000,
+                   # LambdaCDM parameters
+                   'h':h,
+                   'omega_b':omega_b,
+                   'omega_cdm':omega_cdm,
+                   'A_s':A_s,
+                   'n_s':n_s,
+                   # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
+                   'reio_parametrization':'reio_inter',
+                   'reio_inter_num':len(xe),
+                   'reio_inter_z':','.join([str(x) for x in redshift_class]), #str(redshift_class),
+                   'reio_inter_xe':','.join([str(x) for x in xe]),
+                    'input_verbose': 0,
+                    'background_verbose': 0,
+                    'thermodynamics_verbose': 0,
+                    'perturbations_verbose': 0,
+                    'transfer_verbose': 0,
+                    'primordial_verbose': 0,
+                    'spectra_verbose': 0,
+                    'nonlinear_verbose': 0,
+                    'lensing_verbose': 0}
+        ##############
+        #
+        # call CLASS
+        #
+        ###############
+        #import sys
+        cosmo = Class()
+        cosmo.set(common_settings)
+        # cosmo.set({'omega_b':0.022032,'omega_cdm':0.12038,'h':0.67556,'A_s':2.215e-9,'n_s':0.9619,'tau_reio':0.0925})
+        # cosmo.set({'output':'tCl,pCl,lCl,mPk','lensing':'yes','P_k_max_1/Mpc':3.0})
+        cosmo.compute()
+        # print('after compute')
+        thermo = cosmo.get_thermodynamics()
+        cl = cosmo.lensed_cl(2500)
+
+        cl = self.get_cl(cosmo)
+        A_planck = ctx.get('A_planck', 1)
+        cosmo.struct_cleanup()
+        cosmo.empty()
+        # A_planck = 1
+        # print('here ok Aplanck cl',A_planck,cl)
+        # derived = cosmo.get_current_derived_parameters(['tau_rec','conformal_age'])
+        return dict(tau = 0.08,cl_cmb=cl, A_planck_cmb=A_planck)
+
+    def computeLikelihood(self, model):
+        """
+        Compute the likelihood.
+
+        This is the likelihood arising from Planck Lite (2018).
+
+        Parameters
+        ----------
+        cosmo : contains cosmological observables computed with CLASS
+            Exactly the output of CLASS
+
+        Returns
+        -------
+        lnl : float
+            The log-likelihood for the given model.
+        """
+        # print('here in lkl')
+        cl=model['cl_cmb']
+
+        # print(self.initialize)
+        # if self.initialize:
+        #     self.initialize = False
+        # try:
+        if self.lensing:
+            my_clik = clik.clik_lensing(self.path_clik)
+            try:
+                my_l_max = max(my_clik.get_lmax())
+            # following 2 lines for compatibility with lensing likelihoods of 2013 and before
+            # (then, clik.get_lmax() just returns an integer for lensing likelihoods;
+            # this behavior was for clik versions < 10)
+            except:
+                my_l_max = my_clik.get_lmax()
+        else:
+            my_clik = clik.clik(self.path_clik)
+            my_l_max = max(my_clik.get_lmax())
+        # except:
+        #     raise AttributeError(
+        #         "The path to the .clik file for the likelihood "
+        #         "%s was not found where indicated:\n%s\n"
+        #         % (self.name,self.path_clik) +
+        #         " Note that the default path to search for it is"
+        #         " one directory above the path['clik'] field. You"
+        #         " can change this behaviour in all the "
+        #         "Planck_something.data, to reflect your local configuration, "
+        #         "or alternatively, move your .clik files to this place.")
+
+
+        #except:
+        #    raise AttributeError(
+        #        "In the %s.data file, the field 'clik' of the " % self.name +
+        #        "path dictionary is expected to be defined. Please make sure"
+        #        " it is the case in you configuration file")
+        # if (self.name == 'Planck_lite'):
+        ##A_planck nuisance parameter default
+        # testing for lensing
+        if self.lensing:
+            try:
+                length = len(my_clik.get_lmax())
+                tot = np.zeros(
+                    np.sum(my_clik.get_lmax()) + length +
+                    len(my_clik.get_extra_parameter_names()))
+            # following 3 lines for compatibility with lensing likelihoods of 2013 and before
+            # (then, clik.get_lmax() just returns an integer for lensing likelihoods,
+            # and the length is always 2 for cl['pp'], cl['tt'])
+            except:
+                length = 2
+                tot = np.zeros(2*my_l_max+length + len(my_clik.get_extra_parameter_names()))
+        else:
+            length = len(my_clik.get_has_cl())
+            tot = np.zeros(
+                np.sum(my_clik.get_lmax()) + length +
+                len(my_clik.get_extra_parameter_names()))
+        # print(len(tot), length)
+        #
+        # fill with Cl's
+        index = 0
+        if not self.lensing:
+            for i in range(length):
+                if (my_clik.get_lmax()[i] > -1):
+                    for j in range(my_clik.get_lmax()[i]+1):
+                        if (i == 0):
+                            tot[index+j] = cl['tt'][j]
+                        if (i == 1):
+                            tot[index+j] = cl['ee'][j]
+                        if (i == 2):
+                            tot[index+j] = cl['bb'][j]
+                        if (i == 3):
+                            tot[index+j] = cl['te'][j]
+                        if (i == 4):
+                            tot[index+j] = 0 #cl['tb'][j] class does not compute tb
+                        if (i == 5):
+                            tot[index+j] = 0 #cl['eb'][j] class does not compute eb
+
+                    index += my_clik.get_lmax()[i]+1
+
+        else:
+            try:
+                for i in range(length):
+                    if (my_clik.get_lmax()[i] > -1):
+                        for j in range(my_clik.get_lmax()[i]+1):
+                            if (i == 0):
+                                tot[index+j] = cl['pp'][j]
+                            if (i == 1):
+                                tot[index+j] = cl['tt'][j]
+                            if (i == 2):
+                                tot[index+j] = cl['ee'][j]
+                            if (i == 3):
+                                tot[index+j] = cl['bb'][j]
+                            if (i == 4):
+                                tot[index+j] = cl['te'][j]
+                            if (i == 5):
+                                tot[index+j] = 0 #cl['tb'][j] class does not compute tb
+                            if (i == 6):
+                                tot[index+j] = 0 #cl['eb'][j] class does not compute eb
+
+                        index += my_clik.get_lmax()[i]+1
+
+            # following 8 lines for compatibility with lensing likelihoods of 2013 and before
+            # (then, clik.get_lmax() just returns an integer for lensing likelihoods,
+            # and the length is always 2 for cl['pp'], cl['tt'])
+            except:
+                for i in range(length):
+                    for j in range(my_l_max):
+                        if (i == 0):
+                            tot[index+j] = cl['pp'][j]
+                        if (i == 1):
+                            tot[index+j] = cl['tt'][j]
+                    index += my_l_max+1
+        # fill with nuisance parameters
+        A_planck = model['A_planck_cmb']
+        tot[index] = A_planck
+        index += 1
+        # compute likelihood
+        # print("lkl:",my_clik(tot))
+        lkl = my_clik(tot)[0] #-loglike
+
+        # if (self.name == 'Planck_lite'):
+        ##add nuisance parameter A_planck
+        lkl += -0.5*((A_planck-self.A_planck_prior_center)/self.A_planck_prior_variance)**2
+        del my_clik
+        del my_l_max
+        return lkl
+
+    def get_cl(self, cosmo, l_max=-1):
+        """
+        Return the :math:`C_{\ell}` from the cosmological code in
+        :math:`\mu {\\rm K}^2`
+
+        """
+        # get C_l^XX from the cosmological code
+
+        cl = cosmo.lensed_cl(int(l_max))
+        # convert dimensionless C_l's to C_l in muK**2
+        T = cosmo.T_cmb() #checked
+        for key in cl.keys():
+            # All quantities need to be multiplied by this factor, except the
+            # phi-phi term, that is already dimensionless
+            # phi cross-terms should only be multiplied with this factor once
+            if key not in ['pp', 'ell', 'tp', 'ep']:
+                cl[key] *= (T*1.e6)**2
+            elif key in ['tp', 'ep']:
+                cl[key] *= (T*1.e6)
+        return cl
+
+
+
+
+
+
+
 class LikelihoodPlanck(LikelihoodBase):
     """
     A likelihood which utilises Planck optical depth data.
@@ -631,7 +978,9 @@ class LikelihoodPlanck(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
-        return ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
+        lnl = ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
+        print(lnl)
+        return lnl
 
     @property
     def _core(self):
@@ -699,6 +1048,7 @@ class LikelihoodPlanck(LikelihoodBase):
         )
 
         return dict(tau=tau_value)
+
 
 
 class LikelihoodNeutralFraction(LikelihoodBase):

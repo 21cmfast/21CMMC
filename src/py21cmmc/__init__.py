@@ -14,6 +14,7 @@ from .likelihood import (
     LikelihoodNeutralFraction,
     LikelihoodLuminosityFunction,
     LikelihoodPlanck,
+    LikelihoodPlanckPowerSpectra,
     Likelihood1DPowerLightcone,
 )
 from .cosmoHammer import HDFStorageUtil
