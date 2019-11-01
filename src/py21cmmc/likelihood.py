@@ -10,27 +10,59 @@ from cached_property import cached_property
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
 from scipy.interpolate import InterpolatedUnivariateSpline
-
 from . import core
 
-try:
-    import clik
-except:
-    raise AttributeError(
-        "You must first activate the binaries from the Clik " +
-        "distribution. Please run : \n " +
-        "]$ source /path/to/clik/bin/clik_profile.sh \n " +
-        "and try again.")
 
-try:
-    from classy import Class
-except:
-    raise AttributeError (
-        "You must have compiled the classy.pyx file. Please go to " +
-        "/path/to/class/python and run the command\n " +
-        "python setup.py build")
+# import clik
+# planckEE = "/Users/poulin/Dropbox/Labo/baseline/plc_3.0/low_l/simall/simall_100x143_offlike5_EE_Aplanck_B.clik/"
+# my_clik = clik.clik(planckEE)
+# my_l_max = max(my_clik.get_lmax())
+#     return dict(my_clik=my_clik, my_l_max=my_l_max)
+# try:
+#     if self.lensing:
+#         # loaded_cliks[self.path_clik] = my_clik = loaded_cliks[self.path_clik] if self.path_clik in loaded_cliks else clik.clik_lensing(self.path_clik)
+#         my_clik = clik.clik_lensing(self.path_clik)
+#         try:
+#             my_l_max = max(my_clik.get_lmax())
+#         # following 2 lines for compatibility with lensing likelihoods of 2013 and before
+#         # (then, clik.get_lmax() just returns an integer for lensing likelihoods;
+#         # this behavior was for clik versions < 10)
+#         except:
+#             my_l_max = my_clik.get_lmax()
+#     else:
+#         # loaded_cliks[self.path_clik] = my_clik = loaded_cliks[self.path_clik] if self.path_clik in loaded_cliks else clik.clik(self.path_clik)
+#         my_clik = clik.clik(self.path_clik)
+#         my_l_max = max(my_clik.get_lmax())
+# except:
+#     raise AttributeError(
+#         "The path to the .clik file for the likelihood "
+#         "%s was not found where indicated:\n%s\n"
+#         % (self.name,self.path_clik) +
+#         " Note that the default path to search for it is"
+#         " one directory above the path['clik'] field. You"
+#         " can change this behaviour in all the "
+#         "Planck_something.data, to reflect your local configuration, "
+#         "or alternatively, move your .clik files to this place.")
 
 
+# try:
+#     import clik
+# except:
+#     raise AttributeError(
+#         "You must first activate the binaries from the Clik " +
+#         "distribution. Please run : \n " +
+#         "]$ source /path/to/clik/bin/clik_profile.sh \n " +
+#         "and try again.")
+#
+# try:
+#     from classy import Class
+# except:
+#     raise AttributeError (
+#         "You must have compiled the classy.pyx file. Please go to " +
+#         "/path/to/class/python and run the command\n " +
+#         "python setup.py build")
+
+loaded_cliks = dict()
 logger = logging.getLogger("21cmFAST")
 
 np.seterr(invalid="ignore", divide="ignore")
@@ -634,36 +666,37 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         self.name = name_lkl
         self.A_planck_prior_center = A_planck_prior_center
         self.A_planck_prior_variance = A_planck_prior_variance
-        self.initialize = True
-        if 'lensing' in self.name and 'Planck' in self.name:
+
+
+
+        if 'Planck_lensing' in self.name:
             self.lensing = True
         else:
             self.lensing = False
-        try:
-            import clik
-        except:
-            raise AttributeError(
-                "You must first activate the binaries from the Clik " +
-                "distribution. Please run : \n " +
-                "]$ source /path/to/clik/bin/clik_profile.sh \n " +
-                "and try again.")
-        try:
-            from classy import Class
-        except:
-            raise AttributeError(
-                "You must have compiled the classy.pyx file. Please go to " +
-                "/path/to/class/python and run the command\n " +
-                "python setup.py build")
+        if 'Planck_highl_TTTEEE' in self.name:
+            self.TTTEEE = True
+        else:
+            self.TTTEEE = False
+        if 'Planck_lowl_EE' in self.name:
+            self.EE = True
+        else:
+            self.EE = False
+        if not self.TTTEEE and not self.EE and not self.lensing:
+            raise AttributeError("I did not understand name %s"% (self.name)+" please choose between "+
+            "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE")
 
-    # def setup(self):
-        # super().setup()
+        self.initialize = True
+        if self.initialize:
+            self.initialize_clik_and_class(datafolder,name_lkl)
 
     def reduce_data(self, ctx):
+        # cl = ctx.get('cl_cmb')
+        # my_clik = ctx.get('my_clik')
+        # my_l_max = ctx.get('my_l_max')
         """
         compute the CMB power spectra from a ionization history
 
         """
-
 
         # Simple linear extrapolation of the redshift range provided by the user, to be able to estimate the optical depth
         n_z_interp = 15
@@ -753,23 +786,25 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         #
         ###############
         #import sys
-        cosmo = Class()
+
         cosmo.set(common_settings)
         # cosmo.set({'omega_b':0.022032,'omega_cdm':0.12038,'h':0.67556,'A_s':2.215e-9,'n_s':0.9619,'tau_reio':0.0925})
         # cosmo.set({'output':'tCl,pCl,lCl,mPk','lensing':'yes','P_k_max_1/Mpc':3.0})
         cosmo.compute()
         # print('after compute')
         thermo = cosmo.get_thermodynamics()
-        cl = cosmo.lensed_cl(2500)
-
         cl = self.get_cl(cosmo)
-        A_planck = ctx.get('A_planck', 1)
         cosmo.struct_cleanup()
         cosmo.empty()
+
+
+        
+        A_planck = ctx.get('A_planck', 1)
         # A_planck = 1
         # print('here ok Aplanck cl',A_planck,cl)
         # derived = cosmo.get_current_derived_parameters(['tau_rec','conformal_age'])
-        return dict(tau = 0.08,cl_cmb=cl, A_planck_cmb=A_planck)
+        return dict(cl_cmb=cl, A_planck_cmb=A_planck)
+        # return dict(my_l_max=my_l_max,my_clik = my_clik,cl_cmb=cl, A_planck_cmb=A_planck)
 
     def computeLikelihood(self, model):
         """
@@ -789,33 +824,13 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         """
         # print('here in lkl')
         cl=model['cl_cmb']
+        # my_clik = model['my_clik']
+        # my_l_max = model['my_l_max']
 
         # print(self.initialize)
         # if self.initialize:
         #     self.initialize = False
-        # try:
-        if self.lensing:
-            my_clik = clik.clik_lensing(self.path_clik)
-            try:
-                my_l_max = max(my_clik.get_lmax())
-            # following 2 lines for compatibility with lensing likelihoods of 2013 and before
-            # (then, clik.get_lmax() just returns an integer for lensing likelihoods;
-            # this behavior was for clik versions < 10)
-            except:
-                my_l_max = my_clik.get_lmax()
-        else:
-            my_clik = clik.clik(self.path_clik)
-            my_l_max = max(my_clik.get_lmax())
-        # except:
-        #     raise AttributeError(
-        #         "The path to the .clik file for the likelihood "
-        #         "%s was not found where indicated:\n%s\n"
-        #         % (self.name,self.path_clik) +
-        #         " Note that the default path to search for it is"
-        #         " one directory above the path['clik'] field. You"
-        #         " can change this behaviour in all the "
-        #         "Planck_something.data, to reflect your local configuration, "
-        #         "or alternatively, move your .clik files to this place.")
+
 
 
         #except:
@@ -826,6 +841,17 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         # if (self.name == 'Planck_lite'):
         ##A_planck nuisance parameter default
         # testing for lensing
+
+
+        if self.lensing:
+            my_clik = my_clik_lensing
+            my_l_max = my_l_max_lensing
+        if self.TTTEEE:
+            my_clik = my_clik_TTTEEE
+            my_l_max = my_l_max_TTTEEE
+        if self.EE:
+            my_clik = my_clik_EE
+            my_l_max = my_l_max_EE
         if self.lensing:
             try:
                 length = len(my_clik.get_lmax())
@@ -910,8 +936,8 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         # if (self.name == 'Planck_lite'):
         ##add nuisance parameter A_planck
         lkl += -0.5*((A_planck-self.A_planck_prior_center)/self.A_planck_prior_variance)**2
-        del my_clik
-        del my_l_max
+        #del my_clik
+        #del my_l_max
         return lkl
 
     def get_cl(self, cosmo, l_max=-1):
@@ -935,7 +961,65 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                 cl[key] *= (T*1.e6)
         return cl
 
+    def initialize_clik_and_class(self, my_path='/path/to/clik/files',name='blah'):
+        global my_clik_TTTEEE,my_clik_lensing,my_clik_EE, my_l_max_lensing, my_l_max_EE, my_l_max_TTTEEE, cosmo
+        self.initialize = False
+        try:
+            from classy import Class
+            print("import CLASS")
+            cosmo = Class()
+        except:
+            # raise AttributeError(
+            #     "You must have compiled the classy.pyx file. Please go to " +
+            #     "/path/to/class/python and run the command\n " +
+            #     "python setup.py build")
+            print("Not sure that you have classy activated."
+                 +"If you don't ask for Planck CMB power spectra then you are good to go."
+                 +"Otherwise, you must have compiled the classy.pyx file. Please go to "
+                 +"/path/to/class/python and run the command\n"
+                 +">>> python setup.py build")
 
+        try:
+            import clik
+            print("import clik")
+        except:
+            raise AttributeError(
+                "You must first activate the binaries from the Clik " +
+                "distribution. Please run : \n " +
+                "]$ source /path/to/clik/bin/clik_profile.sh \n " +
+                "and try again.")
+
+
+
+        try:
+            if self.lensing:
+                my_clik_lensing = clik.clik_lensing(my_path)
+                try:
+                    my_l_max_lensing = max(my_clik_lensing.get_lmax())
+                # following 2 lines for compatibility with lensing likelihoods of 2013 and before
+                # (then, clik.get_lmax() just returns an integer for lensing likelihoods;
+                # this behavior was for clik versions < 10)
+                except:
+                    my_l_max_lensing = my_clik_lensing.get_lmax()
+            elif self.TTTEEE:
+                my_clik_TTTEEE = clik.clik(my_path)
+                my_l_max_TTTEEE = max(my_clik_TTTEEE.get_lmax())
+            elif self.EE:
+                my_clik_EE = clik.clik(my_path)
+                my_l_max_EE = max(my_clik_EE.get_lmax())
+            else:
+                raise AttributeError("I did not understand name %s"(name)+"please choose between"+
+                "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE")
+        except:
+            raise AttributeError(
+                "The path to the .clik file for the likelihood "
+                "%s was not found where indicated:\n%s\n"
+                % (name,my_path) +
+                " Note that the default path to search for it is"
+                " one directory above the path['clik'] field. You"
+                " can change this behaviour in all the "
+                "Planck_something.data, to reflect your local configuration, "
+                "or alternatively, move your .clik files to this place.")
 
 
 
