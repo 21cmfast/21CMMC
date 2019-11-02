@@ -521,7 +521,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
     A Core Module that produces model luminosity functions at a range of redshifts.
     """
 
-    def __init__(self, sigma, **kwargs):
+    def __init__(self, sigma, z_extrap_min, z_extrap_max, **kwargs):
         self._sigma = sigma
         super().__init__(**kwargs)
 
@@ -576,209 +576,146 @@ class CoreLuminosityFunction(CoreCoevalModule):
 
 
 
-# 
-# class CoreCMB(CoreBase):
 #
-#
-#     def __init__(self, *args,datafolder='blah',name_lkl='lowlEE', A_planck_prior_center=1, A_planck_prior_variance = 0.1, **kwargs):
-#         """
-#         Parameters
-#         ----------
-#         name_lkl : str, default = lowlEE
-#             the planck likelihood to compute. choice: lite,lowlEE,lowlTT, lowl, lensing
-#         """
-#         super().__init__(*args, **kwargs)
-#         self.path_clik = datafolder
-#         self.name = name_lkl
-#         self.A_planck_prior_center = A_planck_prior_center
-#         self.A_planck_prior_variance = A_planck_prior_variance
-#         self.initialize = True
-#         if 'lensing' in self.name and 'Planck' in self.name:
-#             self.lensing = True
-#         else:
-#             self.lensing = False
-#         # try:
-#         #     import clik
-#         # except:
-#         #     raise AttributeError(
-#         #         "You must first activate the binaries from the Clik " +
-#         #         "distribution. Please run : \n " +
-#         #         "]$ source /path/to/clik/bin/clik_profile.sh \n " +
-#         #         "and try again.")
-#
-#     def setup(self):
-#         CoreBase.setup(self)
-#
-#
-#     def build_model_data(self, ctx):
-#         """
-#         compute the CMB power spectra from a ionization history
-#
-#         """
-#         try:
-#             import clik
-#         except:
-#             raise AttributeError(
-#                 "You must first activate the binaries from the Clik " +
-#                 "distribution. Please run : \n " +
-#                 "]$ source /path/to/clik/bin/clik_profile.sh \n " +
-#                 "and try again.")
-#         try:
-#             if self.lensing:
-#                 # loaded_cliks[self.path_clik] = my_clik = loaded_cliks[self.path_clik] if self.path_clik in loaded_cliks else clik.clik_lensing(self.path_clik)
-#                 my_clik = clik.clik_lensing(self.path_clik)
-#                 try:
-#                     my_l_max = max(my_clik.get_lmax())
-#                 # following 2 lines for compatibility with lensing likelihoods of 2013 and before
-#                 # (then, clik.get_lmax() just returns an integer for lensing likelihoods;
-#                 # this behavior was for clik versions < 10)
-#                 except:
-#                     my_l_max = my_clik.get_lmax()
-#             else:
-#                 # loaded_cliks[self.path_clik] = my_clik = loaded_cliks[self.path_clik] if self.path_clik in loaded_cliks else clik.clik(self.path_clik)
-#                 my_clik = clik.clik(self.path_clik)
-#                 my_l_max = max(my_clik.get_lmax())
-#         except:
-#             raise AttributeError(
-#                 "The path to the .clik file for the likelihood "
-#                 "%s was not found where indicated:\n%s\n"
-#                 % (self.name,self.path_clik) +
-#                 " Note that the default path to search for it is"
-#                 " one directory above the path['clik'] field. You"
-#                 " can change this behaviour in all the "
-#                 "Planck_something.data, to reflect your local configuration, "
-#                 "or alternatively, move your .clik files to this place.")
-#
-#         ctx.add("my_clik", my_clik)
-#         ctx.add("my_l_max", my_l_max)
-#
-#         # try:
-#         #     from classy import Class
-#         # except:
-#         #     raise AttributeError(
-#         #         "You must have compiled the classy.pyx file. Please go to " +
-#         #         "/path/to/class/python and run the command\n " +
-#         #         "python setup.py build")
-#         # # Simple linear extrapolation of the redshift range provided by the user, to be able to estimate the optical depth
-#         # n_z_interp = 15
-#         #
-#         # # Minimum of extrapolation is chosen to 5.9, to correspond to the McGreer et al. prior on the IGM neutral fraction.
-#         # # The maximum is chosed to be z = 18., which is arbitrary.
-#         # z_extrap_min = 5.9
-#         # z_extrap_max = 20.0
-#         #
-#         # ##option for class
-#         # z_class_min = 0
-#         # z_HeI = 4
-#         # z_HeII = 3
-#         # z_class_max = z_extrap_max
-#         # z_xe_0 = z_class_max+1
-#         #
-#         # ##output option for class
-#         # thermodynamics_verbose = 10
-#         #
-#         # lightcone = ctx.get('lightcone')
-#         #
-#         # ##cosmological parameters for class
-#         # h = ctx.get('h',0.67556)
-#         # omega_b = ctx.get('omega_b',0.022032)
-#         # omega_cdm = ctx.get('omega_cdm',0.12038)
-#         # A_s = ctx.get('A_s',2.215e-9)
-#         # n_s = ctx.get('n_s',0.9619)
-#         # # Extract relevant info from the context.
-#         #
-#         #
-#         # xHI = lightcone.global_xHI
-#         # redshifts = lightcone.node_redshifts
-#         #
-#         # if len(redshifts) < 3:
-#         #     raise ValueError(
-#         #         "You cannot use the Planck prior likelihood with less than 3 redshifts"
-#         #     )
-#         #
-#         # # Order the redshifts in increasing order
-#         # redshifts, xHI = np.sort(np.array([redshifts, xHI]))
-#         #
-#         # xe = 1-xHI
-#         # # The linear interpolation/extrapolation function, taking as input the redshift supplied by the user and
-#         # # the corresponding neutral fractions recovered for the specific EoR parameter set
-#         # # neutral_frac_func = InterpolatedUnivariateSpline(redshifts, 1-xHI, k=1)
-#         # #
-#         # # # Perform extrapolation
-#         # # z_extrap = np.linspace(self.z_extrap_min, self.z_extrap_max, self.n_z_interp)
-#         # # xHI = neutral_frac_func(z_extrap)
-#         # # np.clip(xHI, 0, 1, xHI)
-#         #
-#         # xe = np.concatenate(([-2,-2,-1], xe,[0]))
-#         # redshift_class =np.concatenate(([0,z_HeII,z_HeI],redshifts,[z_xe_0]))
-#         # #print(','.join([str(x) for x in redshift_class]))
-#         # # print('xe',xe)
-#         # # print('z',redshift_class)
-#         # # print(len(xe))
-#         # # print(len(redshift_class))
-#         # # print('before compute')
-#         # common_settings = {
-#         #            'output' : 'tCl, pCl, lCl',
-#         #            'lensing':'yes',
-#         #            'l_max_scalars':3000,
-#         #            # LambdaCDM parameters
-#         #            'h':h,
-#         #            'omega_b':omega_b,
-#         #            'omega_cdm':omega_cdm,
-#         #            'A_s':A_s,
-#         #            'n_s':n_s,
-#         #            # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
-#         #            'reio_parametrization':'reio_inter',
-#         #            'reio_inter_num':len(xe),
-#         #            'reio_inter_z':','.join([str(x) for x in redshift_class]), #str(redshift_class),
-#         #            'reio_inter_xe':','.join([str(x) for x in xe]),
-#         #             'input_verbose': 0,
-#         #             'background_verbose': 0,
-#         #             'thermodynamics_verbose': 0,
-#         #             'perturbations_verbose': 0,
-#         #             'transfer_verbose': 0,
-#         #             'primordial_verbose': 0,
-#         #             'spectra_verbose': 0,
-#         #             'nonlinear_verbose': 0,
-#         #             'lensing_verbose': 0}
-#         # ##############
-#         # #
-#         # # call CLASS
-#         # #
-#         # ###############
-#         # #import sys
-#         # cosmo = Class()
-#         # cosmo.set(common_settings)
-#         # # cosmo.set({'omega_b':0.022032,'omega_cdm':0.12038,'h':0.67556,'A_s':2.215e-9,'n_s':0.9619,'tau_reio':0.0925})
-#         # # cosmo.set({'output':'tCl,pCl,lCl,mPk','lensing':'yes','P_k_max_1/Mpc':3.0})
-#         # cosmo.compute()
-#         # # print('after compute')
-#         # thermo = cosmo.get_thermodynamics()
-#         # cl = self.get_cl(cosmo)
-#         # A_planck = ctx.get('A_planck', 1)
-#         # cosmo.struct_cleanup()
-#         # cosmo.empty()
-#         # ctx.add("cl_cmb", cl)
-#
-#
-#
-#     def get_cl(self,cosmo, l_max=-1):
-#         """
-#         Return the :math:`C_{\ell}` from the cosmological code in
-#         :math:`\mu {\\rm K}^2`
-#
-#         """
-#         # get C_l^XX from the cosmological code
-#
-#         cl = cosmo.lensed_cl(int(l_max))
-#         # convert dimensionless C_l's to C_l in muK**2
-#         T = cosmo.T_cmb() #checked
-#         for key in cl.keys():
-#             # All quantities need to be multiplied by this factor, except the
-#             # phi-phi term, that is already dimensionless
-#             # phi cross-terms should only be multiplied with this factor once
-#             if key not in ['pp', 'ell', 'tp', 'ep']:
-#                 cl[key] *= (T*1.e6)**2
-#             elif key in ['tp', 'ep']:
-#                 cl[key] *= (T*1.e6)
-#         return cl
+class CoreCMB(CoreBase):
+
+
+    def __init__(self, verbose = 0, z_extrap_min = 0, z_extrap_max = 20, z_HeI=4, z_HeII=3, *args, **kwargs):
+        """
+        A Core Module that calls the CLASS CMB code and computes  Cl^TT,TE,EE and phiphi (the lensing potentials).
+        It takes as an input the reionization history from 21cmFAST and a few cosmological parameters.
+        """
+        """
+        Parameters
+        ----------
+        z_extrap_min : minimal z for reionization in CLASS. should basically always be set to 0.
+        z_extrap_max : maximal z for reionization in CLASS. depends on the reionization model.
+        z_HeI : redshift of the first helium reionization. CLASS models helium reionzation with a tanh centered around zHeI.
+        z_HeII : redshift of the second helium reionization. CLASS models helium reionzation with a tanh centered around zHeII.
+        """
+        super().__init__(*args, **kwargs)
+        try:
+            from classy import Class
+            if verbose > 0:
+                print("import CLASS")
+            global cosmo
+            cosmo = Class()
+            self.verbose = verbose
+            self.z_extrap_min = z_extrap_min
+            self.z_extrap_max = z_extrap_max
+            self.z_HeI = z_HeI
+            self.z_HeII = z_HeII
+        except:
+            raise AttributeError(
+                "You must have compiled the classy.pyx file. Please go to " +
+                "/path/to/class/python and run the command\n " +
+                "python setup.py build")
+
+
+    def setup(self):
+        CoreBase.setup(self)
+
+
+    def build_model_data(self, ctx):
+        """
+        compute the CMB power spectra from a ionization history
+
+        """
+
+
+
+        ##option for class
+        z_class_min = self.z_extrap_min
+        z_HeI = self.z_HeI #4
+        z_HeII = self.z_HeII #3
+        z_class_max = self.z_extrap_max
+        z_xe_0 = z_class_max+1 #xe is set to 0 at z=z_xe_0. placeholder: will be overwritten by recombination table in class.
+
+
+        # Extract relevant info from the context.
+        lightcone = ctx.get('lightcone')
+        h = lightcone.cosmo_params.hlittle
+        omega_b = lightcone.cosmo_params.OMb*h*h
+        omega_cdm = lightcone.cosmo_params.OMm*h*h-omega_b
+        # A_s = ctx.get('A_s',2.215e-9)
+        sigma8 =lightcone.cosmo_params.SIGMA_8
+        n_s = lightcone.cosmo_params.POWER_INDEX
+
+        xHI = lightcone.global_xHI
+        redshifts = lightcone.node_redshifts
+
+        if len(redshifts) < 3:
+            raise ValueError(
+                "You cannot use the Planck prior likelihood with less than 3 redshifts"
+            )
+
+        # Order the redshifts in increasing order
+        redshifts, xHI = np.sort(np.array([redshifts, xHI]))
+
+        # Translate xHI into xe for CLASS.
+        #The option -1, -2 ensure helium first and second reionization respectively at z_HeI and z_HeII.
+        xe = 1-xHI
+        xe = np.concatenate(([-2,-2,-1], xe,[0]))
+        redshift_class =np.concatenate(([0,z_HeII,z_HeI],redshifts,[z_xe_0]))
+
+        common_settings = {
+                   'output' : 'tCl, pCl, lCl',
+                   'lensing':'yes',
+                   'l_max_scalars':3000,
+                   # LambdaCDM parameters
+                   'h':h,
+                   'omega_b':omega_b,
+                   'omega_cdm':omega_cdm,
+                   # 'A_s':A_s,
+                   'sigma8':sigma8,
+                   'n_s':n_s,
+                   # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
+                   'reio_parametrization':'reio_inter',
+                   'reio_inter_num':len(xe),
+                   'reio_inter_z':','.join([str(x) for x in redshift_class]), #str(redshift_class),
+                   'reio_inter_xe':','.join([str(x) for x in xe]),
+                    'input_verbose': self.verbose,
+                    'background_verbose': self.verbose,
+                    'thermodynamics_verbose': self.verbose,
+                    'perturbations_verbose': self.verbose,
+                    'transfer_verbose': self.verbose,
+                    'primordial_verbose': self.verbose,
+                    'spectra_verbose': self.verbose,
+                    'nonlinear_verbose': self.verbose,
+                    'lensing_verbose': self.verbose}
+        ##############
+        #
+        # call CLASS
+        #
+        ###############
+
+        cosmo.set(common_settings)
+        cosmo.compute()
+        thermo = cosmo.get_thermodynamics()
+        cl = self.get_cl(cosmo)
+        cosmo.struct_cleanup()
+        cosmo.empty()
+        ctx.add("cl_cmb", cl)
+
+
+
+    def get_cl(self,cosmo, l_max=-1):
+        """
+        Return the :math:`C_{\ell}` from the cosmological code in
+        :math:`\mu {\\rm K}^2`
+
+        """
+        # get C_l^XX from the cosmological code
+
+        cl = cosmo.lensed_cl(int(l_max))
+        # convert dimensionless C_l's to C_l in muK**2
+        T = cosmo.T_cmb() #checked
+        for key in cl.keys():
+            # All quantities need to be multiplied by this factor, except the
+            # phi-phi term, that is already dimensionless
+            # phi cross-terms should only be multiplied with this factor once
+            if key not in ['pp', 'ell', 'tp', 'ep']:
+                cl[key] *= (T*1.e6)**2
+            elif key in ['tp', 'ep']:
+                cl[key] *= (T*1.e6)
+        return cl

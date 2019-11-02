@@ -646,20 +646,21 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     """
-    A general likelihood template to use Planck power spectrum.
-
+    A likelihood template to use Planck power spectrum.
+    It makes use of the clik code developed by the planck collaboration.
+    Go to the planck legacy archive website to download the code and data and get information: https://pla.esac.esa.int
+    You should download the "baseline" data package.
+    This likelihood currently supports Planck_lensing, Planck_highl_TTTEEE and Planck_lowl_EE data. Could easily be extended if required.
     """
-    required_cores = [core.CoreLightConeModule]
-    tau_mean = 0.058
-    tau_sigma = 0.012
+    required_cores = [core.CoreLightConeModule, core.CoreCMB]
 
-
-    def __init__(self, *args,datafolder='blah',name_lkl='lowlEE', A_planck_prior_center=1, A_planck_prior_variance = 0.1, **kwargs):
+    def __init__(self, *args,datafolder='blah',name_lkl='Planck_lowl_EE', A_planck_prior_center=1, A_planck_prior_variance = 0.1, **kwargs):
         """
         Parameters
         ----------
-        name_lkl : str, default = lowlEE
-            the planck likelihood to compute. choice: lite,lowlEE,lowlTT, lowl, lensing
+        datafolder : folder that contains Planck data if "clik" format.
+        name_lkl : str, default = Planck_lowl_EE
+            the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
         """
         super().__init__(*args, **kwargs)
         self.path_clik = datafolder
@@ -690,121 +691,17 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
             self.initialize_clik_and_class(datafolder,name_lkl)
 
     def reduce_data(self, ctx):
-        # cl = ctx.get('cl_cmb')
-        # my_clik = ctx.get('my_clik')
-        # my_l_max = ctx.get('my_l_max')
+
         """
-        compute the CMB power spectra from a ionization history
+        get the CMB power spectra and the nuisance parameter A_planck from the coreCMB
 
         """
 
-        # Simple linear extrapolation of the redshift range provided by the user, to be able to estimate the optical depth
-        n_z_interp = 15
 
-        # Minimum of extrapolation is chosen to 5.9, to correspond to the McGreer et al. prior on the IGM neutral fraction.
-        # The maximum is chosed to be z = 18., which is arbitrary.
-        z_extrap_min = 5.9
-        z_extrap_max = 20.0
-
-        ##option for class
-        z_class_min = 0
-        z_HeI = 4
-        z_HeII = 3
-        z_class_max = z_extrap_max
-        z_xe_0 = z_class_max+1
-
-        ##output option for class
-        thermodynamics_verbose = 10
-
-        lightcone = ctx.get('lightcone')
-
-        ##cosmological parameters for class
-        h = ctx.get('h',0.67556)
-        omega_b = ctx.get('omega_b',0.022032)
-        omega_cdm = ctx.get('omega_cdm',0.12038)
-        A_s = ctx.get('A_s',2.215e-9)
-        n_s = ctx.get('n_s',0.9619)
-        # Extract relevant info from the context.
-
-
-        xHI = lightcone.global_xHI
-        redshifts = lightcone.node_redshifts
-
-        if len(redshifts) < 3:
-            raise ValueError(
-                "You cannot use the Planck prior likelihood with less than 3 redshifts"
-            )
-
-        # Order the redshifts in increasing order
-        redshifts, xHI = np.sort(np.array([redshifts, xHI]))
-
-        xe = 1-xHI
-        # The linear interpolation/extrapolation function, taking as input the redshift supplied by the user and
-        # the corresponding neutral fractions recovered for the specific EoR parameter set
-        # neutral_frac_func = InterpolatedUnivariateSpline(redshifts, 1-xHI, k=1)
-        #
-        # # Perform extrapolation
-        # z_extrap = np.linspace(self.z_extrap_min, self.z_extrap_max, self.n_z_interp)
-        # xHI = neutral_frac_func(z_extrap)
-        # np.clip(xHI, 0, 1, xHI)
-
-        xe = np.concatenate(([-2,-2,-1], xe,[0]))
-        redshift_class =np.concatenate(([0,z_HeII,z_HeI],redshifts,[z_xe_0]))
-        #print(','.join([str(x) for x in redshift_class]))
-        # print('xe',xe)
-        # print('z',redshift_class)
-        # print(len(xe))
-        # print(len(redshift_class))
-        # print('before compute')
-        common_settings = {
-                   'output' : 'tCl, pCl, lCl',
-                   'lensing':'yes',
-                   'l_max_scalars':3000,
-                   # LambdaCDM parameters
-                   'h':h,
-                   'omega_b':omega_b,
-                   'omega_cdm':omega_cdm,
-                   'A_s':A_s,
-                   'n_s':n_s,
-                   # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
-                   'reio_parametrization':'reio_inter',
-                   'reio_inter_num':len(xe),
-                   'reio_inter_z':','.join([str(x) for x in redshift_class]), #str(redshift_class),
-                   'reio_inter_xe':','.join([str(x) for x in xe]),
-                    'input_verbose': 0,
-                    'background_verbose': 0,
-                    'thermodynamics_verbose': 0,
-                    'perturbations_verbose': 0,
-                    'transfer_verbose': 0,
-                    'primordial_verbose': 0,
-                    'spectra_verbose': 0,
-                    'nonlinear_verbose': 0,
-                    'lensing_verbose': 0}
-        ##############
-        #
-        # call CLASS
-        #
-        ###############
-        #import sys
-
-        cosmo.set(common_settings)
-        # cosmo.set({'omega_b':0.022032,'omega_cdm':0.12038,'h':0.67556,'A_s':2.215e-9,'n_s':0.9619,'tau_reio':0.0925})
-        # cosmo.set({'output':'tCl,pCl,lCl,mPk','lensing':'yes','P_k_max_1/Mpc':3.0})
-        cosmo.compute()
-        # print('after compute')
-        thermo = cosmo.get_thermodynamics()
-        cl = self.get_cl(cosmo)
-        cosmo.struct_cleanup()
-        cosmo.empty()
-
-
-        
+        cl = ctx.get('cl_cmb')
         A_planck = ctx.get('A_planck', 1)
-        # A_planck = 1
-        # print('here ok Aplanck cl',A_planck,cl)
-        # derived = cosmo.get_current_derived_parameters(['tau_rec','conformal_age'])
+
         return dict(cl_cmb=cl, A_planck_cmb=A_planck)
-        # return dict(my_l_max=my_l_max,my_clik = my_clik,cl_cmb=cl, A_planck_cmb=A_planck)
 
     def computeLikelihood(self, model):
         """
@@ -822,26 +719,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
-        # print('here in lkl')
         cl=model['cl_cmb']
-        # my_clik = model['my_clik']
-        # my_l_max = model['my_l_max']
-
-        # print(self.initialize)
-        # if self.initialize:
-        #     self.initialize = False
-
-
-
-        #except:
-        #    raise AttributeError(
-        #        "In the %s.data file, the field 'clik' of the " % self.name +
-        #        "path dictionary is expected to be defined. Please make sure"
-        #        " it is the case in you configuration file")
-        # if (self.name == 'Planck_lite'):
-        ##A_planck nuisance parameter default
-        # testing for lensing
-
 
         if self.lensing:
             my_clik = my_clik_lensing
@@ -869,7 +747,6 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
             tot = np.zeros(
                 np.sum(my_clik.get_lmax()) + length +
                 len(my_clik.get_extra_parameter_names()))
-        # print(len(tot), length)
         #
         # fill with Cl's
         index = 0
@@ -929,55 +806,17 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         A_planck = model['A_planck_cmb']
         tot[index] = A_planck
         index += 1
-        # compute likelihood
-        # print("lkl:",my_clik(tot))
+
         lkl = my_clik(tot)[0] #-loglike
 
-        # if (self.name == 'Planck_lite'):
         ##add nuisance parameter A_planck
         lkl += -0.5*((A_planck-self.A_planck_prior_center)/self.A_planck_prior_variance)**2
-        #del my_clik
-        #del my_l_max
+
         return lkl
 
-    def get_cl(self, cosmo, l_max=-1):
-        """
-        Return the :math:`C_{\ell}` from the cosmological code in
-        :math:`\mu {\\rm K}^2`
-
-        """
-        # get C_l^XX from the cosmological code
-
-        cl = cosmo.lensed_cl(int(l_max))
-        # convert dimensionless C_l's to C_l in muK**2
-        T = cosmo.T_cmb() #checked
-        for key in cl.keys():
-            # All quantities need to be multiplied by this factor, except the
-            # phi-phi term, that is already dimensionless
-            # phi cross-terms should only be multiplied with this factor once
-            if key not in ['pp', 'ell', 'tp', 'ep']:
-                cl[key] *= (T*1.e6)**2
-            elif key in ['tp', 'ep']:
-                cl[key] *= (T*1.e6)
-        return cl
-
     def initialize_clik_and_class(self, my_path='/path/to/clik/files',name='blah'):
-        global my_clik_TTTEEE,my_clik_lensing,my_clik_EE, my_l_max_lensing, my_l_max_EE, my_l_max_TTTEEE, cosmo
+        global my_clik_TTTEEE,my_clik_lensing,my_clik_EE, my_l_max_lensing, my_l_max_EE, my_l_max_TTTEEE
         self.initialize = False
-        try:
-            from classy import Class
-            print("import CLASS")
-            cosmo = Class()
-        except:
-            # raise AttributeError(
-            #     "You must have compiled the classy.pyx file. Please go to " +
-            #     "/path/to/class/python and run the command\n " +
-            #     "python setup.py build")
-            print("Not sure that you have classy activated."
-                 +"If you don't ask for Planck CMB power spectra then you are good to go."
-                 +"Otherwise, you must have compiled the classy.pyx file. Please go to "
-                 +"/path/to/class/python and run the command\n"
-                 +">>> python setup.py build")
 
         try:
             import clik
@@ -988,9 +827,6 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                 "distribution. Please run : \n " +
                 "]$ source /path/to/clik/bin/clik_profile.sh \n " +
                 "and try again.")
-
-
-
         try:
             if self.lensing:
                 my_clik_lensing = clik.clik_lensing(my_path)

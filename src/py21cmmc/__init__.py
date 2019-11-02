@@ -4,6 +4,7 @@ from .core import (
     CoreCoevalModule,
     CoreLightConeModule,
     CoreLuminosityFunction,
+    CoreCMB,
     NotAChain,
     NotSetupError,
 )
