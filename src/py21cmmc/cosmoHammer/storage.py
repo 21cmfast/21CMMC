@@ -50,7 +50,6 @@ class HDFStorage:
                 del f[self.name]
 
             g = f.create_group(self.name)
-            # g.attrs["version"] = __version__
             g.attrs["nwalkers"] = nwalkers
             g.attrs["ndim"] = ndim
             g.attrs["has_blobs"] = False
@@ -59,7 +58,7 @@ class HDFStorage:
             g.create_dataset(
                 "guess",
                 data=np.array(
-                    [tuple([v[0] for v in params.values])],
+                    [tuple(v[0] for v in params.values)],
                     dtype=[(k, np.float64) for k in params.keys],
                 ),
             )
@@ -243,14 +242,10 @@ class HDFStorage:
             g["trials"][iteration, :, :] = truepos
             g["trial_log_prob"][iteration, :] = trueprob
 
-            if blobs[
-                0
-            ]:  # i.e. blobs is a list of dicts, and if the first dict is non-empty...
+            # i.e. blobs is a list of dicts, and if the first dict is non-empty...
+            if blobs[0]:
                 blobs = np.array(
-                    [
-                        tuple([b[name] for name in g["blobs"].dtype.names])
-                        for b in blobs
-                    ],
+                    [tuple(b[name] for name in g["blobs"].dtype.names) for b in blobs],
                     dtype=g["blobs"].dtype,
                 )
                 # Blobs must be a dict

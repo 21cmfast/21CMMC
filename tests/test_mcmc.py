@@ -30,6 +30,11 @@ def likelihood_coeval(tmpdirec):
     )
 
 
+@pytest.fixture(scope="module")
+def default_params():
+    return {"HII_EFF_FACTOR": [30.0, 10.0, 50.0, 3.0], "ION_Tvir_MIN": [4.7, 2, 8, 0.1]}
+
+
 def test_core_coeval_not_setup():
     core = mcmc.CoreCoevalModule(redshift=9)
 
@@ -76,16 +81,14 @@ def test_core_coeval_setup(core, likelihood_coeval):
     assert not np.all(ctx.get("brightness_temp") == 0)
 
 
-def test_mcmc(core, likelihood_coeval, tmpdirec):
+def test_mcmc(core, likelihood_coeval, default_params, tmpdirec):
     chain = mcmc.run_mcmc(
         core,
         likelihood_coeval,
         model_name="TEST",
         continue_sampling=False,
         datadir=tmpdirec.strpath,
-        params=dict(
-            HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-        ),
+        params=default_params,
         walkersRatio=2,
         burninIterations=0,
         sampleIterations=2,
@@ -101,17 +104,14 @@ def test_mcmc(core, likelihood_coeval, tmpdirec):
     assert np.all(samples_from_file.get_chain() == samples_from_chain.get_chain())
 
     assert all(
-        [
-            c in ["HII_EFF_FACTOR", "ION_Tvir_MIN"]
-            for c in samples_from_chain.param_names
-        ]
+        c in ["HII_EFF_FACTOR", "ION_Tvir_MIN"] for c in samples_from_chain.param_names
     )
     assert samples_from_chain.has_blobs
     assert samples_from_chain.param_guess["HII_EFF_FACTOR"] == 30.0
     assert samples_from_chain.param_guess["ION_Tvir_MIN"] == 4.7
 
 
-def test_continue_burnin(core, likelihood_coeval, tmpdirec):
+def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
     with pytest.raises(AssertionError):  # needs to be sampled for at least 1 iteration!
         mcmc.run_mcmc(
             core,
@@ -119,9 +119,7 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
             model_name="TESTBURNIN",
             continue_sampling=False,
             datadir=tmpdirec.strpath,
-            params=dict(
-                HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-            ),
+            params=default_params,
             walkersRatio=2,
             burninIterations=1,
             sampleIterations=0,
@@ -134,9 +132,7 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
         model_name="TESTBURNIN",
         continue_sampling=False,
         datadir=tmpdirec.strpath,
-        params=dict(
-            HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-        ),
+        params=default_params,
         walkersRatio=2,
         burninIterations=1,
         sampleIterations=1,
@@ -154,9 +150,7 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
         model_name="TESTBURNIN",
         continue_sampling=True,
         datadir=tmpdirec.strpath,
-        params=dict(
-            HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-        ),
+        params=default_params,
         walkersRatio=2,
         burninIterations=2,
         sampleIterations=1,
@@ -182,9 +176,7 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
         model_name="TESTBURNIN",
         continue_sampling=True,
         datadir=tmpdirec.strpath,
-        params=dict(
-            HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-        ),
+        params=default_params,
         walkersRatio=2,
         burninIterations=2,
         sampleIterations=2,
@@ -209,9 +201,7 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
             model_name="TESTBURNIN",
             continue_sampling=True,
             datadir=tmpdirec.strpath,
-            params=dict(
-                HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-            ),
+            params=default_params,
             walkersRatio=2,
             burninIterations=2,
             sampleIterations=2,
@@ -222,7 +212,7 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
     likelihood_coeval._simulate = True
 
 
-def test_bad_continuation(core, likelihood_coeval, tmpdirec):
+def test_bad_continuation(core, likelihood_coeval, default_params, tmpdirec):
     "check if trying to continue a chain that isn't compatible with previous chain raises an error"
 
     mcmc.run_mcmc(
@@ -231,9 +221,7 @@ def test_bad_continuation(core, likelihood_coeval, tmpdirec):
         model_name="TESTBURNIN",
         continue_sampling=False,
         datadir=tmpdirec.strpath,
-        params=dict(
-            HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-        ),
+        params=default_params,
         walkersRatio=2,
         burninIterations=0,
         sampleIterations=1,
@@ -254,9 +242,7 @@ def test_bad_continuation(core, likelihood_coeval, tmpdirec):
             model_name="TESTBURNIN",
             continue_sampling=True,
             datadir=tmpdirec.strpath,
-            params=dict(
-                HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-            ),
+            params=default_params,
             walkersRatio=2,
             burninIterations=0,
             sampleIterations=2,
@@ -284,7 +270,7 @@ def test_init_pos_generator_good(core, likelihood_coeval, tmpdirec):
 
     pos = sampler.createInitPos()
 
-    assert all([chain.isValid(p) for p in pos])
+    assert all(chain.isValid(p) for p in pos)
 
 
 def test_init_pos_generator_bad(core, likelihood_coeval, tmpdirec):
@@ -324,7 +310,7 @@ def test_lightcone_core(lc_core, lc_core_ctx):
     model = lk.reduce_data(lc_core_ctx)
     lk.store(model, lc_core_ctx.getData())
 
-    assert all([k + "_0" in lc_core_ctx.getData() for k in model[0]])
+    assert all(k + "_0" in lc_core_ctx.getData() for k in model[0])
 
 
 def test_planck(lc_core, lc_core_ctx):
@@ -341,6 +327,14 @@ def test_planck(lc_core, lc_core_ctx):
 
 
 def test_neutral_fraction(lc_core, lc_core_ctx):
+    with pytest.raises(ValueError):
+        mcmc.build_computation_chain(
+            mcmc.CoreLuminosityFunction(
+                redshift=7, sigma=1
+            ),  # Bad core for neutral fraction
+            mcmc.LikelihoodNeutralFraction(),
+        )
+
     lk = mcmc.LikelihoodNeutralFraction()
 
     mcmc.build_computation_chain(lc_core, lk, setup=False)
@@ -404,16 +398,14 @@ def test_edges(lc_core, lc_core_ctx):
     assert "FWHM" in model
 
 
-def test_load_chain(core, likelihood_coeval, tmpdirec):
+def test_load_chain(core, likelihood_coeval, default_params, tmpdirec):
     mcmc.run_mcmc(
         core,
         likelihood_coeval,
         model_name="TESTLOADCHAIN",
         continue_sampling=False,
         datadir=tmpdirec.strpath,
-        params=dict(
-            HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]
-        ),
+        params=default_params,
         walkersRatio=2,
         burninIterations=0,
         sampleIterations=1,

@@ -8,5 +8,3 @@ philosophy, and how to use it. For more details, see either the tutorials or the
 examples.
 
 .. note:: This page needs to be written!
-
-

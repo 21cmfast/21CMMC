@@ -6,10 +6,20 @@ import inspect
 import logging
 import warnings
 import numpy as np
+from collections import Iterable
 
 import py21cmfast as p21
 
 logger = logging.getLogger("21cmFAST")
+
+
+def flatten(items):
+    """Yield items from any nested iterable; see Reference."""
+    for x in items:
+        if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
+            yield from flatten(x)
+        else:
+            yield x
 
 
 class NotSetupError(AttributeError):
@@ -37,14 +47,21 @@ class ModuleBase:
     ignore_attributes = (
         []
     )  # attributes to ignore (from those passed to init) for determining equality
-    required_cores = []
+
+    required_cores = []  # Specifies required cores that need to be loaded if this core
+    # is loaded. Tuples in the list indicate "or" relationship.
 
     def __init__(self):
         self._is_setup = False
 
     def _check_required_cores(self):
         for rc in self.required_cores:
-            if not any([isinstance(m, rc) for m in self._cores]):
+            # Ensure the required_core is a tuple -- we check that at least *one*
+            # of the cores in the tuple is in the _cores.
+            if not hasattr(rc, "__len__"):
+                rc = (rc,)
+
+            if not any([any([isinstance(m, r) for r in rc]) for m in self._cores]):
                 raise ValueError(
                     "%s needs the %s to be loaded."
                     % (self.__class__.__name__, rc.__class__.__name__)
@@ -104,6 +121,17 @@ class ModuleBase:
     def _cores(self):
         """List of all loaded cores"""
         return self.chain.getCoreModules()
+
+    @property
+    def _rq_cores(self):
+        """List of all loaded cores that are in the requirements, in order of the requirements"""
+        req = flatten(self.required_cores)
+        return tuple([core for core in self._cores for r in req if isinstance(core, r)])
+
+    @property
+    def core_primary(self):
+        """The first core that appears in the requirements"""
+        return self._rq_cores[0] if self._rq_cores else self._cores[0]
 
     def setup(self):
         self._check_required_cores()
@@ -304,11 +332,12 @@ class CoreCoevalModule(CoreBase):
         self.z_step_factor = z_step_factor
         self.z_heat_max = z_heat_max
 
-        self.io_options = dict(
-            store={},  # (derived) quantities to store in the MCMC chain.
-            cache_dir=None,  # where full data sets will be written/read from.
-            cache_mcmc=False,  # whether to cache ionization data sets (done before parameter retention step)
-        )
+        self.io_options = {
+            "store": {},  # (derived) quantities to store in the MCMC chain.
+            "cache_dir": None,  # where full data sets will be written/read from.
+            "cache_mcmc": False,  # whether to cache ionization data sets
+            # (done before parameter retention step)
+        }
 
         self.io_options.update(io_options)
 
@@ -341,7 +370,7 @@ class CoreCoevalModule(CoreBase):
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
         if (
-            not any([p in self.cosmo_params.self.keys() for p in self.parameter_names])
+            not any(p in self.cosmo_params.self.keys() for p in self.parameter_names)
             and not self.change_seed_every_iter
         ):
             logger.info("Initializing init and perturb boxes for the entire chain.")

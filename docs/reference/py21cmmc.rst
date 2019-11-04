@@ -13,5 +13,3 @@ py21cmmc
     py21cmmc.mcmc.core
     py21cmmc.mcmc.likelihood
     py21cmmc.mcmc.analyse
-
-
