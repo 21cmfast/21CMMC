@@ -961,6 +961,16 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 class LikelihoodEDGES(LikelihoodBaseFile):
     """
     A likelihood based on chi^2 comparison to Global Signal of EDGES timing and FWHM
+
+    This is the likelihood arising from Bowman et al. (2018), which reports an absorption feature
+    in the 21-cm brightness temperature spectra
+
+    Parameters
+    ----------
+
+    use_width : bool
+        whether to use the FWHM in the likelihood, by default it's False
+
     """
 
     FREQ_EDGES = 78.
@@ -971,42 +981,64 @@ class LikelihoodEDGES(LikelihoodBaseFile):
 
     required_cores = [core.CoreLightConeModule]
 
+    def __init__(self, use_width=False):
+        super().__init__(*args, **kwargs)
+        self.use_width = use_width
+
     def reduce_data(self, ctx):
-        frequencies=1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
-        global_signal=ctx.get("lightcone").global_brightness_temp,
-        f = InterpolatedUnivariateSpline(frequencies, global_signal,k=4)
-        cr_pts = f.derivative().roots()
-        cr_vals = f(cr_pts)
+        frequencies=1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1)
+        global_signal=ctx.get("lightcone").global_brightness_temp
+        global_signal_interp = InterpolatedUnivariateSpline(frequencies, global_signal,k=4)
+        cr_pts = global_signal_interp.derivative().roots()
+        cr_vals = global_signal_interp(cr_pts)
         if (len(cr_vals) == 0):
-            return dict(Freq_Tbmin = None, FWHM = None)
+            return dict(Freq_Tbmin = None, FWHM = None) # there is no solution -- global signal never reaches a minimum
         else:
             Freq_Tbmin = cr_pts[np.argmin(cr_vals)]
-            Freqs_HM= InterpolatedUnivariateSpline(frequencies,global_signal-f(Freq_Tbmin) * 0.5, k=3).roots()
+            if not self.use_width:
+                return dict(Freq_Tbmin = Freq_Tbmin,  FWHM = None)
+            # calculating the frequencies when global signal = the FWHM
+            Freqs_HM= InterpolatedUnivariateSpline(frequencies,global_signal-global_signal_interp(Freq_Tbmin) * 0.5, k=3).roots()
             if len(Freqs_HM) == 2:
+                # therea are two of them, one is the lower bound of the FWHM and the other one is the upper
                 Freq_r = Freqs_HM[1]
                 Freq_l = Freqs_HM[0]
             elif len(Freqs_HM) == 1:
+                # therea are only one of them
                 if Freqs_HM[0] > Freq_Tbmin:
+                    # it's larger than the frequency of the minimum, so it's the upper bound of the FWHM
+                    # then use the boundary to be the lower one
                     Freq_r = Freqs_HM[0]
                     Freq_l = frequencies[0]
                 else:
+                    # it's smaller than the frequency of the minimum, so it's the lower bound of the FWHM
+                    # then use the boundary to be the upper one
                     Freq_l = Freqs_HM[0]
                     Freq_r = frequencies[-1]
             elif len(Freqs_HM) > 2:
+                # therea are more two of them, need to find the closest two 
                 Freq_1 = Freqs_HM[np.argmin(np.abs(Freqs_HM - Freq_Tbmin))]
                 if (Freq_1 < Freq_Tbmin):
+                    # the closest one is smaller than the frequency of the minimum, so it's the lower bound of the FWHM
                     Freq_l = Freq_1
                     Freq_rs = Freqs_HM[Freqs_HM > Freq_Tbmin]
+                    # find the rest which are larger than the frequency of the minimum
                     if len(Freq_rs) > 0:
+                        # the smallest should be the upper bound of the FWHM
                         Freq_r = Freq_rs[0]
                     else:
+                        # if none, use the boundary 
                         Freq_r = frequencies[-1]
                 else:
+                    # the closest one is larger than the frequency of the minimum, so it's the upper bound of the FWHM
                     Freq_r = Freq_1
                     Freq_ls = Freqs_HM[Freqs_HM < Freq_Tbmin]
+                    # find the rest which are smaller than the frequency of the minimum
                     if len(Freq_ls) >0:
+                        # the largest should be the lower bound of the FWHM
                         Freq_l = Freq_ls[-1]
                     else:
+                        # if none, use the boundary 
                         Freq_l = frequencies[0]
             if len(Freqs_HM) == 0:
                 return dict(Freq_Tbmin = Freq_Tbmin, FWHM = None)
@@ -1016,41 +1048,30 @@ class LikelihoodEDGES(LikelihoodBaseFile):
     def computeLikelihood(self, model):
         """
         Compute the likelihood, given the lightcone output from 21cmFAST.
-        """
 
-        if model["Freq_Tbmin"] is None or model["FWHM"] is None:
-            return -10000000000.
-        else:
-            return -0.5 * np.square((model["Freq_Tbmin"] - self.FREQ_EDGES ) / self.FREQ_ERR_EDGES) +\
-                   -0.5 * np.square(model["FWHM"] - self.FWHM_EDGES) / (self.FWHM_ERR_UPP_EDGES * self.FWHM_ERR_LOW_EDGES + (self.FWHM_ERR_UPP_EDGES - self.FWHM_ERR_LOW_EDGES) * ( model["FWHM"] - self.FWHM_EDGES))
+        Parameters
+        ----------
 
-class LikelihoodEDGEStimingOnly(LikelihoodBaseFile):
-    """
-    A likelihood based on chi^2 comparison to Global Signal of EDGES timing only
-    """
+        model : list of dicts
+            Exactly the output of :meth:`simulate`.
 
-    FREQ_EDGES = 78.
-    FREQ_ERR_EDGES = 1.
-
-    required_cores = [core.CoreLightConeModule]
-
-    def reduce_data(self, ctx):
-        frequencies=1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
-        global_signal=ctx.get("lightcone").global_brightness_temp,
-        f = InterpolatedUnivariateSpline(frequencies, global_signal,k=4)
-        cr_pts = f.derivative().roots()
-        cr_vals = f(cr_pts)
-        if (len(cr_vals) == 0):
-            return dict(Freq_Tbmin = None)
-        else:
-            return dict(Freq_Tbmin = cr_pts[np.argmin(cr_vals)])
-
-    def computeLikelihood(self, model):
-        """
-        Compute the likelihood, given the lightcone output from 21cmFAST.
-        """
+        Returns
+        -------
         
+        lnl : float
+            The log-likelihood for the given model.
+
+        """
+
         if model["Freq_Tbmin"] is None:
-            return -10000000000.
+            return -np.inf
+
+        if self.use_width:
+            if model["FWHM"] is None:
+                return -np.inf
+            else:
+                return -0.5 * np.square((model["Freq_Tbmin"] - self.FREQ_EDGES ) / self.FREQ_ERR_EDGES) +\
+                       -0.5 * np.square(model["FWHM"] - self.FWHM_EDGES) / (self.FWHM_ERR_UPP_EDGES *\
+                       self.FWHM_ERR_LOW_EDGES + (self.FWHM_ERR_UPP_EDGES - self.FWHM_ERR_LOW_EDGES) * ( model["FWHM"] - self.FWHM_EDGES))
         else:
             return -0.5 * np.square((model["Freq_Tbmin"] - self.FREQ_EDGES ) / self.FREQ_ERR_EDGES)

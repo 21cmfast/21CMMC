@@ -15,8 +15,7 @@ from .likelihood import (
     LikelihoodLuminosityFunction,
     LikelihoodPlanck,
     Likelihood1DPowerLightcone,
-	LikelihoodEDGEStimingOnly,
-	LikelihoodEDGES,
+    LikelihoodEDGES,
 )
 from .cosmoHammer import HDFStorageUtil
 from .mcmc import build_computation_chain, run_mcmc
