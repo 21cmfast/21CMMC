@@ -990,7 +990,7 @@ class LikelihoodEDGES(LikelihoodBaseFile):
 
     required_cores = [core.CoreLightConeModule]
 
-    def __init__(self, use_width=False):
+    def __init__(self, use_width=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.use_width = use_width
 
