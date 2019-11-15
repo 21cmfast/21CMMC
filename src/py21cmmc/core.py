@@ -313,7 +313,7 @@ class CoreCoevalModule(CoreBase):
         super().__init__(io_options.get("store", None))
 
         if ctx_variables is None:
-            ctx_variables = ["brightness_temp", "xHI"]
+            ctx_variables = ["brightness_temperature", "ionization_box"]
 
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
@@ -435,7 +435,7 @@ class CoreCoevalModule(CoreBase):
         )
 
         # Call C-code
-        init, perturb, xHI, brightness_temp = p21.run_coeval(
+        coeval = p21.run_coeval(
             redshift=self.redshift,
             astro_params=astro_params,
             flag_options=self.flag_options,
@@ -451,10 +451,11 @@ class CoreCoevalModule(CoreBase):
         logger.debug("Adding {} to context data".format(self.ctx_variables))
         for key in self.ctx_variables:
             try:
-                ctx.add(key, locals()[key])
+                ctx.add(key, [getattr(c, key) for c in coeval])
             except KeyError:
                 raise KeyError(
-                    "ctx_variables must be drawn from the list ['init', 'perturb', 'xHI', 'brightness_temp']"
+                    "ctx_variables must be drawn from the list ['init', 'perturb', "
+                    "'ionization_box', 'brightness_temperature']"
                 )
 
     def _update_params(self, params):

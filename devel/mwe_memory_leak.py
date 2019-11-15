@@ -2,11 +2,15 @@ import tracemalloc
 
 import py21cmmc
 from py21cmmc import mcmc
+import os
+import psutil
 
 print(py21cmmc.__version__)
 
 location = "cosmohammer_data"
 model_name = "SimpleTest"
+PROCESS = psutil.Process(os.getpid())
+oldmem = 0
 
 
 # Stuff to track memory usage.
@@ -16,6 +20,8 @@ snapshot = tracemalloc.take_snapshot()
 
 def trace_print():
     global snapshot
+    global oldmem
+
     snapshot2 = tracemalloc.take_snapshot()
     snapshot2 = snapshot2.filter_traces(
         (
@@ -26,10 +32,20 @@ def trace_print():
     )
 
     if snapshot is not None:
-        print("================================== Begin Trace:")
+        thismem = PROCESS.memory_info().rss / 1024 ** 2
+        diff = thismem - oldmem
+        print(
+            "===================== Begin Trace (TOTAL MEM={:1.4e} MB... [{:+1.4e} MB]):".format(
+                thismem, diff
+            )
+        )
         top_stats = snapshot2.compare_to(snapshot, "lineno", cumulative=True)
-        for stat in top_stats[:10]:
+        for stat in top_stats[:4]:
             print(stat)
+        print("End Trace ===========================================")
+        print()
+        oldmem = thismem
+
     snapshot = snapshot2
 
 
@@ -66,9 +82,9 @@ if __name__ == "__main__":
         params=dict(  # Parameter dict as described above.
             HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 4, 6, 0.1]
         ),
-        walkersRatio=3,  # The number of walkers will be walkersRatio*nparams
+        walkersRatio=2,  # The number of walkers will be walkersRatio*nparams
         burninIterations=0,  # Number of iterations to save as burnin. Recommended to leave as zero.
-        sampleIterations=30,  # Number of iterations to sample, per walker.
+        sampleIterations=3,  # Number of iterations to sample, per walker.
         threadCount=1,  # Number of processes to use in MCMC (best as a factor of walkersRatio)
         continue_sampling=False,
     )
