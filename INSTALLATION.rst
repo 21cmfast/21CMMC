@@ -43,4 +43,3 @@ Otherwise, if you are using `pip`::
 And if you would like to also compile documentation::
 
     pip install -r docs/requirements.txt
-
