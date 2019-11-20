@@ -384,7 +384,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
     def _check_noise_format(self):
         for i, n in enumerate(self.noise):
-            if "ks" not in n or "errs" not in n:
+            if "k" not in n or "errs" not in n:
                 raise ValueError(
                     "noisefile #{j} of {n} has the wrong format".format(
                         j=i + 1, n=len(self.noise)
@@ -871,8 +871,11 @@ class LikelihoodPlanck(LikelihoodBase):
 
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012 (https://arxiv.org/abs/1605.03507)
-    tau_mean = 0.058
-    tau_sigma = 0.012
+    #tau_mean = 0.058
+    #tau_sigma = 0.012
+	# do Planck 2018(https://arxiv.org/pdf/1807.06209.pdf)
+    tau_mean = 0.0544
+    tau_sigma = 0.0073
 
     # Simple linear extrapolation of the redshift range provided by the user, to be able to estimate the optical depth
     n_z_interp = 15
@@ -898,8 +901,8 @@ class LikelihoodPlanck(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
-        lnl = ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
-        print(lnl)
+        lnl = -0.5 * ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
+        #print(lnl)
         return lnl
 
     @property
@@ -1085,7 +1088,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         model = np.clip(model, 0, 1)
 
         if model > self.threshold:
-            return ((data - model) / sigma) ** 2
+            return -0.5 * ((data - model) / sigma) ** 2
         else:
             return 0
 
