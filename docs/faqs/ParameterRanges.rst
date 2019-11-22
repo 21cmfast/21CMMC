@@ -1,8 +1,8 @@
 Allowed parameter ranges
 ========================
-The version of 21cmFAST that comes with ``21CMMC`` uses numerous interpolation tables. As such, several parameter 
+The version of 21cmFAST that comes with ``21CMMC`` uses numerous interpolation tables. As such, several parameter
 combinations/choices may have restricted ranges. This, in addition to limits set by observations restricts the ranges
-for several of the astrophysical parameters that are available within ``21CMMC``. 
+for several of the astrophysical parameters that are available within ``21CMMC``.
 
 Cosmology
 ---------
@@ -25,7 +25,7 @@ Ionisation astrophysical parameters
 Allowed astrophysical parameter ranges are determined by which parameter set is being used. Dictated by the choice of
 ``USE_MASS_DEPENDENT_ZETA`` in the ``FlagOptions`` struct.
 
-If ``USE_MASS_DEPENDENT_ZETA = False`` then the user is selecting the older astrophysical parameterisation for the 
+If ``USE_MASS_DEPENDENT_ZETA = False`` then the user is selecting the older astrophysical parameterisation for the
 ionising sources. These include any of: (i) :math:`\zeta` - the ionising efficiency (ii) :math:`R_{mfp}` - minimum photon horizon for ionising
 photons or (iii) :math:`T_{min,vir}` - minimum halo mass for the ionising sources, :math:`T_{min,vir}`.
 

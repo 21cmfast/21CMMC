@@ -68,7 +68,6 @@ setup(
     keywords=["Epoch of Reionization", "Cosmology"],
     install_requires=[
         "click",
-        # 'tqdm',
         "numpy",
         "cosmoHammer",
         "scipy",
@@ -78,9 +77,4 @@ setup(
         "cached_property",
         "21cmFAST>=3.0.0dev",
     ],
-    # entry_points={
-    #     'console_scripts': [
-    #         '21CMMC = py21cmmc.cli:main',
-    #     ]
-    # },
 )

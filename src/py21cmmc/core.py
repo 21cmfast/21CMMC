@@ -332,11 +332,12 @@ class CoreCoevalModule(CoreBase):
         self.z_step_factor = z_step_factor
         self.z_heat_max = z_heat_max
 
-        self.io_options = dict(
-            store={},  # (derived) quantities to store in the MCMC chain.
-            cache_dir=None,  # where full data sets will be written/read from.
-            cache_mcmc=False,  # whether to cache ionization data sets (done before parameter retention step)
-        )
+        self.io_options = {
+            "store": {},  # (derived) quantities to store in the MCMC chain.
+            "cache_dir": None,  # where full data sets will be written/read from.
+            "cache_mcmc": False,  # whether to cache ionization data sets
+            # (done before parameter retention step)
+        }
 
         self.io_options.update(io_options)
 
@@ -369,7 +370,7 @@ class CoreCoevalModule(CoreBase):
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
         if (
-            not any([p in self.cosmo_params.self.keys() for p in self.parameter_names])
+            not any(p in self.cosmo_params.self.keys() for p in self.parameter_names)
             and not self.change_seed_every_iter
         ):
             logger.info("Initializing init and perturb boxes for the entire chain.")

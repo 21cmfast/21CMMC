@@ -4,6 +4,7 @@
 *.pyc
 
 src/py21cmmc\.egg-info/
+devel/cosmohammer_data/
 
 *.so
 build/
