@@ -881,18 +881,22 @@ class LikelihoodPlanck(LikelihoodBase):
     #tau_mean = 0.058
     #tau_sigma = 0.012
 	# do Planck 2018(https://arxiv.org/pdf/1807.06209.pdf)
-    tau_mean = 0.0544
-    tau_sigma = 0.0073
+	# TT TE EE lowE lensing
+    #tau_mean = 0.0544
+    #tau_sigma = 0.0073
+	# TT lowE
+    tau_mean = 0.0522
+    tau_sigma = 0.0080
 
     # Simple linear extrapolation of the redshift range provided by the user, to be
     # able to estimate the optical depth
-    n_z_interp = 15
+    n_z_interp = 25
 
     # Minimum of extrapolation is chosen to 5.9, to correspond to the McGreer et al.
     # prior on the IGM neutral fraction.
     # The maximum is chosen to be z = 18., which is arbitrary.
-    z_extrap_min = 5.9
-    z_extrap_max = 20.0
+    z_extrap_min = 5.0
+    z_extrap_max = 30.0
 
     def computeLikelihood(self, model):
         """

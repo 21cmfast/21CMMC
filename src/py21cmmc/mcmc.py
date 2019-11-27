@@ -59,6 +59,7 @@ def run_mcmc(
     continue_sampling=True,
     reuse_burnin=True,
     log_level_21CMMC=None,
+	use_multinest=False,
     **mcmc_options,
 ):
     """
@@ -95,6 +96,8 @@ def run_mcmc(
     log_level_21CMMC : (int or str, optional)
         The logging level of the 21cmFAST Python code (specifically the "21CMMC" logging object). By default, this
         logger has only a stdout handler. See https://docs.python.org/3/library/logging.html#logging-levels
+	use_multinest : bool, optional
+		whether or not to use MultiNest sampler instead of emcee
 
 
     Other Parameters
@@ -169,19 +172,51 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
     if log_level_21CMMC is not None:
         logging.getLogger("21CMMC").setLevel(log_level_21CMMC)
 
-    sampler = CosmoHammerSampler(
-        continue_sampling=continue_sampling,
-        likelihoodComputationChain=chain,
-        storageUtil=HDFStorageUtil(file_prefix),
-        filePrefix=file_prefix,
-        reuseBurnin=reuse_burnin,
-        pool=mcmc_options.get(
-            "pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))
-        ),
-        **mcmc_options,
-    )
+	if use_multinest:
+# max_iter=0, (unlimited iterations)
+# sampling efficiency = 0.3 (API says this is the best for Model Selection, 0.8 is best for parameter estimation)
+# Using resume=True will read in from file the last locations of the iso-likelihood contours to "continue" the sampling if the sampler hasn't sufficently converged.           
+# for MPI leave MPI_init=False, and run with $ mpirun -np #cores python 21CMNest.py
+# typically n_live_points=2000
+		import pymultinest
+		def likelihood(p, ndim, nparams):
+			return chain(p)[0][0]
 
-    # The sampler writes to file, so no need to save anything ourselves.
-    sampler.startSampling()
+		def prior(p, ndim, nparams):
+			p = [ params[i][0] + p[i]*(params[i][1]-params[i][0]) for i in range(ndim) ]
 
-    return sampler
+		os.system("mkdir -p MultiNest/")
+
+        pymultinest.run(likelihood,
+                prior,
+                n_dims = len(params),
+                n_params = len(params),
+                n_live_points = 1000,
+                resume=True,
+                verbose=True,
+                write_output=True,
+                outputfiles_basename="%s/MultiNest/21CMMC-"%FlagOptions['KEEP_ALL_DATA_FILENAME'],
+                max_iter=50,
+                importance_nested_sampling=True,
+                multimodal=True,
+                evidence_tolerance=0.5,
+                sampling_efficiency=0.8,
+                init_MPI = False
+
+	else:
+        sampler = CosmoHammerSampler(
+            continue_sampling=continue_sampling,
+            likelihoodComputationChain=chain,
+            storageUtil=HDFStorageUtil(file_prefix),
+            filePrefix=file_prefix,
+            reuseBurnin=reuse_burnin,
+            pool=mcmc_options.get(
+                "pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))
+            ),
+            **mcmc_options,
+        )
+    
+        # The sampler writes to file, so no need to save anything ourselves.
+        sampler.startSampling()
+    
+        return sampler
