@@ -265,10 +265,13 @@ def run_multinest(
 
     try:
         mkdir(datadir)
-        mkdir("MultiNest")
     except FileExistsError:
         pass
 
+    try:
+        mkdir(datadir+"/MultiNest")
+    except FileExistsError:
+        pass
     # Setup parameters.
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
@@ -296,19 +299,11 @@ def run_multinest(
         logging.getLogger("21CMMC").setLevel(log_level_21CMMC)
 
     def likelihood(p, ndim, nparams):
-        #lnl = 0
-        #input = Params(*[(k, v) for k, v in zip(params.keys, p)])
-        #print(input)
-        #for module in likelihood_modules:
-        #    lnl += chain.invokeLikelihoodModule(module,chain.createChainContext(input))
-        #return chain.invokeLikelihoodModule(likelihood_modules,chain.createChainContext(Params(*[(k, v) for k, v in zip(params.keys, p)]))) 
-        #return lnl
         input = [ params[i][1] + p[i]*(params[i][2]-params[i][1]) for i in range(ndim) ] 
         return chain.computeLikelihoods(chain.build_model_data(Params(*[(k, v) for k, v in zip(params.keys, input)])))
 
     def prior(p, ndim, nparams):
         p = [ params[i][1] + p[i]*(params[i][2]-params[i][1]) for i in range(ndim) ]
-
 
     sampler = pymultinest.run(likelihood,
             prior,
