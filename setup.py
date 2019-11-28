@@ -77,4 +77,7 @@ setup(
         "cached_property",
         "21cmFAST>=3.0.0dev",
     ],
+	extras_require = {
+		"samplers": ['pymultinest'],
+	}
 )
