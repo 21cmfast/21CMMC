@@ -383,7 +383,7 @@ def test_edges_timing_only(lc_core, lc_core_ctx):
 
     model = lk.reduce_data(lc_core_ctx)
 
-    assert "Freq_Tbmin" in model
+    assert "freq_tb_min" in model
 
 
 def test_edges(lc_core, lc_core_ctx):
@@ -394,8 +394,8 @@ def test_edges(lc_core, lc_core_ctx):
 
     model = lk.reduce_data(lc_core_ctx)
 
-    assert "Freq_Tbmin" in model
-    assert "FWHM" in model
+    assert "freq_tb_min" in model
+    assert "fwhm" in model
 
 
 def test_load_chain(core, likelihood_coeval, default_params, tmpdirec):
