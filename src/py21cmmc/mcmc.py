@@ -261,10 +261,10 @@ def run_multinest(
     -------
     sampler : multinest sampler
     """
-	try:
-    	import pymultinest
-	except ImportError:
-		raise ImportError("You need to install pymultinest to use this function!")
+    try:
+        import pymultinest
+    except ImportError:
+        raise ImportError("You need to install pymultinest to use this function!")
 
     try:
         mkdir(datadir)
