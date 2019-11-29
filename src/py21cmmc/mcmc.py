@@ -250,7 +250,7 @@ def run_multinest(
     write_output : bool, optional
         write output files? This is required for analysis.
     resume : bool, optional
-        If True, Multinest will read in from file the last locations of the iso-likelihood contours to "continue" 
+        If True, Multinest will read in from file the last locations of the iso-likelihood contours to "continue"
         the sampling if the sampler hasn't sufficently converged.
 
     Other Parameters
