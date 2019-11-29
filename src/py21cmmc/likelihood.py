@@ -1074,7 +1074,7 @@ class LikelihoodEDGES(LikelihoodBaseFile):
 
         Returns
         -------
-        
+
         lnl : float
             The log-likelihood for the given model.
 
