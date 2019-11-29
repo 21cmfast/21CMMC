@@ -61,7 +61,7 @@ class ModuleBase:
             if not hasattr(rc, "__len__"):
                 rc = (rc,)
 
-            if not any([any([isinstance(m, r) for r in rc]) for m in self._cores]):
+            if not any(any(isinstance(m, r) for r in rc) for m in self._cores):
                 raise ValueError(
                     "%s needs the %s to be loaded."
                     % (self.__class__.__name__, rc.__class__.__name__)
@@ -126,7 +126,7 @@ class ModuleBase:
     def _rq_cores(self):
         """List of all loaded cores that are in the requirements, in order of the requirements"""
         req = flatten(self.required_cores)
-        return tuple([core for core in self._cores for r in req if isinstance(core, r)])
+        return tuple(core for core in self._cores for r in req if isinstance(core, r))
 
     @property
     def core_primary(self):

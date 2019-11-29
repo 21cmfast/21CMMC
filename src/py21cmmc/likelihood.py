@@ -1002,14 +1002,16 @@ class LikelihoodEDGES(LikelihoodBaseFile):
         )
         cr_pts = global_signal_interp.derivative().roots()
         cr_vals = global_signal_interp(cr_pts)
+        results = {}
         if len(cr_vals) == 0:
-            return dict(
-                freq_tb_min=None, fwhm=None
-            )  # there is no solution -- global signal never reaches a minimum
+            # there is no solution -- global signal never reaches a minimum
+            results["freq_tb_min"] = None
+            results["fwhm"] = None
         else:
             freq_tb_min = cr_pts[np.argmin(cr_vals)]
+            results["freq_tb_min"] = freq_tb_min
             if not self.use_width:
-                return dict(freq_tb_min=freq_tb_min, fwhm=None)
+                results["fwhm"] = None
             # calculating the frequencies when global signal = the fwhm
             freqs_hm = InterpolatedUnivariateSpline(
                 frequencies,
@@ -1058,9 +1060,10 @@ class LikelihoodEDGES(LikelihoodBaseFile):
                         # if none, use the boundary
                         freq_l = frequencies[0]
             if len(freqs_hm) == 0:
-                return dict(freq_tb_min=freq_tb_min, fwhm=None)
+                results["fwhm"] = None
             else:
-                return dict(freq_tb_min=freq_tb_min, fwhm=freq_r - freq_l)
+                results["fwhm"] = freq_r - freq_l
+        return results
 
     def computeLikelihood(self, model):
         """
