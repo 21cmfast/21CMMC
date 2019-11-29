@@ -180,10 +180,10 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
         ),
         **mcmc_options,
     )
-    
+
     # The sampler writes to file, so no need to save anything ourselves.
     sampler.startSampling()
-    
+
     return sampler
 
 
@@ -272,7 +272,7 @@ def run_multinest(
         pass
 
     try:
-        mkdir(datadir+"/MultiNest")
+        mkdir(datadir + "/MultiNest")
     except FileExistsError:
         pass
     # Setup parameters.
@@ -286,7 +286,7 @@ def run_multinest(
     # Write out the parameters *before* setup.
     # TODO: not sure if this is the best idea -- should it be after setup()?
     try:
-        with open("%s/%s.LCC.yml"%(datadir, model_name), "w") as f:
+        with open("%s/%s.LCC.yml" % (datadir, model_name), "w") as f:
             yaml.dump(chain, f)
     except Exception as e:
         logger.warning(
@@ -302,25 +302,33 @@ def run_multinest(
         logging.getLogger("21CMMC").setLevel(log_level_21CMMC)
 
     def likelihood(p, ndim, nparams):
-        input = [ params[i][1] + p[i]*(params[i][2]-params[i][1]) for i in range(ndim) ] 
-        return chain.computeLikelihoods(chain.build_model_data(Params(*[(k, v) for k, v in zip(params.keys, input)])))
+        input = [
+            params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)
+        ]
+        return chain.computeLikelihoods(
+            chain.build_model_data(
+                Params(*[(k, v) for k, v in zip(params.keys, input)])
+            )
+        )
 
     def prior(p, ndim, nparams):
-        p = [ params[i][1] + p[i]*(params[i][2]-params[i][1]) for i in range(ndim) ]
+        p = [params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)]
 
-    sampler = pymultinest.run(likelihood,
-            prior,
-            n_dims = len(params.keys),
-            n_params = len(params.keys),
-            n_live_points=n_live_points,
-            resume=resume,
-            write_output=write_output,
-            outputfiles_basename=datadir+"/MultiNest/"+model_name,
-            max_iter=max_iter,
-            importance_nested_sampling=importance_nested_sampling,
-            multimodal=multimodal,
-            evidence_tolerance=evidence_tolerance,
-            sampling_efficiency=sampling_efficiency,
-            init_MPI = False)
+    sampler = pymultinest.run(
+        likelihood,
+        prior,
+        n_dims=len(params.keys),
+        n_params=len(params.keys),
+        n_live_points=n_live_points,
+        resume=resume,
+        write_output=write_output,
+        outputfiles_basename=datadir + "/MultiNest/" + model_name,
+        max_iter=max_iter,
+        importance_nested_sampling=importance_nested_sampling,
+        multimodal=multimodal,
+        evidence_tolerance=evidence_tolerance,
+        sampling_efficiency=sampling_efficiency,
+        init_MPI=False,
+    )
 
     return sampler
