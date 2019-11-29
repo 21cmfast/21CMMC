@@ -982,11 +982,11 @@ class LikelihoodEDGES(LikelihoodBaseFile):
 
     """
 
-    freq_edges = 78.
-    freq_err_edges = 1.
-    fwhm_edges = 19.
-    fwhm_err_upp_edges = 4.
-    fwhm_err_low_edges = 2.
+    freq_edges = 78.0
+    freq_err_edges = 1.0
+    fwhm_edges = 19.0
+    fwhm_err_upp_edges = 4.0
+    fwhm_err_low_edges = 2.0
 
     required_cores = [core.CoreLightConeModule]
 
@@ -995,19 +995,27 @@ class LikelihoodEDGES(LikelihoodBaseFile):
         self.use_width = use_width
 
     def reduce_data(self, ctx):
-        frequencies=1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1)
-        global_signal=ctx.get("lightcone").global_brightness_temp
-        global_signal_interp = InterpolatedUnivariateSpline(frequencies, global_signal,k=4)
+        frequencies = 1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1)
+        global_signal = ctx.get("lightcone").global_brightness_temp
+        global_signal_interp = InterpolatedUnivariateSpline(
+            frequencies, global_signal, k=4
+        )
         cr_pts = global_signal_interp.derivative().roots()
         cr_vals = global_signal_interp(cr_pts)
-        if (len(cr_vals) == 0):
-            return dict(freq_tb_min = None, fwhm = None) # there is no solution -- global signal never reaches a minimum
+        if len(cr_vals) == 0:
+            return dict(
+                freq_tb_min=None, fwhm=None
+            )  # there is no solution -- global signal never reaches a minimum
         else:
             freq_tb_min = cr_pts[np.argmin(cr_vals)]
             if not self.use_width:
-                return dict(freq_tb_min = freq_tb_min,  fwhm = None)
+                return dict(freq_tb_min=freq_tb_min, fwhm=None)
             # calculating the frequencies when global signal = the fwhm
-            freqs_hm= InterpolatedUnivariateSpline(frequencies,global_signal-global_signal_interp(freq_tb_min) * 0.5, k=3).roots()
+            freqs_hm = InterpolatedUnivariateSpline(
+                frequencies,
+                global_signal - global_signal_interp(freq_tb_min) * 0.5,
+                k=3,
+            ).roots()
             if len(freqs_hm) == 2:
                 # therea are two of them, one is the lower bound of the fwhm and the other one is the upper
                 freq_r = freqs_hm[1]
@@ -1025,9 +1033,9 @@ class LikelihoodEDGES(LikelihoodBaseFile):
                     freq_l = freqs_hm[0]
                     freq_r = frequencies[-1]
             elif len(freqs_hm) > 2:
-                # therea are more two of them, need to find the closest two 
+                # therea are more two of them, need to find the closest two
                 freq_1 = freqs_hm[np.argmin(np.abs(freqs_hm - freq_tb_min))]
-                if (freq_1 < freq_tb_min):
+                if freq_1 < freq_tb_min:
                     # the closest one is smaller than the frequency of the minimum, so it's the lower bound of the fwhm
                     freq_l = freq_1
                     freq_rs = freqs_hm[freqs_hm > freq_tb_min]
@@ -1036,23 +1044,23 @@ class LikelihoodEDGES(LikelihoodBaseFile):
                         # the smallest should be the upper bound of the fwhm
                         freq_r = freq_rs[0]
                     else:
-                        # if none, use the boundary 
+                        # if none, use the boundary
                         freq_r = frequencies[-1]
                 else:
                     # the closest one is larger than the frequency of the minimum, so it's the upper bound of the fwhm
                     freq_r = freq_1
                     freq_ls = freqs_hm[freqs_hm < freq_tb_min]
                     # find the rest which are smaller than the frequency of the minimum
-                    if len(freq_ls) >0:
+                    if len(freq_ls) > 0:
                         # the largest should be the lower bound of the fwhm
                         freq_l = freq_ls[-1]
                     else:
-                        # if none, use the boundary 
+                        # if none, use the boundary
                         freq_l = frequencies[0]
             if len(freqs_hm) == 0:
-                return dict(freq_tb_min = freq_tb_min, fwhm = None)
+                return dict(freq_tb_min=freq_tb_min, fwhm=None)
             else:
-                return dict(freq_tb_min = freq_tb_min, fwhm = freq_r - freq_l)
+                return dict(freq_tb_min=freq_tb_min, fwhm=freq_r - freq_l)
 
     def computeLikelihood(self, model):
         """
@@ -1079,8 +1087,14 @@ class LikelihoodEDGES(LikelihoodBaseFile):
             if model["fwhm"] is None:
                 return -np.inf
             else:
-                return -0.5 * np.square((model["freq_tb_min"] - self.freq_edges ) / self.freq_err_edges) +\
-                       -0.5 * np.square(model["fwhm"] - self.fwhm_edges) / (self.fwhm_err_upp_edges *\
-                       self.fwhm_err_low_edges + (self.fwhm_err_upp_edges - self.fwhm_err_low_edges) * ( model["fwhm"] - self.fwhm_edges))
+                return -0.5 * np.square(
+                    (model["freq_tb_min"] - self.freq_edges) / self.freq_err_edges
+                ) + -0.5 * np.square(model["fwhm"] - self.fwhm_edges) / (
+                    self.fwhm_err_upp_edges * self.fwhm_err_low_edges
+                    + (self.fwhm_err_upp_edges - self.fwhm_err_low_edges)
+                    * (model["fwhm"] - self.fwhm_edges)
+                )
         else:
-            return -0.5 * np.square((model["freq_tb_min"] - self.freq_edges ) / self.freq_err_edges)
+            return -0.5 * np.square(
+                (model["freq_tb_min"] - self.freq_edges) / self.freq_err_edges
+            )
