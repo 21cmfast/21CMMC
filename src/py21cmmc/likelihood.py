@@ -901,7 +901,8 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 
     def reduce_data(self, ctx):
         return {
-            "frequencies": 1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
+            "frequencies": 1420.4
+            / (np.array(ctx.get("lightcone").node_redshifts) + 1.0),
             "global_signal": ctx.get("lightcone").global_brightness_temp,
         }
 
@@ -1090,13 +1091,23 @@ class LikelihoodEDGES(LikelihoodBaseFile):
             if model["fwhm"] is None:
                 return -np.inf
             else:
-                return -0.5 * np.square(
-                    (model["freq_tb_min"] - self.freq_edges) / self.freq_err_edges
-                ) + -0.5 * np.square(model["fwhm"] - self.fwhm_edges) / (
-                    self.fwhm_err_upp_edges * self.fwhm_err_low_edges
-                    + (self.fwhm_err_upp_edges - self.fwhm_err_low_edges)
-                    * (model["fwhm"] - self.fwhm_edges)
-                )
+                # asymmetric uncertainty follows approximation in Barlow04, Sec 3.6
+                denominator = self.fwhm_err_upp_edges * self.fwhm_err_low_edges + (
+                    self.fwhm_err_upp_edges - self.fwhm_err_low_edges
+                ) * (model["fwhm"] - self.fwhm_edges)
+                if denominator <= 0:
+                    return -np.inf
+                else:
+                    return (
+                        -0.5
+                        * np.square(
+                            (model["freq_tb_min"] - self.freq_edges)
+                            / self.freq_err_edges
+                        )
+                        + -0.5
+                        * np.square(model["fwhm"] - self.fwhm_edges)
+                        / denominator
+                    )
         else:
             return -0.5 * np.square(
                 (model["freq_tb_min"] - self.freq_edges) / self.freq_err_edges
