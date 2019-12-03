@@ -996,7 +996,7 @@ class LikelihoodEDGES(LikelihoodBaseFile):
         self.use_width = use_width
 
     def reduce_data(self, ctx):
-        frequencies = 1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1)
+        frequencies = 1420.4 / (np.array(ctx.get("lightcone").node_redshifts) + 1)
         global_signal = ctx.get("lightcone").global_brightness_temp
         global_signal_interp = InterpolatedUnivariateSpline(
             frequencies, global_signal, k=4
