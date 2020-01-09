@@ -1,4 +1,3 @@
-21cmFAST>=3.0.0dev
 astropy
 cffi
 click
@@ -11,4 +10,3 @@ pytest-cov
 pyyaml
 scipy
 tox
-21cmFAST>=3.0.0dev
