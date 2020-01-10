@@ -1,6 +1,4 @@
-"""
-A module containing classes which ease the storage of data during chain computation.
-"""
+"""A module containing classes which ease the storage of data during chain computation."""
 
 import os
 
@@ -9,9 +7,7 @@ import numpy as np
 
 
 class HDFStorage:
-    """
-    A HDF Storage utility, based pretty much exclusively on the HDFBackend from emcee v3.0.0.
-    """
+    """A HDF Storage utility, based on the HDFBackend from emcee v3.0.0."""
 
     def __init__(self, filename, name):
         if h5py is None:
@@ -21,6 +17,7 @@ class HDFStorage:
 
     @property
     def initialized(self):
+        """Whether the file object has been initialized."""
         if not os.path.exists(self.filename):
             return False
         try:
@@ -29,14 +26,19 @@ class HDFStorage:
         except (OSError, IOError):
             return False
 
-    def open(self, mode="r"):
+    def open(self, mode="r"):  # noqa
+        """Open the backend file."""
         return h5py.File(self.filename, mode)
 
     def reset(self, nwalkers, params):
-        """Clear the state of the chain and empty the backend
-        Args:
-            nwalkers (int): The size of the ensemble
-            params (Params): The parameter input
+        """Clear the state of the chain and empty the backend.
+
+        Parameters
+        ----------
+        nwalkers : int
+            The size of the ensemble
+        params : :class:`~py21cmmc.cosmoHammer.util.Params` instance
+            The parameter input
         """
         if os.path.exists(self.filename):
             mode = "a"
@@ -90,6 +92,7 @@ class HDFStorage:
 
     @property
     def param_names(self):
+        """The parameter names."""
         if not self.initialized:
             raise ValueError(
                 "storage needs to be initialized to access parameter names"
@@ -100,6 +103,7 @@ class HDFStorage:
 
     @property
     def param_guess(self):
+        """An initial guess for the parameters."""
         if not self.initialized:
             raise ValueError(
                 "storage needs to be initialized to access parameter guess"
@@ -110,6 +114,7 @@ class HDFStorage:
 
     @property
     def blob_names(self):
+        """Names for each of the arbitrary blobs."""
         if not self.has_blobs:
             return None
 
@@ -118,10 +123,12 @@ class HDFStorage:
 
     @property
     def has_blobs(self):
+        """Whether this file has blobs in it."""
         with self.open() as f:
             return f[self.name].attrs["has_blobs"]
 
     def get_value(self, name, flat=False, thin=1, discard=0):
+        """Get a particular kind of entry from the backend file."""
         if not self.initialized:
             raise AttributeError("Cannot get values from uninitialized storage.")
 
@@ -144,32 +151,38 @@ class HDFStorage:
 
     @property
     def size(self):
+        """The length of the chain."""
         with self.open() as f:
             g = f[self.name]
             return g["chain"].shape[0]
 
     @property
     def shape(self):
+        """Tuple of (nwalkers, ndim)."""
         with self.open() as f:
             g = f[self.name]
             return g.attrs["nwalkers"], g.attrs["ndim"]
 
     @property
     def iteration(self):
+        """The iteration the chain is currently at."""
         with self.open() as f:
             return f[self.name].attrs["iteration"]
 
     @property
     def accepted_array(self):
+        """An array of bools representing whether parameter proposals were accepted."""
         with self.open() as f:
             return f[self.name]["accepted"][...]
 
     @property
     def accepted(self):
+        """Number of acceptances for each walker."""
         return np.sum(self.accepted_array, axis=0)
 
     @property
     def random_state(self):
+        """The defining random state of the process."""
         with self.open() as f:
             elements = [
                 v
@@ -180,10 +193,14 @@ class HDFStorage:
         return elements if len(elements) else None
 
     def grow(self, ngrow, blobs):
-        """Expand the storage space by some number of samples
-        Args:
-            ngrow (int): The number of steps to grow the chain.
-            blobs: A dictionary of extra data, or None
+        """Expand the storage space by some number of samples.
+
+        Parameters
+        ----------
+        ngrow : int
+            The number of steps to grow the chain.
+        blobs : dict or None
+            A dictionary of extra data, or None
         """
         self._check_blobs(blobs)
 
@@ -221,15 +238,21 @@ class HDFStorage:
     def save_step(
         self, coords, log_prob, blobs, truepos, trueprob, accepted, random_state
     ):
-        """Save a step to the file
-        Args:
-            coords (ndarray): The coordinates of the walkers in the ensemble.
-            log_prob (ndarray): The log probability for each walker.
-            blobs (ndarray or None): The blobs for each walker or ``None`` if
-                there are no blobs.
-            accepted (ndarray): An array of boolean flags indicating whether
-                or not the proposal for each walker was accepted.
-            random_state: The current state of the random number generator.
+        """Save a step to the file.
+
+        Parameters
+        ----------
+        coords : ndarray
+            The coordinates of the walkers in the ensemble.
+        log_prob : ndarray
+            The log probability for each walker.
+        blobs : ndarray or None
+            The blobs for each walker or ``None`` if there are no blobs.
+        accepted : ndarray
+            An array of boolean flags indicating whether or not the proposal for each
+            walker was accepted.
+        random_state :
+            The current state of the random number generator.
         """
         self._check(coords, log_prob, blobs, accepted)
 
@@ -265,12 +288,12 @@ class HDFStorage:
             raise ValueError("inconsistent use of blobs")
 
     def get_chain(self, **kwargs):
-        """
-        Get the stored chain of MCMC samples
+        r"""
+        Get the stored chain of MCMC samples.
 
         Parameters
         ----------
-        kwargs:
+        \*\*kwargs :
             flat (Optional[bool]): Flatten the chain across the ensemble.
                 (default: ``False``)
             thin (Optional[int]): Take only every ``thin`` steps from the
@@ -286,12 +309,12 @@ class HDFStorage:
         return self.get_value("chain", **kwargs)
 
     def get_blobs(self, **kwargs):
-        """
-        Get the chain of blobs for each sample in the chain
+        r"""
+        Get the chain of blobs for each sample in the chain.
 
         Parameters
         ----------
-        kwargs:
+        \*\*kwargs :
             flat (Optional[bool]): Flatten the chain across the ensemble.
                 (default: ``False``)
             thin (Optional[int]): Take only every ``thin`` steps from the
@@ -309,7 +332,7 @@ class HDFStorage:
 
     def get_log_prob(self, **kwargs):
         """
-        Get the chain of log probabilities evaluated at the MCMC samples
+        Get the chain of log probabilities evaluated at the MCMC samples.
 
         Parameters
         ----------
@@ -332,13 +355,13 @@ class HDFStorage:
         """
         Get the chain of log probabilities evaluated as *trials* of the MCMC.
 
-        Note these do not corresond to the chain, but instead correspond to the
-        trialled parameters. Check the :attr:`accepted` property to check if
-        each trial was accepted.
+        .. note:: these do not correspond to the chain, but instead correspond to the
+                  trialled parameters. Check the :attr:`accepted` property to check if
+                  each trial was accepted.
 
         Parameters
         ----------
-        kwargs:
+        kwargs :
             flat (Optional[bool]): Flatten the chain across the ensemble.
                 (default: ``False``)
             thin (Optional[int]): Take only every ``thin`` steps from the
@@ -354,7 +377,7 @@ class HDFStorage:
         return self.get_value("trial_log_prob", **kwargs)
 
     def get_trials(self, **kwargs):
-        """
+        r"""
         Get the stored chain of trials.
 
         Note these do not corresond to the chain, but instead correspond to the
@@ -363,7 +386,7 @@ class HDFStorage:
 
         Parameters
         ----------
-        kwargs:
+        \*\*kwargs :
             flat (Optional[bool]): Flatten the chain across the ensemble.
                 (default: ``False``)
             thin (Optional[int]): Take only every ``thin`` steps from the
@@ -380,22 +403,21 @@ class HDFStorage:
 
     def get_last_sample(self):
         """
-        Access the most recent sample in the chain
+        Access the most recent sample in the chain.
 
         Returns
         -------
-        sample : tuple
-            Contains:
-            * ``coords`` - A list of the current positions of the walkers in the
-              parameter space. The shape of this object will be
-              ``(nwalkers, dim)``.
-            * ``log_prob`` - The list of log posterior probabilities for the
-              walkers at positions given by ``coords`` . The shape of this object
-              is ``(nwalkers,)``.
-            * ``rstate`` - The current state of the random number generator.
-            * ``blobs`` - (optional) The metadata "blobs" associated with the
-              current position. The value is only returned if blobs have been
-              saved during sampling.
+        coords : ndarray
+            A list of the current positions of the walkers in the parameter space.
+            The shape of this object will be ``(nwalkers, dim)``.
+        log_prob : list
+            The list of log posterior probabilities for the walkers at positions given by
+            ``coords`` . The shape of this object is ``(nwalkers,)``.
+        rstate :
+            The current state of the random number generator.
+        blobs : dict, optional
+            The metadata "blobs" associated with the current position. The value is only
+            returned if blobs have been saved during sampling.
         """
         if (not self.initialized) or self.iteration <= 0:
             raise AttributeError(
@@ -438,6 +460,8 @@ class HDFStorage:
 
 
 class HDFStorageUtil:
+    """Storage class for MCMC runs."""
+
     def __init__(self, file_prefix, chain_number=0):
         self.file_prefix = file_prefix
         self.burnin_storage = HDFStorage(file_prefix + ".h5", name="burnin")
@@ -446,6 +470,7 @@ class HDFStorageUtil:
         )
 
     def reset(self, nwalkers, params, burnin=True, samples=True):
+        """Reset the storage so that it is empty."""
         if burnin:
             self.burnin_storage.reset(nwalkers, params=params)
         if samples:
@@ -453,17 +478,21 @@ class HDFStorageUtil:
 
     @property
     def burnin_initialized(self):
+        """Whether burnin has been initialized."""
         return self.burnin_storage.initialized
 
     @property
     def samples_initialized(self):
+        """Whether sample storage has been initialized."""
         return self.sample_storage.initialized
 
     def persistValues(
         self, pos, prob, data, truepos, trueprob, accepted, random_state, burnin=False
     ):
+        """Save a set of values to the storage."""
         st = self.burnin_storage if burnin else self.sample_storage
         st.save_step(pos, prob, data, truepos, trueprob, accepted, random_state)
 
     def close(self):
+        """No-op."""
         pass

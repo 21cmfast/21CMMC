@@ -1,16 +1,15 @@
 import os
 
-import numpy as np
 import pytest
-from py21cmfast import LightCone
+
+import numpy as np
 
 import py21cmmc as mcmc
-from py21cmmc.cosmoHammer import (
-    CosmoHammerSampler,
-    HDFStorageUtil,
-    Params,
-    LikelihoodComputationChain,
-)
+from py21cmfast import LightCone
+from py21cmmc.cosmoHammer import CosmoHammerSampler
+from py21cmmc.cosmoHammer import HDFStorageUtil
+from py21cmmc.cosmoHammer import LikelihoodComputationChain
+from py21cmmc.cosmoHammer import Params
 
 
 @pytest.fixture(scope="module")

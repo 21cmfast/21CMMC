@@ -1,21 +1,23 @@
 """
 A replacement module for the standard CosmoHammer.CosmoHammerSampler module.
 
-The samplers in this module provide the ability to continue sampling if the sampling is discontinued for any reason.
-Two samplers are provided -- one which works for emcee versions 3+, and one which works for the default v2. Note that
-the output file structure looks quite different for these versions.
+The sampler in this module provides the ability to continue sampling if the sampling is discontinued
+for any reason.
 """
 import logging
 import time
 
 import emcee
 import numpy as np
-from cosmoHammer import CosmoHammerSampler as CHS, getLogger
+from cosmoHammer import CosmoHammerSampler as _CosmoHammerSampler
+from cosmoHammer import getLogger
 
 from py21cmmc.ensemble import EnsembleSampler
 
 
-class CosmoHammerSampler(CHS):
+class CosmoHammerSampler(_CosmoHammerSampler):
+    """Upgraded :class:`cosmoHammer.CosmoHammerSampler` with the ability to continue sampling."""
+
     def __init__(
         self,
         likelihoodComputationChain,
@@ -82,9 +84,7 @@ class CosmoHammerSampler(CHS):
         logger.addHandler(ch)
 
     def startSampling(self):
-        """
-        Launches the sampling
-        """
+        """Launch the sampling."""
         try:
             if self.isMaster():
                 self.log(self.__str__())
@@ -138,10 +138,8 @@ class CosmoHammerSampler(CHS):
                 except AttributeError:
                     pass
 
-    def createEmceeSampler(self, callable, **kwargs):
-        """
-        Factory method to create the emcee sampler
-        """
+    def createEmceeSampler(self, lnpostfn, **kwargs):
+        """Create the emcee sampler."""
         if self.isMaster():
             self.log("Using emcee " + str(emcee.__version__))
         return EnsembleSampler(
@@ -149,7 +147,7 @@ class CosmoHammerSampler(CHS):
             pmax=self.likelihoodComputationChain.max,
             nwalkers=self.nwalkers,
             dim=self.paramCount,
-            lnpostfn=callable,
+            lnpostfn=lnpostfn,
             threads=self.threadCount,
             **kwargs,
         )
@@ -171,21 +169,15 @@ class CosmoHammerSampler(CHS):
         return pos, prob, rstate, data
 
     def loadBurnin(self):
-        """
-        loads the burn in from the file system
-        """
+        """Load the burn in from the file system."""
         return self._load(burnin=True)
 
     def loadSamples(self):
-        """
-        loads the samples from the file system
-        """
+        """Load the samples from the file system."""
         return self._load(burnin=False)
 
     def startSampleBurnin(self, pos=None, prob=None, rstate=None, data=None):
-        """
-        Runs the sampler for the burn in
-        """
+        """Run the sampler for the burn in."""
         if self.storageUtil.burnin_storage.iteration:
             self.log("continue burn in")
         else:
@@ -207,9 +199,7 @@ class CosmoHammerSampler(CHS):
         return pos, prob, rstate, data
 
     def _sample(self, p0, prob=None, rstate=None, datas=None, burnin=False):
-        """
-        Run the emcee sampler for the burnin to create walker which are independent form their starting position
-        """
+        """Run the emcee sampler."""
         stg = (
             self.storageUtil.burnin_storage
             if burnin
@@ -259,22 +249,23 @@ class CosmoHammerSampler(CHS):
         return pos, prob, rstate, datas
 
     def sampleBurnin(self, p0, prob=None, rstate=None, datas=None):
+        """Run burnin samples."""
         return self._sample(p0, prob, rstate, datas, burnin=True)
 
     def sample(self, burninPos, burninProb=None, burninRstate=None, datas=None):
+        """Run emcee sampling."""
         return self._sample(burninPos, burninProb, burninRstate, datas)
 
     @property
     def samples(self):
+        """The samples that have been generated."""
         if not self.storageUtil.sample_storage.initialized:
             raise ValueError("Cannot access samples before sampling.")
         else:
             return self.storageUtil.sample_storage
 
     def createInitPos(self):
-        """
-        Factory method to create initial positions
-        """
+        """Create initial positions."""
         i = 0
         pos = []
 

@@ -1,5 +1,6 @@
-"""
-Module containing functions to analyse the results of MCMC chains,a nd enable more transparent input/output of chains.
+"""Functions to analyse the results of MCMC chains.
+
+Also enables more transparent input/output of chains.
 """
 from os.path import join
 
@@ -7,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from py21cmfast import yaml
+
 from .cosmoHammer import CosmoHammerSampler
 from .cosmoHammer.storage import HDFStorage
 

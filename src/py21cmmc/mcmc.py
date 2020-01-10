@@ -1,14 +1,16 @@
+"""High-level functions for running MCMC chains."""
+
 import logging
 from concurrent.futures import ProcessPoolExecutor
-from os import path, mkdir
+from os import mkdir
+from os import path
 
 from py21cmfast import yaml
-from .cosmoHammer import (
-    CosmoHammerSampler,
-    LikelihoodComputationChain,
-    HDFStorageUtil,
-    Params,
-)
+
+from .cosmoHammer import CosmoHammerSampler
+from .cosmoHammer import HDFStorageUtil
+from .cosmoHammer import LikelihoodComputationChain
+from .cosmoHammer import Params
 
 logger = logging.getLogger("21cmFAST")
 
@@ -61,53 +63,60 @@ def run_mcmc(
     log_level_21CMMC=None,
     **mcmc_options,
 ):
-    """
+    """Run an MCMC chain.
 
     Parameters
     ----------
     core_modules : list
-        A list of objects which define the necessary methods to be core modules (see :mod:`~py21cmmc.mcmc.core`).
+        A list of objects which define the necessary methods to be core modules (see
+        :mod:`~py21cmmc.mcmc.core`).
     likelihood_modules : list
-        A list of objects which define the necessary methods to be likelihood modules (see
-        :mod:`~py21cmmc.mcmc.likelihood`)
+        A list of objects which define the necessary methods to be likelihood modules
+        (see :mod:`~py21cmmc.mcmc.likelihood`)
     params : dict
-        Parameters which will be sampled by the chain. Each entry's key specifies the name of the parameter, and
-        its value is an iterable `(val, min, max, width)`, with `val` the initial guess, `min` and `max` the hard
-        boundaries on the parameter's value, and `width` determining the size of the initial ball of walker positions
-        for the parameter.
+        Parameters which will be sampled by the chain. Each entry's key specifies the
+        name of the parameter, and its value is an iterable `(val, min, max, width)`,
+        with `val` the initial guess, `min` and `max` the hard boundaries on the
+        parameter's value, and `width` determining the size of the initial ball of
+        walker positions for the parameter.
     datadir : str, optional
         Directory to which MCMC info will be written (eg. logs and chain files)
     model_name : str, optional
         Name of the model, which determines filenames of outputs.
     continue_sampling : bool, optional
-        If an output chain file can be found that matches these inputs, sampling can be continued from its last
-        iteration, up to the number of iterations specified. If set to `False`, any output file which matches these
-        parameters will have its samples over-written.
+        If an output chain file can be found that matches these inputs, sampling can be
+        continued from its last iteration, up to the number of iterations specified. If
+        set to `False`, any output file which matches these parameters will have its
+        samples over-written.
     reuse_burnin : bool, optional
-        If a pre-computed chain file is found, and `continue_sampling=False`, setting `reuse_burnin` will salvage
-        the burnin part of the chain for re-use, but re-compute the samples themselves.
+        If a pre-computed chain file is found, and `continue_sampling=False`, setting
+        `reuse_burnin` will salvage the burnin part of the chain for re-use, but
+        re-compute the samples themselves.
     log_level_mcmc : (int or str, optional)
         The logging level of the cosmoHammer log file.
-        for details. This setting affects only the file output by the MCMC run.
     log_level_mcmc_stream : (int or str, optional)
-        The logging level of the stdout/stderr stream from cosmoHammer. This has the same output as the cosmoHammer
-        log file, but is printed to screen. See `log_level_mcmc` for input specifications.
+        The logging level of the stdout/stderr stream from cosmoHammer. This has the
+        same output as the ``cosmoHammer`` log file, but is printed to screen. See
+        ``log_level_mcmc`` for input specifications.
     log_level_21CMMC : (int or str, optional)
-        The logging level of the 21cmFAST Python code (specifically the "21CMMC" logging object). By default, this
-        logger has only a stdout handler. See https://docs.python.org/3/library/logging.html#logging-levels
+        The logging level of the 21cmFAST Python code (specifically the "21CMMC" logging
+        object). By default, this logger has only a stdout handler.
+        See https://docs.python.org/3/library/logging.html#logging-levels
 
 
     Other Parameters
     ----------------
-    All other parameters are passed directly to :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler`.
-    These include important options such as `walkersRatio` (the number of walkers is ``walkersRatio*nparams``),
-    `sampleIterations`, `burninIterations`, `pool` and `threadCount`. It also contains `logLevel` and `log_level_stream`,
-    which set the logging levels for the file and stream handlers of cosmoHammer respectively.
+    All other parameters are passed directly to
+    :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler`.
+    These include important options such as ``walkersRatio`` (the number of walkers is
+    ``walkersRatio*nparams``), ``sampleIterations`, ``burninIterations``, ``pool`` and
+    ``threadCount``.
 
     Returns
     -------
     sampler : `~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler` instance.
-        The sampler object, from which the chain itself may be accessed (via the ``samples`` attribute).
+        The sampler object, from which the chain itself may be accessed (via the
+        ``samples`` attribute).
     """
     file_prefix = path.join(datadir, model_name)
 
