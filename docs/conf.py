@@ -14,7 +14,7 @@ class Mock(MagicMock):
         return MagicMock()
 
 
-MOCK_MODULES = ["py21cmfast"]
+MOCK_MODULES = []
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 extensions = [
