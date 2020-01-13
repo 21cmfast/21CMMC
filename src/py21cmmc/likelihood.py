@@ -901,7 +901,8 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 
     def reduce_data(self, ctx):
         return {
-            "frequencies": 1420.4 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
+            "frequencies": 1420.4
+            / (np.array(ctx.get("lightcone").node_redshifts) + 1.0),
             "global_signal": ctx.get("lightcone").global_brightness_temp,
         }
 
@@ -965,3 +966,149 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             return [{"sigma": s(m["Muv"])} for s, m in zip(sig, model)]
         else:
             return [{"sigma": s} for s in sig]
+
+
+class LikelihoodEDGES(LikelihoodBaseFile):
+    """
+    A likelihood based on chi^2 comparison to Global Signal of EDGES timing and fwhm
+
+    This is the likelihood arising from Bowman et al. (2018), which reports an absorption feature
+    in the 21-cm brightness temperature spectra
+
+    Parameters
+    ----------
+
+    use_width : bool
+        whether to use the fwhm in the likelihood, by default it's False
+
+    """
+
+    freq_edges = 78.0
+    freq_err_edges = 1.0
+    fwhm_edges = 19.0
+    fwhm_err_upp_edges = 4.0
+    fwhm_err_low_edges = 2.0
+
+    required_cores = [core.CoreLightConeModule]
+
+    def __init__(self, use_width=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_width = use_width
+
+    def reduce_data(self, ctx):
+        frequencies = 1420.4 / (np.array(ctx.get("lightcone").node_redshifts) + 1)
+        global_signal = ctx.get("lightcone").global_brightness_temp
+        global_signal_interp = InterpolatedUnivariateSpline(
+            frequencies, global_signal, k=4
+        )
+        cr_pts = global_signal_interp.derivative().roots()
+        cr_vals = global_signal_interp(cr_pts)
+        results = {}
+        if len(cr_vals) == 0:
+            # there is no solution -- global signal never reaches a minimum
+            results["freq_tb_min"] = None
+            results["fwhm"] = None
+        else:
+            freq_tb_min = cr_pts[np.argmin(cr_vals)]
+            results["freq_tb_min"] = freq_tb_min
+            if not self.use_width:
+                results["fwhm"] = None
+            # calculating the frequencies when global signal = the fwhm
+            freqs_hm = InterpolatedUnivariateSpline(
+                frequencies,
+                global_signal - global_signal_interp(freq_tb_min) * 0.5,
+                k=3,
+            ).roots()
+            if len(freqs_hm) == 2:
+                # therea are two of them, one is the lower bound of the fwhm and the other one is the upper
+                freq_r = freqs_hm[1]
+                freq_l = freqs_hm[0]
+            elif len(freqs_hm) == 1:
+                # therea are only one of them
+                if freqs_hm[0] > freq_tb_min:
+                    # it's larger than the frequency of the minimum, so it's the upper bound of the fwhm
+                    # then use the boundary to be the lower one
+                    freq_r = freqs_hm[0]
+                    freq_l = frequencies[0]
+                else:
+                    # it's smaller than the frequency of the minimum, so it's the lower bound of the fwhm
+                    # then use the boundary to be the upper one
+                    freq_l = freqs_hm[0]
+                    freq_r = frequencies[-1]
+            elif len(freqs_hm) > 2:
+                # therea are more two of them, need to find the closest two
+                freq_1 = freqs_hm[np.argmin(np.abs(freqs_hm - freq_tb_min))]
+                if freq_1 < freq_tb_min:
+                    # the closest one is smaller than the frequency of the minimum, so it's the lower bound of the fwhm
+                    freq_l = freq_1
+                    freq_rs = freqs_hm[freqs_hm > freq_tb_min]
+                    # find the rest which are larger than the frequency of the minimum
+                    if len(freq_rs) > 0:
+                        # the smallest should be the upper bound of the fwhm
+                        freq_r = freq_rs[0]
+                    else:
+                        # if none, use the boundary
+                        freq_r = frequencies[-1]
+                else:
+                    # the closest one is larger than the frequency of the minimum, so it's the upper bound of the fwhm
+                    freq_r = freq_1
+                    freq_ls = freqs_hm[freqs_hm < freq_tb_min]
+                    # find the rest which are smaller than the frequency of the minimum
+                    if len(freq_ls) > 0:
+                        # the largest should be the lower bound of the fwhm
+                        freq_l = freq_ls[-1]
+                    else:
+                        # if none, use the boundary
+                        freq_l = frequencies[0]
+            if len(freqs_hm) == 0:
+                results["fwhm"] = None
+            else:
+                results["fwhm"] = freq_r - freq_l
+        return results
+
+    def computeLikelihood(self, model):
+        """
+        Compute the likelihood, given the lightcone output from 21cmFAST.
+
+        Parameters
+        ----------
+
+        model : list of dicts
+            Exactly the output of :meth:`simulate`.
+
+        Returns
+        -------
+
+        lnl : float
+            The log-likelihood for the given model.
+
+        """
+
+        if model["freq_tb_min"] is None:
+            return -np.inf
+
+        if self.use_width:
+            if model["fwhm"] is None:
+                return -np.inf
+            else:
+                # asymmetric uncertainty follows approximation in Barlow04, Sec 3.6
+                denominator = self.fwhm_err_upp_edges * self.fwhm_err_low_edges + (
+                    self.fwhm_err_upp_edges - self.fwhm_err_low_edges
+                ) * (model["fwhm"] - self.fwhm_edges)
+                if denominator <= 0:
+                    return -np.inf
+                else:
+                    return (
+                        -0.5
+                        * np.square(
+                            (model["freq_tb_min"] - self.freq_edges)
+                            / self.freq_err_edges
+                        )
+                        + -0.5
+                        * np.square(model["fwhm"] - self.fwhm_edges)
+                        / denominator
+                    )
+        else:
+            return -0.5 * np.square(
+                (model["freq_tb_min"] - self.freq_edges) / self.freq_err_edges
+            )
