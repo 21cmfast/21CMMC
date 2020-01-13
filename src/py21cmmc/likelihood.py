@@ -901,7 +901,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 
     def reduce_data(self, ctx):
         return {
-            "frequencies": 1420.0 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
+            "frequencies": 1420.4 / (np.array(ctx.get("lightcone").node_redshifts) + 1),
             "global_signal": ctx.get("lightcone").global_brightness_temp,
         }
 
