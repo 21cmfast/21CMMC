@@ -6,7 +6,6 @@ Contents
    :maxdepth: 2
 
    installation
-   usage
    tutorials
    reference/index
    contributing

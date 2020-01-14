@@ -22,16 +22,17 @@ def build_computation_chain(core_modules, likelihood_modules, params=None, setup
     Parameters
     ----------
     core_modules : list
-        A list of objects which define the necessary methods to be core modules (see :mod:`~py21cmmc.mcmc.core`).
+        A list of objects which define the necessary methods to be core modules
+        (see :mod:`~py21cmmc.core`).
     likelihood_modules : list
         A list of objects which define the necessary methods to be likelihood modules (see
-        :mod:`~py21cmmc.mcmc.likelihood`)
-    params : :class:`~py21cmmc.mcmc.cosmoHammer.util.Params`, optional
+        :mod:`~py21cmmc.likelihood`)
+    params : :class:`~py21cmmc.cosmoHammer.Params`, optional
         If provided, parameters which will be sampled by the chain.
 
     Returns
     -------
-    chain : :class:`py21cmmc.mcmc.cosmoHammer.LikelihoodComputationChain.LikelihoodComputationChain`
+    chain : :class:`~py21cmmc.cosmoHammer.LikelihoodComputationChain`
     """
     if not hasattr(core_modules, "__len__"):
         core_modules = [core_modules]
@@ -63,16 +64,16 @@ def run_mcmc(
     log_level_21CMMC=None,
     **mcmc_options,
 ):
-    """Run an MCMC chain.
+    r"""Run an MCMC chain.
 
     Parameters
     ----------
     core_modules : list
         A list of objects which define the necessary methods to be core modules (see
-        :mod:`~py21cmmc.mcmc.core`).
+        :mod:`~py21cmmc.core`).
     likelihood_modules : list
         A list of objects which define the necessary methods to be likelihood modules
-        (see :mod:`~py21cmmc.mcmc.likelihood`)
+        (see :mod:`~py21cmmc.likelihood`)
     params : dict
         Parameters which will be sampled by the chain. Each entry's key specifies the
         name of the parameter, and its value is an iterable `(val, min, max, width)`,
@@ -92,29 +93,22 @@ def run_mcmc(
         If a pre-computed chain file is found, and `continue_sampling=False`, setting
         `reuse_burnin` will salvage the burnin part of the chain for re-use, but
         re-compute the samples themselves.
-    log_level_mcmc : (int or str, optional)
-        The logging level of the cosmoHammer log file.
-    log_level_mcmc_stream : (int or str, optional)
-        The logging level of the stdout/stderr stream from cosmoHammer. This has the
-        same output as the ``cosmoHammer`` log file, but is printed to screen. See
-        ``log_level_mcmc`` for input specifications.
     log_level_21CMMC : (int or str, optional)
-        The logging level of the 21cmFAST Python code (specifically the "21CMMC" logging
-        object). By default, this logger has only a stdout handler.
-        See https://docs.python.org/3/library/logging.html#logging-levels
+        The logging level of the cosmoHammer log file.
 
 
     Other Parameters
     ----------------
-    All other parameters are passed directly to
-    :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler`.
-    These include important options such as ``walkersRatio`` (the number of walkers is
-    ``walkersRatio*nparams``), ``sampleIterations`, ``burninIterations``, ``pool`` and
-    ``threadCount``.
+    \*\*mcmc_options:
+        All other parameters are passed directly to
+        :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler`. These include important
+        options such as ``walkersRatio`` (the number of walkers is
+        ``walkersRatio*nparams``), ``sampleIterations``, ``burninIterations``, ``pool``,
+        ``log_level_stream`` and ``threadCount``.
 
     Returns
     -------
-    sampler : `~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler` instance.
+    sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
         The sampler object, from which the chain itself may be accessed (via the
         ``samples`` attribute).
     """

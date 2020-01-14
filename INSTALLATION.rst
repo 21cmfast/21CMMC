@@ -28,7 +28,7 @@ can be set during this call. See the above installation docs for details.
 
 For Developers
 --------------
-If you are developing `21CMMC`, we highly recommend using `conda` to manage your
+If you are developing ``21CMMC``, we highly recommend using `conda` to manage your
 environment, and setting up an isolated environment. If this is the case, setting up
 a full environment (with all testing and documentation dependencies) should be as easy
 as (from top-level dir)::

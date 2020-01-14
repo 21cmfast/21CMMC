@@ -127,7 +127,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         Set this to False if this is the case.
     """
 
-    ignore_attributes = LikelihoodBase.ignore_attributes + ["simulate"]
+    _ignore_attributes = LikelihoodBase._ignore_attributes + ("simulate",)
 
     def __init__(self, datafile=None, noisefile=None, simulate=False, use_data=True):
         self.datafile = datafile
@@ -315,7 +315,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     method.
     """
 
-    required_cores = [core.CoreCoevalModule]
+    required_cores = (core.CoreCoevalModule,)
 
     def __init__(
         self,
@@ -551,7 +551,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     Since most of the functionality is the same, please see the other documentation for details.
     """
 
-    required_cores = [core.CoreLightConeModule]
+    required_cores = (core.CoreLightConeModule,)
 
     def __init__(self, *args, nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
@@ -695,7 +695,7 @@ class LikelihoodPlanck(LikelihoodBase):
     defining the class variables ``tau_mean`` and ``tau_sigma``.
     """
 
-    required_cores = [(core.CoreCoevalModule, core.CoreLightConeModule)]
+    required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
 
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012
@@ -797,7 +797,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     and 0 otherwise.
     """
 
-    required_cores = [(core.CoreLightConeModule, core.CoreCoevalModule)]
+    required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule),)
     threshold = 0.06
 
     def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
@@ -805,8 +805,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         Neutral fraction likelihood/prior.
 
         Note that the default parameters are based on McGreer et al. constraints
-        Modelled as a flat, unity prior at x_HI <= 0.06, and a one sided Gaussian at x_HI > 0.06
-        ( Gaussian of mean 0.06 and one sigma of 0.05 ).
+        Modelled as a flat, unity prior at x_HI <= 0.06, and a one sided Gaussian at
+        x_HI > 0.06 (Gaussian of mean 0.06 and one sigma of 0.05).
 
         Limit on the IGM neutral fraction at z = 5.9, from dark pixels by I. McGreer et al.
         (2015) (http://adsabs.harvard.edu/abs/2015MNRAS.447..499M)
@@ -1000,7 +1000,7 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
 class LikelihoodGlobalSignal(LikelihoodBaseFile):
     """Chi^2 likelihood of Global Signal, where global signal is in mK as a function of MHz."""
 
-    required_cores = [core.CoreLightConeModule]
+    required_cores = (core.CoreLightConeModule,)
 
     def reduce_data(self, ctx):
         """Reduce data to model."""
@@ -1039,7 +1039,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         error at each of the `Muv` bins in the `datafile`.
     """
 
-    required_cores = [core.CoreLuminosityFunction]
+    required_cores = (core.CoreLuminosityFunction,)
 
     @property
     def redshifts(self):
@@ -1093,7 +1093,7 @@ class LikelihoodEDGES(LikelihoodBaseFile):
     fwhm_err_upp_edges = 4.0
     fwhm_err_low_edges = 2.0
 
-    required_cores = [core.CoreLightConeModule]
+    required_cores = (core.CoreLightConeModule,)
 
     def __init__(self, use_width=False, *args, **kwargs):
         super().__init__(*args, **kwargs)

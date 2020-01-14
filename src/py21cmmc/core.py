@@ -1,27 +1,21 @@
 """Module providing Core Modules for cosmoHammer.
 
 This is the basis of the plugin system for :mod:`py21cmmc`.
+
+TODO: Add description of the API of cores (and how to define new ones).
 """
 import copy
 import inspect
 import logging
 import warnings
-from collections import Iterable
 
 import numpy as np
 
 import py21cmfast as p21
 
+from . import _utils as ut
+
 logger = logging.getLogger("21cmFAST")
-
-
-def flatten(items):
-    """Yield items from any nested iterable; see Reference."""
-    for x in items:
-        if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
-            yield from flatten(x)
-        else:
-            yield x
 
 
 class NotSetupError(AttributeError):
@@ -35,10 +29,13 @@ class NotSetupError(AttributeError):
 
 
 class NotAChain(AttributeError):
-    """Exception to be raised when a method is called outside the context of a :class:`LikelihoodComputationChain`."""
+    """Exception when method is called outside a :class:`LikelihoodComputationChain`."""
 
     def __init__(self):
-        default_message = "this Core or Likelihood must be part of a LikelihoodComputationChain to enable this method/attribute!"
+        default_message = (
+            "this Core or Likelihood must be part of a LikelihoodComputationChain "
+            "to enable this method/attribute!"
+        )
         super().__init__(default_message)
 
 
@@ -51,15 +48,15 @@ class AlreadySetupError(Exception):
 class ModuleBase:
     """Base module for both Cores and Likelihoods."""
 
-    extra_defining_attributes = (
-        []
-    )  # extra attributes (in addition to those passed to init) that define equality
-    ignore_attributes = (
-        []
-    )  # attributes to ignore (from those passed to init) for determining equality
+    # extra attributes (in addition to those passed to init) that define equality
+    _extra_defining_attributes = ()
 
-    required_cores = []  # Specifies required cores that need to be loaded if this core
-    # is loaded. Tuples in the list indicate "or" relationship.
+    # attributes to ignore (from those passed to init) for determining equality
+    _ignore_attributes = ()
+
+    # Cores that need to be loaded if this core is loaded. Sub-tuples in the list indicate
+    # "or" relationship.
+    required_cores = ()
 
     def __init__(self):
         self._is_setup = False
@@ -79,7 +76,7 @@ class ModuleBase:
 
     @property
     def chain(self):
-        """A reference to the :class:`~py21cmmc.cosmoHammer.LikelihoodComputationChain` of which this core is a part."""
+        """Reference to the :class:`~py21cmmc.cosmoHammer.LikelihoodComputationChain` containing this core."""
         try:
             return self._LikelihoodComputationChain
         except AttributeError:
@@ -101,9 +98,9 @@ class ModuleBase:
 
         args = list(set(args))
 
-        for arg in args + self.extra_defining_attributes:
+        for arg in args + self._extra_defining_attributes:
 
-            if arg == "self" or arg in self.ignore_attributes:
+            if arg == "self" or arg in self._ignore_attributes:
                 continue
 
             try:
@@ -135,7 +132,7 @@ class ModuleBase:
     @property
     def _rq_cores(self):
         """List of all loaded cores that are in the requirements, in order of the requirements."""
-        req = flatten(self.required_cores)
+        req = ut.flatten(self.required_cores)
         return tuple(core for core in self._cores for r in req if isinstance(core, r))
 
     @property
@@ -168,7 +165,7 @@ class CoreBase(ModuleBase):
                     )
 
     def prepare_storage(self, ctx, storage):
-        """Add variables to special dict which cosmoHammer will automatically store with the chain."""
+        """Add variables to dict which cosmoHammer will automatically store with the chain."""
         for name, storage_function in self.store.items():
             try:
                 storage[name] = storage_function(ctx)
@@ -239,12 +236,6 @@ class CoreCoevalModule(CoreBase):
     * ``xHI``: an :class:`~py21cmmc._21cmfast.wrapper.IonizedBox` instance
     * ``brightness_temp``: a :class:`~py21cmmc._21cmfast.wrapper.BrightnessTemp` instance
 
-    .. note:: None of the parameters provided here affect the *MCMC* as such; they
-              merely provide a background model on which the MCMC will be performed.
-              Thus for example, passing `HII_EFF_FACTOR=30` in ``astro_params`` here
-              will be over-written per-iteration if ``HII_EFF_FACTOR`` is also passed as
-              a ``parameter`` to an MCMC routine using this core module.
-
     Parameters
     ----------
     redshift : float or array_like
@@ -255,8 +246,16 @@ class CoreCoevalModule(CoreBase):
         Options affecting choices for how the reionization is calculated.
     astro_params : dict or :class:`~py21cmfast.AstroParams`
         Astrophysical parameters of reionization.
+
+        .. note:: None of the parameters provided here affect the *MCMC* as such; they
+              merely provide a background model on which the MCMC will be performed.
+              Thus for example, passing ``HII_EFF_FACTOR=30`` in ``astro_params`` here
+              will be over-written per-iteration if ``HII_EFF_FACTOR`` is also passed as
+              a ``parameter`` to an MCMC routine using this core module.
+
     cosmo_params : dict or :class:`~py21cmfast.CosmoParams`
-        Cosmological parameters of the simulations.
+        Cosmological parameters of the simulations. Like ``astro_params``, these
+        are the *fiducial* parameters, but may be updated during an MCMC.
     regenerate : bool, optional
         Whether to force regeneration of simulations, even if matching cached data is found.
     do_spin_temp: bool, optional
@@ -292,7 +291,7 @@ class CoreCoevalModule(CoreBase):
         Notes below for details.
     cache_dir : str, optional
         The directory in which to search for the boxes and write them. By default, this
-        is the directory given by ``boxdir`` in the configuration file,
+        is the directory given by ``direc`` in the configuration file,
         ``~/.21CMMC/config.yml``. Note that for *reading* data, while the specified
         ``direc`` is searched first, the default directory will *also* be searched if no
         appropriate data is found in ``direc``.
@@ -307,16 +306,20 @@ class CoreCoevalModule(CoreBase):
     resulting data entry in the samples object, and the value is a callable which
     receives the ``context``, and returns a value from it.
 
+    .. note:: the ``store`` callable is saved to the core instance, which must be
+              pickleable in order to use multiprocessing. Thus it is generally unwise
+              to use a ``lambda`` function as the callable.
+
     This means that the context can be inspected and arbitrarily summarised before
     storage. In particular, this allows for taking slices of arrays and saving them. One
     thing to note is that the context is dictionary-like, but is not a dictionary. The
     elements of the context are only available by using the ``get`` method, rather than
     directly subscripting the object like a normal dictionary.
 
-    .. warning:: only scalars and arrays are supported for storage in the chain itself.
+    .. warning:: Only scalars and arrays are supported for storage in the chain itself.
     """
 
-    ignore_attributes = ["keep_data_in_memory"]
+    _ignore_attributes = ["keep_data_in_memory"]
 
     def __init__(
         self,
@@ -361,7 +364,8 @@ class CoreCoevalModule(CoreBase):
 
         if self.initial_conditions_seed and self.change_seed_every_iter:
             logger.warning(
-                "Attempting to set initial conditions seed while desiring to change seeds every iteration. Unsetting initial conditions seed."
+                "Attempting to set initial conditions seed while desiring to change seeds every "
+                "iteration. Unsetting initial conditions seed."
             )
             self.initial_conditions_seed = None
 
@@ -523,7 +527,8 @@ class CoreLightConeModule(CoreCoevalModule):
     def __init__(self, *, max_redshift=None, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn(
-                "ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored."
+                "ctx_variables does not apply to the lightcone module (at least not yet). It will "
+                "be ignored."
             )
 
         super().__init__(**kwargs)

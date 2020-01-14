@@ -13,3 +13,4 @@ py21cmmc
     py21cmmc.core
     py21cmmc.likelihood
     py21cmmc.analyse
+    py21cmmc.cosmoHammer
