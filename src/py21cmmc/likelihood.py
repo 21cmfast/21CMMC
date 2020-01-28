@@ -761,7 +761,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         if not self.lightcone_modules:
             # Get all unique redshifts from all coeval boxes in cores.
             self.redshifts = list(
-                set(sum([x.redshift for x in self.coeval_modules], []))
+                set(sum((x.redshift for x in self.coeval_modules), []))
             )
 
             for z in self.redshift:
@@ -954,7 +954,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             )
 
             lnl += -0.5 * np.sum(
-                (self.data["lfunc"][i] - model_spline(self.data["Muv"][i])) ** 2
+                (self.data[i]["lfunc"] - model_spline(self.data[i]["Muv"])) ** 2
                 / self.noise[i]["sigma"] ** 2
             )
         return lnl
