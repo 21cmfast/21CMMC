@@ -273,11 +273,11 @@ class CoreCoevalModule(CoreBase):
             are required to specify the ionization field. Beyond this, the ionization field is specified directly from
             the perturbed density field.
         ctx_variables : list of str, optional
-            A list of strings, any number of the following: "brightness_temp", "init", "perturb", "xHI". These each
-            correspond to an OutputStruct which will be stored in the context on every iteration. Omitting as many as
+            A list of strings. The strings must correspond to any (pickleable) member of
+            :class:`py21cmfast.Coeval`. These will be stored in the context on every iteration. Omitting as many as
             possible is useful in that it reduces the memory that needs to be transmitted to each process. Furthermore,
-            in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be easily over-run
-            when passing the hires array in the "init" structure.
+            in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be
+            easily over-run.
         initial_conditions_seed : int, optional
             If not `change_seeds_every_iter`, then this will define the random seed on which the initial conditions
             for _all_ iterations is based. By default, a seed will be chosen at random, _unless_ initial conditions
@@ -313,7 +313,7 @@ class CoreCoevalModule(CoreBase):
         super().__init__(io_options.get("store", None))
 
         if ctx_variables is None:
-            ctx_variables = ["brightness_temp", "ionization_box"]
+            ctx_variables = ["brightness_temp", "xH_box"]
 
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
