@@ -462,7 +462,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         return lnl
 
     def reduce_data(self, ctx):
-        brightness_temp = ctx.get("brightness_temperature")
+        brightness_temp = ctx.get("brightness_temp")
         data = []
 
         for bt in brightness_temp:

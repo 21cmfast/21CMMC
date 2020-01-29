@@ -313,7 +313,7 @@ class CoreCoevalModule(CoreBase):
         super().__init__(io_options.get("store", None))
 
         if ctx_variables is None:
-            ctx_variables = ["brightness_temperature", "ionization_box"]
+            ctx_variables = ["brightness_temp", "ionization_box"]
 
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
@@ -456,7 +456,7 @@ class CoreCoevalModule(CoreBase):
             except KeyError:
                 raise KeyError(
                     "ctx_variables must be drawn from the list ['init', 'perturb', "
-                    "'ionization_box', 'brightness_temperature']"
+                    "'ionization_box', 'brightness_temp']"
                 )
 
     def _update_params(self, params):
