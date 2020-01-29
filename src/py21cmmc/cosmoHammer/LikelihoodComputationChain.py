@@ -163,10 +163,12 @@ class LikelihoodComputationChain(LCC):
             for cModule in self.getCoreModules():
                 if hasattr(cModule, "setup"):
                     cModule.setup()
+                    cModule._is_setup = True
 
             for cModule in self.getLikelihoodModules():
                 if hasattr(cModule, "setup"):
                     cModule.setup()
+                    cModule._is_setup = True
 
             self._setup = True
         else:

@@ -551,8 +551,10 @@ class CoreLuminosityFunction(CoreCoevalModule):
     A Core Module that produces model luminosity functions at a range of redshifts.
     """
 
-    def __init__(self, sigma, **kwargs):
+    def __init__(self, sigma=None, name="", n_muv_bins=100, **kwargs):
         self._sigma = sigma
+        self.name = str(name)
+        self.n_muv_bins = n_muv_bins
         super().__init__(**kwargs)
 
     def setup(self):
@@ -570,6 +572,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
             flag_options=self.flag_options,
             cosmo_params=cosmo_params,
             user_params=self.user_params,
+            nbins=self.n_muv_bins,
         )
 
     def build_model_data(self, ctx):
@@ -583,10 +586,16 @@ class CoreLuminosityFunction(CoreCoevalModule):
         mhalo = [m[~np.isnan(l)] for l, m in zip(lfunc, mhalo)]
         lfunc = [m[~np.isnan(l)] for l, m in zip(lfunc, lfunc)]
 
-        ctx.add("luminosity_function", {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc})
+        ctx.add(
+            "luminosity_function" + self.name,
+            {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc},
+        )
 
     @property
     def sigma(self):
+        if self._sigma is None:
+            return None
+
         if not hasattr(self._sigma, "__len__") or len(self._sigma) != len(
             self.redshift
         ):
@@ -595,11 +604,15 @@ class CoreLuminosityFunction(CoreCoevalModule):
             return self._sigma
 
     def convert_model_to_mock(self, ctx):
-        lfunc = ctx.get("luminosity_function")["lfunc"]
-        muv = ctx.get("luminosity_function")["Muv"]
+        if self.sigma is None:
+            raise ValueError("Cannot create a mock with sigma=None!")
+
+        lfunc = ctx.get("luminosity_function" + self.name)["lfunc"]
+        muv = ctx.get("luminosity_function" + self.name)["Muv"]
 
         for i, s in enumerate(self.sigma):  # each redshift
             try:
                 lfunc[i] += np.random.normal(loc=0, scale=s(muv), size=len(lfunc[i]))
             except TypeError:
+
                 lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
