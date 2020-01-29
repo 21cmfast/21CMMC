@@ -397,7 +397,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         ignore_k_zero=False,
     ):
         # Determine the weighting function required from ignoring k's.
-        k_weights = np.ones(brightness_temp.brightness_temp.shape, dtype=np.int)
+        k_weights = np.ones(brightness_temp.shape, dtype=np.int)
         n = k_weights.shape[0]
 
         if ignore_kperp_zero:
@@ -408,7 +408,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             k_weights[n // 2, n // 2, n // 2] = 0
 
         res = get_power(
-            brightness_temp.brightness_temp,
+            brightness_temp,
             boxlength=L,
             bins=n_psbins,
             bin_ave=False,
