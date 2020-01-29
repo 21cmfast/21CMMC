@@ -457,7 +457,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 (m["delta"][mask] - pd(m["k"][mask])) ** 2
                 / (moduncert ** 2 + noise ** 2)
             )
-
         logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
         return lnl
@@ -1029,9 +1028,8 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             model_spline = InterpolatedUnivariateSpline(
                 model["Muv"][i][::-1], model["lfunc"][i][::-1]
             )
-
             lnl += -0.5 * np.sum(
-                (self.data["lfunc"][i] - model_spline(self.data["Muv"][i])) ** 2
+                (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i])) ** 2
                 / self.noise["sigma"][i] ** 2
             )
         return lnl
