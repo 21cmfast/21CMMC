@@ -4,6 +4,7 @@ click
 corner
 git+git://github.com/21cmFAST/21cmFAST
 numpy
+powerbox
 pre-commit
 pytest
 pytest-cov

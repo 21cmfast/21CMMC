@@ -57,7 +57,9 @@ class MyPrinterCore(py21cmmc.CoreCoevalModule):
 
 if __name__ == "__main__":
     core = MyPrinterCore(
-        redshift=[7, 8, 9], user_params=dict(HII_DIM=50, BOX_LEN=125.0), regenerate=True
+        redshift=[7, 8, 9],
+        user_params={"HII_DIM": 50, "BOX_LEN": 125.0},
+        regenerate=True,
     )
 
     datafiles = [
@@ -79,9 +81,10 @@ if __name__ == "__main__":
         likelihood,
         datadir=location,  # Directory for all outputs
         model_name=model_name,  # Filename of main chain output
-        params=dict(  # Parameter dict as described above.
-            HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 4, 6, 0.1]
-        ),
+        params={  # Parameter dict as described above.
+            "HII_EFF_FACTOR": [30.0, 10.0, 50.0, 3.0],
+            "ION_Tvir_MIN": [4.7, 4, 6, 0.1],
+        },
         walkersRatio=2,  # The number of walkers will be walkersRatio*nparams
         burninIterations=0,  # Number of iterations to save as burnin. Recommended to leave as zero.
         sampleIterations=3,  # Number of iterations to sample, per walker.
