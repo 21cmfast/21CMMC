@@ -232,11 +232,10 @@ class CoreCoevalModule(CoreBase):
         astro_params=None,
         cosmo_params=None,
         regenerate=True,
-        z_step_factor=1.02,
-        z_heat_max=None,
         change_seed_every_iter=False,
         ctx_variables=("brightness_temp", "xH_box"),
         initial_conditions_seed=None,
+        global_params=None,
         **io_options,
     ):
         """
@@ -266,12 +265,6 @@ class CoreCoevalModule(CoreBase):
             Whether to force regeneration of simulations, even if matching cached data is found.
         do_spin_temp: bool, optional
             Whether to use spin temperature in the calculation, or assume the saturated limit.
-        z_step_factor: float, optional
-            How large the logarithmic steps between redshift are (if required).
-        z_heat_max: float, optional
-            Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
-            are required to specify the ionization field. Beyond this, the ionization field is specified directly from
-            the perturbed density field.
         ctx_variables : list of str, optional
             A list of strings. The strings must correspond to any (pickleable) member of
             :class:`py21cmfast.Coeval`. These will be stored in the context on every iteration. Omitting as many as
@@ -288,6 +281,8 @@ class CoreCoevalModule(CoreBase):
             for _all_ iterations is based. By default, a seed will be chosen at random, _unless_ initial conditions
             exist in cache that match the parameters of this instance (and `regenerate` is False). In this case, the
             seed of the existing box will be adopted.
+        global_params : dict, optional
+            Any parameters to pass to global params for the calculations.
 
         Other Parameters
         ----------------
@@ -331,8 +326,7 @@ class CoreCoevalModule(CoreBase):
         self.regenerate = regenerate
         self.ctx_variables = ctx_variables
 
-        self.z_step_factor = z_step_factor
-        self.z_heat_max = z_heat_max
+        self.global_params = global_params or {}
 
         self.io_options = {
             "store": {},  # (derived) quantities to store in the MCMC chain.
@@ -376,13 +370,13 @@ class CoreCoevalModule(CoreBase):
             and not self.change_seed_every_iter
         ):
             logger.info("Initializing init and perturb boxes for the entire chain.")
-
             initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
                 direc=self.io_options["cache_dir"],
                 regenerate=self.regenerate,
                 random_seed=self.initial_conditions_seed,
+                **self.global_params,
             )
 
             # update the seed
@@ -396,6 +390,7 @@ class CoreCoevalModule(CoreBase):
                         init_boxes=initial_conditions,
                         direc=self.io_options["cache_dir"],
                         regenerate=self.regenerate,
+                        **self.global_params,
                     )
                 ]
             logger.info("Initialization done.")
@@ -408,6 +403,7 @@ class CoreCoevalModule(CoreBase):
             regenerate=False,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
+            **self.global_params,
         )
 
         perturb_field = []
@@ -419,6 +415,7 @@ class CoreCoevalModule(CoreBase):
                     direc=self.io_options["cache_dir"],
                     regenerate=False,
                     write=self.io_options["cache_mcmc"],
+                    **self.global_params,
                 )
             ]
 
@@ -444,11 +441,11 @@ class CoreCoevalModule(CoreBase):
             flag_options=self.flag_options,
             init_box=initial_conditions,
             perturb=perturb_field,
-            z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
+            **self.global_params,
         )
 
         logger.debug("Adding {} to context data".format(self.ctx_variables))
@@ -512,20 +509,6 @@ class CoreLightConeModule(CoreCoevalModule):
         super().__init__(**kwargs)
         self.max_redshift = max_redshift
 
-    @property
-    def lightcone_slice_redshifts(self):
-        """
-        The redshift at each slice of the lightcone.
-        """
-        # noinspection PyProtectedMember
-        return p21.wrapper._get_lightcone_redshifts(
-            self.cosmo_params,
-            self.max_redshift,
-            self.redshift[0],
-            self.user_params,
-            self.z_step_factor,
-        )
-
     def build_model_data(self, ctx):
         # Update parameters
         astro_params, cosmo_params = self._update_params(ctx.getParams())
@@ -538,11 +521,11 @@ class CoreLightConeModule(CoreCoevalModule):
             flag_options=self.flag_options,
             cosmo_params=cosmo_params,
             user_params=self.user_params,
-            z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
+            **self.global_params,
         )
 
         ctx.add("lightcone", lightcone)
