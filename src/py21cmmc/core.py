@@ -235,7 +235,7 @@ class CoreCoevalModule(CoreBase):
         z_step_factor=1.02,
         z_heat_max=None,
         change_seed_every_iter=False,
-        ctx_variables=None,
+        ctx_variables=("brightness_temp", "xH_box"),
         initial_conditions_seed=None,
         **io_options,
     ):
@@ -277,7 +277,12 @@ class CoreCoevalModule(CoreBase):
             :class:`py21cmfast.Coeval`. These will be stored in the context on every iteration. Omitting as many as
             possible is useful in that it reduces the memory that needs to be transmitted to each process. Furthermore,
             in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be
-            easily over-run.
+            easily over-run. Some typical options are:
+            * "brightness_temp"
+            * "xH_box"
+            * "density"
+            * "velocity"
+            * "Gamma12_box"
         initial_conditions_seed : int, optional
             If not `change_seeds_every_iter`, then this will define the random seed on which the initial conditions
             for _all_ iterations is based. By default, a seed will be chosen at random, _unless_ initial conditions
