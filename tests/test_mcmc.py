@@ -74,10 +74,10 @@ def test_core_coeval_setup(core, likelihood_coeval):
 
     ctx = chain.build_model_data()
 
-    assert ctx.get("xHI") is not None
+    assert ctx.get("xH_box") is not None
     assert ctx.get("brightness_temp") is not None
 
-    assert not np.all(ctx.get("xHI") == 0)
+    assert not np.all(ctx.get("xH_box") == 0)
     assert not np.all(ctx.get("brightness_temp") == 0)
 
 

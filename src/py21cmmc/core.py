@@ -235,7 +235,7 @@ class CoreCoevalModule(CoreBase):
         z_step_factor=1.02,
         z_heat_max=None,
         change_seed_every_iter=False,
-        ctx_variables=None,
+        ctx_variables=("brightness_temp", "xH_box"),
         initial_conditions_seed=None,
         **io_options,
     ):
@@ -273,11 +273,16 @@ class CoreCoevalModule(CoreBase):
             are required to specify the ionization field. Beyond this, the ionization field is specified directly from
             the perturbed density field.
         ctx_variables : list of str, optional
-            A list of strings, any number of the following: "brightness_temp", "init", "perturb", "xHI". These each
-            correspond to an OutputStruct which will be stored in the context on every iteration. Omitting as many as
+            A list of strings. The strings must correspond to any (pickleable) member of
+            :class:`py21cmfast.Coeval`. These will be stored in the context on every iteration. Omitting as many as
             possible is useful in that it reduces the memory that needs to be transmitted to each process. Furthermore,
-            in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be easily over-run
-            when passing the hires array in the "init" structure.
+            in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be
+            easily over-run. Some typical options are:
+            * "brightness_temp"
+            * "xH_box"
+            * "density"
+            * "velocity"
+            * "Gamma12_box"
         initial_conditions_seed : int, optional
             If not `change_seeds_every_iter`, then this will define the random seed on which the initial conditions
             for _all_ iterations is based. By default, a seed will be chosen at random, _unless_ initial conditions
@@ -311,9 +316,6 @@ class CoreCoevalModule(CoreBase):
         """
 
         super().__init__(io_options.get("store", None))
-
-        if ctx_variables is None:
-            ctx_variables = ["brightness_temp", "xHI"]
 
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
@@ -436,7 +438,7 @@ class CoreCoevalModule(CoreBase):
         )
 
         # Call C-code
-        init, perturb, xHI, brightness_temp = p21.run_coeval(
+        coeval = p21.run_coeval(
             redshift=self.redshift,
             astro_params=astro_params,
             flag_options=self.flag_options,
@@ -452,10 +454,11 @@ class CoreCoevalModule(CoreBase):
         logger.debug("Adding {} to context data".format(self.ctx_variables))
         for key in self.ctx_variables:
             try:
-                ctx.add(key, locals()[key])
+                ctx.add(key, [getattr(c, key) for c in coeval])
             except KeyError:
                 raise KeyError(
-                    "ctx_variables must be drawn from the list ['init', 'perturb', 'xHI', 'brightness_temp']"
+                    "ctx_variables must be drawn from the list ['init', 'perturb', "
+                    "'ionization_box', 'brightness_temp']"
                 )
 
     def _update_params(self, params):
