@@ -96,7 +96,7 @@ class ModuleBase:
         for cls in self.__class__.mro():
             args += inspect.getfullargspec(cls.__init__).args
 
-        args = list(set(args))
+        args = tuple(set(args))
 
         for arg in args + self._extra_defining_attributes:
 
