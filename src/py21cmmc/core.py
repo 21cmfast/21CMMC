@@ -359,9 +359,6 @@ class CoreCoevalModule(CoreBase):
             self.chain.createChainContext().getParams()
         )
 
-        if self.z_heat_max is not None:
-            p21.global_params.Z_HEAT_MAX = self.z_heat_max
-
         # Here we initialize the init and perturb boxes.
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
