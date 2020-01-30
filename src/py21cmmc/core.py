@@ -317,9 +317,6 @@ class CoreCoevalModule(CoreBase):
 
         super().__init__(io_options.get("store", None))
 
-        if ctx_variables is None:
-            ctx_variables = ["brightness_temp", "xH_box"]
-
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
             self.redshift = [self.redshift]
