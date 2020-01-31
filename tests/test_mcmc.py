@@ -413,3 +413,17 @@ def test_load_chain(core, likelihood_coeval, default_params, tmpdirec):
     lcc = mcmc.load_primitive_chain("TESTLOADCHAIN", direc=tmpdirec.strpath)
 
     assert lcc.getCoreModules()[0].redshift == core.redshift
+
+
+def test_wrong_ctx_variable():
+    core = mcmc.CoreCoevalModule(
+        redshift=6,
+        user_params={"HII_DIM": 35, "BOX_LEN": 70},
+        ctx_variables=("bad_key", "good key"),
+    )
+    lk = mcmc.Likelihood1DPowerCoeval(use_data=False)
+
+    chain = mcmc.build_computation_chain(core, lk, setup=False)
+
+    with pytest.raises(ValueError):
+        chain.build_model_data()

@@ -449,10 +449,9 @@ class CoreCoevalModule(CoreBase):
         for key in self.ctx_variables:
             try:
                 ctx.add(key, [getattr(c, key) for c in coeval])
-            except KeyError:
-                raise KeyError(
-                    "ctx_variables must be drawn from the list ['init', 'perturb', "
-                    "'ionization_box', 'brightness_temp']"
+            except AttributeError:
+                raise ValueError(
+                    "ctx_variable {} not an attribute of Coeval".format(key)
                 )
 
     def _update_params(self, params):
