@@ -14,7 +14,7 @@ class Mock(MagicMock):
         return MagicMock()
 
 
-MOCK_MODULES = ["py21cmfast"]
+MOCK_MODULES = []
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 extensions = [
@@ -46,8 +46,8 @@ numpydoc_show_class_members = False
 source_suffix = ".rst"
 master_doc = "index"
 project = "21CMMC"
-year = "2018"
-author = "Brad Greig and Steven Murray"
+year = "2020"
+author = "The 21cmFAST Collaboration"
 copyright = "{0}, {1}".format(year, author)
 version = release = "0.1.0"
 templates_path = ["templates"]

@@ -1,15 +1,16 @@
-"""
-A module containing (base) classes for computing 21cmFAST likelihoods under the context of CosmoHammer.
-"""
+"""Module containing 21CMMC likelihoods."""
+
 import logging
 from io import IOBase
-from os import path, rename
+from os import path
+from os import rename
 
 import numpy as np
 from cached_property import cached_property
 from powerbox.tools import get_power
-from py21cmfast import wrapper as lib
 from scipy.interpolate import InterpolatedUnivariateSpline
+
+from py21cmfast import wrapper as lib
 
 from . import core
 
@@ -18,7 +19,7 @@ logger = logging.getLogger("21cmFAST")
 np.seterr(invalid="ignore", divide="ignore")
 
 
-def ensure_iter(a):
+def _ensure_iter(a):
     try:
         iter(a)
         return a
@@ -26,14 +27,16 @@ def ensure_iter(a):
         return [a]
 
 
-def listify(l):
-    if type(l) == list:
-        return l
+def _listify(lst):
+    if type(lst) == list:
+        return lst
     else:
-        return [l]
+        return [lst]
 
 
 class LikelihoodBase(core.ModuleBase):
+    """Base class for Likelihoods in 21CMMC."""
+
     def computeLikelihood(self, model):
         """
         Calculate the likelihood of the instance data given the model.
@@ -41,8 +44,8 @@ class LikelihoodBase(core.ModuleBase):
         Parameters
         ----------
         model : dict
-            A dictionary containing all model-dependent quantities required to calculate the likelihood. Explicitly,
-            matches the output of :meth:`~reduce_data`.
+            A dictionary containing all model-dependent quantities required to calculate
+            the likelihood. Explicitly, matches the output of :meth:`~reduce_data`.
 
         Returns
         -------
@@ -91,18 +94,40 @@ class LikelihoodBase(core.ModuleBase):
                         setattr(self, k, getattr(m, k))
 
     def setup(self):
+        """Perform post-init setup."""
         super().setup()
 
         # Expose user, flag, cosmo, astro params to this likelihood if available.
         self._expose_core_parameters()
 
     def get_fiducial_model(self):
+        """Compute and return a model dictionary at the fiducial set of parameters."""
         ctx = self.chain.build_model_data()
         return self.reduce_data(ctx)
 
 
 class LikelihoodBaseFile(LikelihoodBase):
-    ignore_attributes = LikelihoodBase.ignore_attributes + ["simulate"]
+    """Base class for likelihoods whose data is read from a file.
+
+    Parameters
+    ----------
+    datafile : str, optional
+        The file(s) from which to read the data. Alternatively, the file to which to
+        write the data. Data will *only* be written to the file if `simulate` is
+        set to True explicitly.
+    noisefile : str, optional
+        The file(s) from which to read the noise profile. If not given, no noise is
+        used.
+    simulate : bool, optional
+        Whether to perform a simulation to create the (mock) data (i.e. instead of
+        reading from file). Default is False, which prevents the mock data from
+        potentially overwriting the `datafile`.
+    use_data : bool, optional
+        Sometimes you may want to construct the likelihood without any data at all.
+        Set this to False if this is the case.
+    """
+
+    _ignore_attributes = LikelihoodBase._ignore_attributes + ("simulate",)
 
     def __init__(self, datafile=None, noisefile=None, simulate=False, use_data=True):
         self.datafile = datafile
@@ -121,6 +146,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         self.noise = None
 
     def setup(self):
+        """Perform post-init setup."""
         super().setup()
 
         if self._use_data:
@@ -137,7 +163,8 @@ class LikelihoodBaseFile(LikelihoodBase):
                 self.reduce_data(simctx) if self._simulate else self._read_data()
             )
 
-            # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
+            # If we can't/won't simulate noise, and no noisefile is provided, assume no
+            # noise is necessary.
             if (hasattr(self, "define_noise") and self._simulate) or self.noisefile:
                 self.noise = (
                     self.define_noise(simctx, self.data)
@@ -218,18 +245,77 @@ class LikelihoodBaseFile(LikelihoodBase):
 
 
 class Likelihood1DPowerCoeval(LikelihoodBaseFile):
+    r"""
+    A Gaussian likelihood for the 1D power spectrum of a coeval cube.
+
+    Requires the :class:`~core.CoreCoevalModule` to be loaded to work, and inherently
+    deals with the multiple-redshift cubes which that module produces.
+
+
+    Parameters
+    ----------
+    datafile : str, optional
+        Path to file containing data. See :class:`LikelihoodBaseFile` for details.
+    noisefile : str, optional
+        Path to file containing noise data. See :class:`LikelihoodBaseFile` for details.
+    n_psbins : int, optional
+        The number of bins for the spherically averaged power spectrum. By default
+        automatically calculated from the number of cells.
+    min_k : float, optional
+        The minimum k value at which to compare model and data (units 1/Mpc).
+    max_k : float, optional
+        The maximum k value at which to compare model and data (units 1/Mpc).
+    logk : bool, optional
+        Whether the power spectrum bins should be regular in logspace or linear space.
+    model_uncertainty : float, optional
+        The amount of uncertainty in the modelling, per power spectral bin (as
+        fraction of the amplitude).
+    error_on_model : bool, optional
+        Whether the `model_uncertainty` is applied to the model, or the data.
+    ignore_kperp_zero : bool, optional
+        Whether to ignore the kperp=0 when generating the power spectrum.
+    ignore_kpar_zero : bool, optional
+        Whether to ignore the kpar=0 when generating the power spectrum.
+    ignore_k_zero : bool, optional
+        Whether to ignore the ``|k| = 0`` mode when generating the power spectrum.
+
+    Other Parameters
+    ----------------
+    \*\*kwargs :
+        All other parameters sent to :class:`LikelihoodBaseFile`. In particular,
+        ``datafile``, ``noisefile``, ``simulate`` and ``use_data``.
+
+    Notes
+    -----
+    The ``datafile`` and ``noisefile`` have specific formatting required. Both should be
+    `.npz` files. The datafile should have 'k' and 'delta' arrays in it (k-modes in
+    1/Mpc and power spectrum respectively) and the noisefile should have 'k' and
+    'errs' arrays in it (k-modes and their standard deviations respectively). Note
+    that the latter is *almost* the default output of 21cmSense, except that
+    21cmSense has k in units of h/Mpc, whereas 21cmFAST/21CMMC use units of 1/Mpc.
+
+    .. warning:: Please ensure that the data/noise is in the correct units for
+                 21CMMC, as this class does not automatically convert units!
+
+    To make this more flexible, simply subclass this class, and overwrite the
+    :meth:`_read_data` or :meth:`_read_noise` methods, then use that likelihood
+    instead of this in your likelihood chain. Both of these functions should return
+    dictionaries in which the above entries exist. For example::
+
+        >>> class MyCoevalLikelihood(Likelihood1DPowerCoeval):
+        >>>    def _read_data(self):
+        >>>        data = np.genfromtxt(self.datafile)
+        >>>        return {"k": data[:, 0], "p": data[:, 1]}
+
+    Also note that an extra method, ``define_noise`` may be used to define the noise
+    properties dynamically (i.e. without reading it). This method will be called if
+    available and simulate=True. It should have the signature
+    ``define_noise(self, ctx, model)``, where ``ctx`` is the context with all cores
+    having added their data, and ``model`` is the output of the :meth:`simulate`
+    method.
     """
-    A likelihood which assumes that the spherically-averaged power spectrum is iid Gaussian in each bin.
 
-    Requires the CoreCoevalModule to be loaded to work, and inherently deals with the multiple-redshift cubes
-    which that module produces.
-
-    If a `datafile` is provided and the datafile exists, then the data will be read from that file. Otherwise,
-    theoretical data will be automatically simulated to match current parameters. This will be written to
-    `datafile` if provided.
-    """
-
-    required_cores = [core.CoreCoevalModule]
+    required_cores = (core.CoreCoevalModule,)
 
     def __init__(
         self,
@@ -245,71 +331,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         *args,
         **kwargs,
     ):
-        """
-        Initialize the likelihood.
-
-        Parameters
-        ----------
-        datafile : str, optional
-            The file(s) from which to read the data. Alternatively, the file to which to
-            write the data (see class docstring for how this works). See notes below for
-            details.
-        noisefile : str, optional
-            The file(s) from which to read the noise profile. If not given, no thermal
-            noise or cosmic variance is used in the fit. The noisefile should be an
-            `.npz` file with the arrays "k" and "errs" in it. This
-            is *almost* the default output format of 21cmSense. See notes below on how
-            to extend this behaviour.
-        n_psbins : int, optional
-            The number of bins for the spherically averaged power spectrum. By default
-            automatically calculated from the number of cells.
-        min_k : float, optional
-            The minimum k value at which to compare model and data (units 1/Mpc).
-        max_k : float, optional
-            The maximum k value at which to compare model and data (units 1/Mpc).
-        logk : bool, optional
-            Whether the power spectrum bins should be regular in logspace or linear space.
-        model_uncertainty : float, optional
-            The amount of uncertainty in the modelling, per power spectral bin (as
-            fraction of the amplitude).
-        error_on_model : bool, optional
-            Whether the `model_uncertainty` is applied to the model, or the data.
-        ignore_kperp_zero : bool, optional
-            Whether to ignore the kperp=0 when generating the power spectrum.
-        ignore_kpar_zero : bool, optional
-            Whether to ignore the kpar=0 when generating the power spectrum.
-        ignore_k_zero : bool, optional
-            Whether to ignore the |k| = 0 mode when generating the power spectrum.
-
-        Notes
-        -----
-        The datafile and noisefile have specific formatting required. Both should be
-        `.npz` files. The datafile should have 'k' and 'delta' arrays in it (k-modes in
-        1/Mpc and power spectrum respectively) and the noisefile should have 'k' and
-        'errs' arrays in it (k-modes and their standard deviations respectively). Note
-        that the latter is *almost* the default output of 21cmSense, except that
-        21cmSense has k in units of h/Mpc, whereas 21cmFAST/21CMMC use units of 1/Mpc.
-
-        .. warning:: Please ensure that the data/noise is in the correct units for
-                     21CMMC, as this class does not automatically convert units!
-
-        To make this more flexible, simply subclass this class, and overwrite the
-        :meth:`_read_data` or :meth:`_read_noise` methods, then use that likelihood
-        instead of this in your likelihood chain. Both of these functions should return
-        dictionaries in which the above entries exist. For example::
-
-        >>> class MyCoevalLikelihood(Likelihood1DPowerCoeval):
-        >>>    def _read_data(self):
-        >>>        data = np.genfromtxt(self.datafile)
-        >>>        return {"k": data[:, 0], "p": data[:, 1]}
-
-        Also note that an extra method, `define_noise` may be used to define the noise
-        properties dynamically (i.e. without reading it). This method will be called if
-        available and simulate=True. It should have the signature
-        ``define_noise(self, ctx, model)``, where ``ctx`` is the context with all cores
-        having added their data, and ``model`` is the output of the :method:`simulate`
-        method.
-        """
         super().__init__(*args, **kwargs)
 
         if (
@@ -351,6 +372,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 )
 
     def setup(self):
+        """Perform post-init setup."""
         super().setup()
 
         # Ensure that there is one dataset and noiseset per redshift.
@@ -371,14 +393,14 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
     @cached_property
     def data_spline(self):
-        """Splines of data power spectra"""
+        """Splines of data power spectra."""
         return [
             InterpolatedUnivariateSpline(d["k"], d["delta"], k=1) for d in self.data
         ]
 
     @cached_property
     def noise_spline(self):
-        """Splines of noise power spectra"""
+        """Splines of noise power spectra."""
         if self.noise:
             return [
                 InterpolatedUnivariateSpline(n["k"], n["errs"], k=1) for n in self.noise
@@ -396,6 +418,32 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         ignore_kpar_zero=False,
         ignore_k_zero=False,
     ):
+        """Compute power spectrum from coeval box.
+
+        Parameters
+        ----------
+        brightness_temp : :class:`py21cmfast.BrightnessTemp` instance
+            The brightness temperature coeval box.
+        L : float
+            Size of the coeval cube along a side, in Mpc.
+        n_psbins : int
+            Number of power spectrum bins to return.
+        log_bins : bool, optional
+            Whether the bins are regular in log-space.
+        ignore_kperp_zero : bool, optional
+            Whether to ignore perpendicular ``k=0`` modes when performing spherical average.
+        ignore_kpar_zero : bool, optoinal
+            Whether to ignore parallel ``k=0`` modes when performing spherical average.
+        ignore_k_zero : bool, optional
+            Whether to ignore the ``|k|=0`` mode when performing spherical average.
+
+        Returns
+        -------
+        power : ndarray
+            The power spectrum as a function of k
+        k : ndarray
+            The centres of the k-bins defining the power spectrum.
+        """
         # Determine the weighting function required from ignoring k's.
         k_weights = np.ones(brightness_temp.shape, dtype=np.int)
         n = k_weights.shape[0]
@@ -429,13 +477,18 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
     @property
     def redshift(self):
-        """
-        The redshifts of coeval simulations.
-        """
+        """The redshifts of coeval simulations."""
         return self.core_primary.redshift
 
     def computeLikelihood(self, model):
+        """Compute the likelihood given a model.
 
+        Parameters
+        ----------
+        model : list of dict
+            A list of dictionaries, one for each redshift. Exactly the output of
+            :meth:'reduce_data`.
+        """
         lnl = 0
         noise = 0
         for i, (m, pd) in enumerate(zip(model, self.data_spline)):
@@ -462,6 +515,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         return lnl
 
     def reduce_data(self, ctx):
+        """Reduce the data in the context to a list of models (one for each redshift)."""
         brightness_temp = ctx.get("brightness_temp")
         data = []
 
@@ -480,6 +534,11 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         return data
 
     def store(self, model, storage):
+        """Save elements of the model to the storage dict.
+
+        Do not use this method -- it is called by the MCMC routine to save data to the
+        storage backend.
+        """
         # add the power to the written data
         for i, m in enumerate(model):
             storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
@@ -492,13 +551,14 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     Since most of the functionality is the same, please see the other documentation for details.
     """
 
-    required_cores = [core.CoreLightConeModule]
+    required_cores = (core.CoreLightConeModule,)
 
     def __init__(self, *args, nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
         self.nchunks = nchunks
 
     def setup(self):
+        """Perform post-init setup."""
         LikelihoodBaseFile.setup(self)
 
         # Ensure that there is one dataset and noiseset per redshift.
@@ -527,6 +587,32 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         ignore_kpar_zero=False,
         ignore_k_zero=False,
     ):
+        """Compute power spectrum from coeval box.
+
+        Parameters
+        ----------
+        box : :class:`py21cmfast.Lightcone` instance
+            The lightcone to take the power spectrum of.
+        length : 3-tuple
+            Size of the lightcone in its 3 dimensions (X,Y,Z)
+        n_psbins : int
+            Number of power spectrum bins to return.
+        log_bins : bool, optional
+            Whether the bins are regular in log-space.
+        ignore_kperp_zero : bool, optional
+            Whether to ignore perpendicular k=0 modes when performing spherical average.
+        ignore_kpar_zero : bool, optional
+            Whether to ignore parallel k=0 modes when performing spherical average.
+        ignore_k_zero : bool, optional
+            Whether to ignore the ``|k|=0`` mode when performing spherical average.
+
+        Returns
+        -------
+        power : ndarray
+            The power spectrum as a function of k
+        k : ndarray
+            The centres of the k-bins defining the power spectrum.
+        """
         # Determine the weighting function required from ignoring k's.
         k_weights = np.ones(box.shape, dtype=np.int)
         n0 = k_weights.shape[0]
@@ -560,6 +646,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         return res
 
     def reduce_data(self, ctx):
+        """Reduce the data in the context to a list of models (one for each redshift chunk)."""
         brightness_temp = ctx.get("lightcone")
         data = []
         chunk_indices = list(
@@ -594,6 +681,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         return data
 
     def store(self, model, storage):
+        """Store the model into backend storage."""
         # add the power to the written data
         for i, m in enumerate(model):
             storage.update({k + "_%s" % i: v for k, v in m.items()})
@@ -603,11 +691,11 @@ class LikelihoodPlanck(LikelihoodBase):
     """
     A likelihood which utilises Planck optical depth data.
 
-    In practice, any optical depth measurement (or mock measurement) may be used, by defining the class variables
-    `tau_mean` and `tau_sigma`.
+    In practice, any optical depth measurement (or mock measurement) may be used, by
+    defining the class variables ``tau_mean`` and ``tau_sigma``.
     """
 
-    required_cores = [(core.CoreCoevalModule, core.CoreLightConeModule)]
+    required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
 
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012
@@ -648,6 +736,13 @@ class LikelihoodPlanck(LikelihoodBase):
         return isinstance(self.core_primary, core.CoreLightConeModule)
 
     def reduce_data(self, ctx):
+        """Reduce the data in the context to a model.
+
+        Returns
+        -------
+        dict :
+            Only key is "tau", the optical depth to reionization.
+        """
         # Extract relevant info from the context.
 
         if self._is_lightcone:
@@ -702,7 +797,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     and 0 otherwise.
     """
 
-    required_cores = [(core.CoreLightConeModule, core.CoreCoevalModule)]
+    required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule),)
     threshold = 0.06
 
     def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
@@ -710,8 +805,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         Neutral fraction likelihood/prior.
 
         Note that the default parameters are based on McGreer et al. constraints
-        Modelled as a flat, unity prior at x_HI <= 0.06, and a one sided Gaussian at x_HI > 0.06
-        ( Gaussian of mean 0.06 and one sigma of 0.05 ).
+        Modelled as a flat, unity prior at x_HI <= 0.06, and a one sided Gaussian at
+        x_HI > 0.06 (Gaussian of mean 0.06 and one sigma of 0.05).
 
         Limit on the IGM neutral fraction at z = 5.9, from dark pixels by I. McGreer et al.
         (2015) (http://adsabs.harvard.edu/abs/2015MNRAS.447..499M)
@@ -725,9 +820,9 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         xHI_sigma : float or list of floats
             One-sided uncertainty of measurements.
         """
-        self.redshift = ensure_iter(redshift)
-        self.xHI = ensure_iter(xHI)
-        self.xHI_sigma = ensure_iter(xHI_sigma)
+        self.redshift = _ensure_iter(redshift)
+        self.xHI = _ensure_iter(xHI)
+        self.xHI_sigma = _ensure_iter(xHI_sigma)
 
         # By default, setup as if using coeval boxes.
         self.redshifts = (
@@ -752,6 +847,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         ]
 
     def setup(self):
+        """Perform post-init setup."""
         if not self.lightcone_modules + self.coeval_modules:
             raise ValueError(
                 "LikelihoodNeutralFraction needs the CoreLightConeModule *or* "
@@ -761,7 +857,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         if not self.lightcone_modules:
             # Get all unique redshifts from all coeval boxes in cores.
             self.redshifts = list(
-                set(sum([x.redshift for x in self.coeval_modules], []))
+                set(sum((x.redshift for x in self.coeval_modules), []))
             )
 
             for z in self.redshift:
@@ -780,6 +876,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             self._require_spline = True
 
     def reduce_data(self, ctx):
+        """Return a dictionary of model quantities from the context."""
         if self._use_coeval:
             xHI = np.array([np.mean(x) for x in ctx.get("xHI")])
             redshifts = self.redshifts
@@ -791,6 +888,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         return {"xHI": xHI, "redshifts": redshifts}
 
     def computeLikelihood(self, model):
+        """Compute the likelihood."""
         lnprob = 0
 
         if self._require_spline:
@@ -809,6 +907,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         return lnprob
 
     def lnprob(self, model, data, sigma):
+        """Compute the log prob given a model, data and error."""
         model = np.clip(model, 0, 1)
 
         if model > self.threshold:
@@ -818,6 +917,12 @@ class LikelihoodNeutralFraction(LikelihoodBase):
 
 
 class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
+    """Likelihood using QSOs.
+
+    See :class:`LikelihoodNeutralFraction` and :class:`LikelihoodBaseFile` for
+    parameter descriptions.
+    """
+
     qso_redshift = 7.0842  # The redshift of the QSO
 
     def __init__(self, *args, **kwargs):
@@ -842,10 +947,11 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
 
     def computeLikelihood(self, model):
         """
-        Constraints on the IGM neutral fraction at z = 7.1 from the IGM damping wing of
-        ULASJ1120+0641. Greig et al (2016) (http://arxiv.org/abs/1606.00441)
-        """
+        Compute the likelihood.
 
+        Constraints on the IGM neutral fraction at z = 7.1 from the IGM damping wing of
+        ULASJ1120+0641. Greig et al (2016) (http://arxiv.org/abs/1606.00441).
+        """
         redshifts = model["redshifts"]
         ave_nf = model["xHI"]
 
@@ -892,14 +998,12 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
 
 
 class LikelihoodGlobalSignal(LikelihoodBaseFile):
-    """
-    A likelihood based on chi^2 comparison to Global Signal, where global signal is in
-    mK as a function of MHz.
-    """
+    """Chi^2 likelihood of Global Signal, where global signal is in mK as a function of MHz."""
 
-    required_cores = [core.CoreLightConeModule]
+    required_cores = (core.CoreLightConeModule,)
 
     def reduce_data(self, ctx):
+        """Reduce data to model."""
         return {
             "frequencies": 1420.4
             / (np.array(ctx.get("lightcone").node_redshifts) + 1.0),
@@ -907,9 +1011,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
         }
 
     def computeLikelihood(self, model):
-        """
-        Compute the likelihood, given the lightcone output from 21cmFAST.
-        """
+        """Compute the likelihood, given the lightcone output from 21cmFAST."""
         model_spline = InterpolatedUnivariateSpline(
             model["frequencies"], model["global_signal"]
         )
@@ -937,16 +1039,19 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         error at each of the `Muv` bins in the `datafile`.
     """
 
-    required_cores = [core.CoreLuminosityFunction]
+    required_cores = (core.CoreLuminosityFunction,)
 
     @property
     def redshifts(self):
+        """Redshifts of observation."""
         return self.core_primary.redshift
 
     def reduce_data(self, ctx):
+        """Reduce data to model."""
         return ctx.get("luminosity_function")
 
     def computeLikelihood(self, model):
+        """Compute the likelihood."""
         lnl = 0
         for i, z in enumerate(self.redshifts):
             model_spline = InterpolatedUnivariateSpline(
@@ -960,6 +1065,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         return lnl
 
     def define_noise(self, ctx, model):
+        """Define noise properties."""
         sig = self.core_primary.sigma
 
         if callable(sig[0]):
@@ -970,17 +1076,15 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
 class LikelihoodEDGES(LikelihoodBaseFile):
     """
-    A likelihood based on chi^2 comparison to Global Signal of EDGES timing and fwhm
+    A likelihood based on chi^2 comparison to Global Signal of EDGES timing and fwhm.
 
     This is the likelihood arising from Bowman et al. (2018), which reports an absorption feature
     in the 21-cm brightness temperature spectra
 
     Parameters
     ----------
-
     use_width : bool
         whether to use the fwhm in the likelihood, by default it's False
-
     """
 
     freq_edges = 78.0
@@ -989,13 +1093,14 @@ class LikelihoodEDGES(LikelihoodBaseFile):
     fwhm_err_upp_edges = 4.0
     fwhm_err_low_edges = 2.0
 
-    required_cores = [core.CoreLightConeModule]
+    required_cores = (core.CoreLightConeModule,)
 
     def __init__(self, use_width=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.use_width = use_width
 
     def reduce_data(self, ctx):
+        """Reduce data to model."""
         frequencies = 1420.4 / (np.array(ctx.get("lightcone").node_redshifts) + 1)
         global_signal = ctx.get("lightcone").global_brightness_temp
         global_signal_interp = InterpolatedUnivariateSpline(
@@ -1020,26 +1125,28 @@ class LikelihoodEDGES(LikelihoodBaseFile):
                 k=3,
             ).roots()
             if len(freqs_hm) == 2:
-                # therea are two of them, one is the lower bound of the fwhm and the other one is the upper
+                # there are two of them, one is the lower bound of the fwhm and the
+                # other one is the upper
                 freq_r = freqs_hm[1]
                 freq_l = freqs_hm[0]
             elif len(freqs_hm) == 1:
                 # therea are only one of them
                 if freqs_hm[0] > freq_tb_min:
-                    # it's larger than the frequency of the minimum, so it's the upper bound of the fwhm
-                    # then use the boundary to be the lower one
+                    # it's larger than the frequency of the minimum, so it's the upper
+                    # bound of the fwhm then use the boundary to be the lower one
                     freq_r = freqs_hm[0]
                     freq_l = frequencies[0]
                 else:
-                    # it's smaller than the frequency of the minimum, so it's the lower bound of the fwhm
-                    # then use the boundary to be the upper one
+                    # it's smaller than the frequency of the minimum, so it's the lower
+                    # bound of the fwhm then use the boundary to be the upper one
                     freq_l = freqs_hm[0]
                     freq_r = frequencies[-1]
             elif len(freqs_hm) > 2:
                 # therea are more two of them, need to find the closest two
                 freq_1 = freqs_hm[np.argmin(np.abs(freqs_hm - freq_tb_min))]
                 if freq_1 < freq_tb_min:
-                    # the closest one is smaller than the frequency of the minimum, so it's the lower bound of the fwhm
+                    # the closest one is smaller than the frequency of the minimum, so
+                    # it's the lower bound of the fwhm
                     freq_l = freq_1
                     freq_rs = freqs_hm[freqs_hm > freq_tb_min]
                     # find the rest which are larger than the frequency of the minimum
@@ -1050,7 +1157,8 @@ class LikelihoodEDGES(LikelihoodBaseFile):
                         # if none, use the boundary
                         freq_r = frequencies[-1]
                 else:
-                    # the closest one is larger than the frequency of the minimum, so it's the upper bound of the fwhm
+                    # the closest one is larger than the frequency of the minimum, so
+                    # it's the upper bound of the fwhm
                     freq_r = freq_1
                     freq_ls = freqs_hm[freqs_hm < freq_tb_min]
                     # find the rest which are smaller than the frequency of the minimum
@@ -1072,18 +1180,14 @@ class LikelihoodEDGES(LikelihoodBaseFile):
 
         Parameters
         ----------
-
         model : list of dicts
             Exactly the output of :meth:`simulate`.
 
         Returns
         -------
-
         lnl : float
             The log-likelihood for the given model.
-
         """
-
         if model["freq_tb_min"] is None:
             return -np.inf
 
