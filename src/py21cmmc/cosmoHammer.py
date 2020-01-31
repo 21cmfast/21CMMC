@@ -537,7 +537,7 @@ class Params(_util.Params):
 
 
 class LikelihoodComputationChain(_Chain):
-    """Feature-laded replacement of :class:`cosmoHammer.LikelihoodComputationChain`."""
+    """Feature-laden replacement of :class:`cosmoHammer.LikelihoodComputationChain`."""
 
     def __init__(self, params, *args, **kwargs):
         self.params = params
