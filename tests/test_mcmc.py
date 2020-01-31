@@ -302,8 +302,6 @@ def test_lightcone_core(lc_core, lc_core_ctx):
     mcmc.build_computation_chain(lc_core, lk, setup=False)
     lk.setup()
 
-    assert lc_core.lightcone_slice_redshifts[-1] > 8.0
-
     assert lc_core_ctx.contains("lightcone")
     assert isinstance(lc_core_ctx.get("lightcone"), LightCone)
 
