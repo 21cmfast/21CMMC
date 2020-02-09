@@ -1,28 +1,26 @@
-"""
-A module providing Core Modules for cosmoHammer. This is the basis of the plugin system for py21cmmc.
+"""Module providing Core Modules for cosmoHammer.
+
+This is the basis of the plugin system for :mod:`py21cmmc`.
+
+TODO: Add description of the API of cores (and how to define new ones).
 """
 import copy
 import inspect
 import logging
 import warnings
+
 import numpy as np
-from collections import Iterable
 
 import py21cmfast as p21
+
+from . import _utils as ut
 
 logger = logging.getLogger("21cmFAST")
 
 
-def flatten(items):
-    """Yield items from any nested iterable; see Reference."""
-    for x in items:
-        if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
-            yield from flatten(x)
-        else:
-            yield x
-
-
 class NotSetupError(AttributeError):
+    """Exception for when a Core has not yet been setup."""
+
     def __init__(self):
         default_message = (
             "setup() must have been called on the chain to use this method/attribute!"
@@ -31,25 +29,34 @@ class NotSetupError(AttributeError):
 
 
 class NotAChain(AttributeError):
+    """Exception when method is called outside a :class:`LikelihoodComputationChain`."""
+
     def __init__(self):
-        default_message = "this Core or Likelihood must be part of a LikelihoodComputationChain to enable this method/attribute!"
+        default_message = (
+            "this Core or Likelihood must be part of a LikelihoodComputationChain "
+            "to enable this method/attribute!"
+        )
         super().__init__(default_message)
 
 
 class AlreadySetupError(Exception):
+    """Exception to be raised if trying to setup a core twice."""
+
     pass
 
 
 class ModuleBase:
-    extra_defining_attributes = (
-        []
-    )  # extra attributes (in addition to those passed to init) that define equality
-    ignore_attributes = (
-        []
-    )  # attributes to ignore (from those passed to init) for determining equality
+    """Base module for both Cores and Likelihoods."""
 
-    required_cores = []  # Specifies required cores that need to be loaded if this core
-    # is loaded. Tuples in the list indicate "or" relationship.
+    # extra attributes (in addition to those passed to init) that define equality
+    _extra_defining_attributes = ()
+
+    # attributes to ignore (from those passed to init) for determining equality
+    _ignore_attributes = ()
+
+    # Cores that need to be loaded if this core is loaded. Sub-tuples in the list indicate
+    # "or" relationship.
+    required_cores = ()
 
     def __init__(self):
         self._is_setup = False
@@ -61,7 +68,7 @@ class ModuleBase:
             if not hasattr(rc, "__len__"):
                 rc = (rc,)
 
-            if not any([any([isinstance(m, r) for r in rc]) for m in self._cores]):
+            if not any(any(isinstance(m, r) for r in rc) for m in self._cores):
                 raise ValueError(
                     "%s needs the %s to be loaded."
                     % (self.__class__.__name__, rc.__class__.__name__)
@@ -69,9 +76,7 @@ class ModuleBase:
 
     @property
     def chain(self):
-        """
-        A reference to the LikelihoodComputationChain of which this Core is a part.
-        """
+        """Reference to the :class:`~py21cmmc.cosmoHammer.LikelihoodComputationChain` containing this core."""
         try:
             return self._LikelihoodComputationChain
         except AttributeError:
@@ -79,9 +84,11 @@ class ModuleBase:
 
     @property
     def parameter_names(self):
+        """Names of the parameters of the full chain."""
         return getattr(self.chain.params, "keys", [])
 
     def __eq__(self, other):
+        """Compare this to another object for equality."""
         if self.__class__.__name__ != other.__class__.__name__:
             return False
 
@@ -89,11 +96,11 @@ class ModuleBase:
         for cls in self.__class__.mro():
             args += inspect.getfullargspec(cls.__init__).args
 
-        args = list(set(args))
+        args = tuple(set(args))
 
-        for arg in args + self.extra_defining_attributes:
+        for arg in args + self._extra_defining_attributes:
 
-            if arg == "self" or arg in self.ignore_attributes:
+            if arg == "self" or arg in self._ignore_attributes:
                 continue
 
             try:
@@ -119,26 +126,30 @@ class ModuleBase:
 
     @property
     def _cores(self):
-        """List of all loaded cores"""
+        """List of all loaded cores."""
         return self.chain.getCoreModules()
 
     @property
     def _rq_cores(self):
-        """List of all loaded cores that are in the requirements, in order of the requirements"""
-        req = flatten(self.required_cores)
-        return tuple([core for core in self._cores for r in req if isinstance(core, r)])
+        """List of all loaded cores that are in the requirements, in order of the requirements."""
+        req = ut.flatten(self.required_cores)
+        return tuple(core for core in self._cores for r in req if isinstance(core, r))
 
     @property
     def core_primary(self):
-        """The first core that appears in the requirements"""
+        """The first core that appears in the requirements."""
         return self._rq_cores[0] if self._rq_cores else self._cores[0]
 
     def setup(self):
+        """Perform any post-init setup of the object."""
         self._check_required_cores()
 
 
 class CoreBase(ModuleBase):
+    """Base module for all cores."""
+
     def __init__(self, store=None):
+        super().__init__()
         self.store = store or {}
 
     def _check_required_cores(self):
@@ -154,7 +165,7 @@ class CoreBase(ModuleBase):
                     )
 
     def prepare_storage(self, ctx, storage):
-        """Add variables to special dict which cosmoHammer will automatically store with the chain."""
+        """Add variables to dict which cosmoHammer will automatically store with the chain."""
         for name, storage_function in self.store.items():
             try:
                 storage[name] = storage_function(ctx)
@@ -166,13 +177,14 @@ class CoreBase(ModuleBase):
 
     def build_model_data(self, ctx):
         """
-        Passed a standard context object, should construct model data and place it in the context.
+        Construct model data and place it in the context.
 
-        The data generated by this method should ideally be *deterministic*, so that input parameters (which are
-        inherently contained in the `ctx` object) map uniquely to output data. The addition of stochasticity in order
-        to produce mock data is done in the :meth:`~convert_model_to_mock` method. All data necessary to full evaulate
-        probabilities of mock data from the model data should be determined in this method (including model
-        uncertainties, if applicable).
+        The data generated by this method should ideally be *deterministic*, so that
+        input parameters (which are inherently contained in the `ctx` object) map
+        uniquely to output data. The addition of stochasticity in order to produce mock
+        data is done in the :meth:`~convert_model_to_mock` method. All data necessary to
+        fully evaluate probabilities of mock data from the model data should be
+        determined in this method (including model uncertainties, if applicable).
 
         Parameters
         ----------
@@ -188,8 +200,11 @@ class CoreBase(ModuleBase):
 
     def convert_model_to_mock(self, ctx):
         """
-        Given a context object containing data from :meth:`~build_model_data`, generate random mock data, which should
-        represent an exact forward-model of the process under investigation.
+        Generate random mock data.
+
+        Given a context object containing data from :meth:`~build_model_data`, generate
+        random mock data, which should represent an exact forward-model of the process
+        under investigation.
 
         Parameters
         ----------
@@ -204,25 +219,107 @@ class CoreBase(ModuleBase):
         self.convert_model_to_mock(ctx)
 
     def __call__(self, ctx):
-        """
-        Call the class. By default, it will just build model data, with no stochasticity.
+        """Call the class.
+
+        By default, it will just build model data, with no stochasticity.
         """
         self.build_model_data(ctx)
 
 
 class CoreCoevalModule(CoreBase):
-    """
-    A Core Module which evaluates coeval cubes at given redshift.
+    """A Core Module which evaluates coeval cubes at given redshift.
 
     On each iteration, this module will add to the context:
 
-    1. ``init``: an :class:`~py21cmmc._21cmfast.wrapper.InitialConditions` instance
-    2. ``perturb``: a :class:`~py21cmmc._21cmfast.wrapper.PerturbedField` instance
-    3. ``xHI``: an :class:`~py21cmmc._21cmfast.wrapper.IonizedBox` instance
-    4. ``brightness_temp``: a :class:`~py21cmmc._21cmfast.wrapper.BrightnessTemp` instance
+    * ``init``: an :class:`~py21cmmc._21cmfast.wrapper.InitialConditions` instance
+    * ``perturb``: a :class:`~py21cmmc._21cmfast.wrapper.PerturbedField` instance
+    * ``xHI``: an :class:`~py21cmmc._21cmfast.wrapper.IonizedBox` instance
+    * ``brightness_temp``: a :class:`~py21cmmc._21cmfast.wrapper.BrightnessTemp` instance
+
+    Parameters
+    ----------
+    redshift : float or array_like
+         The redshift(s) at which to evaluate the coeval cubes.
+    user_params : dict or :class:`~py21cmfast.UserParams`
+        Parameters affecting the overall dimensions of the cubes.
+    flag_options : dict or :class:`~py21cmfast.FlagOptions`
+        Options affecting choices for how the reionization is calculated.
+    astro_params : dict or :class:`~py21cmfast.AstroParams`
+        Astrophysical parameters of reionization.
+
+        .. note:: None of the parameters provided here affect the *MCMC* as such; they
+              merely provide a background model on which the MCMC will be performed.
+              Thus for example, passing ``HII_EFF_FACTOR=30`` in ``astro_params`` here
+              will be over-written per-iteration if ``HII_EFF_FACTOR`` is also passed as
+              a ``parameter`` to an MCMC routine using this core module.
+
+    cosmo_params : dict or :class:`~py21cmfast.CosmoParams`
+        Cosmological parameters of the simulations. Like ``astro_params``, these
+        are the *fiducial* parameters, but may be updated during an MCMC.
+    regenerate : bool, optional
+        Whether to force regeneration of simulations, even if matching cached data is found.
+    do_spin_temp: bool, optional
+        Whether to use spin temperature in the calculation, or assume the saturated limit.
+    z_step_factor: float, optional
+        How large the logarithmic steps between redshift are (if required).
+    z_heat_max: float, optional
+        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift
+        up to which heating sources are required to specify the ionization field. Beyond
+        this, the ionization field is specified directly from the perturbed density field.
+    ctx_variables : list of str, optional
+            A list of strings. The strings must correspond to any (pickleable) member of
+            :class:`py21cmfast.Coeval`. These will be stored in the context on every iteration. Omitting as many as
+            possible is useful in that it reduces the memory that needs to be transmitted to each process. Furthermore,
+            in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be
+            easily over-run. Some typical options are:
+            * "brightness_temp"
+            * "xH_box"
+            * "density"
+            * "velocity"
+            * "Gamma12_box"
+    initial_conditions_seed : int, optional
+        If not `change_seeds_every_iter`, then this will define the random seed on which
+        the initial conditions for _all_ iterations is based. By default, a seed will be
+        chosen at random, _unless_ initial conditions exist in cache that match the
+        parameters of this instance (and ``regenerate`` is False). In this case, the
+        seed of the existing box will be adopted.
+
+    Other Parameters
+    ----------------
+    store :  dict, optional
+        The (derived) quantities/blobs to store in the MCMC chain, default empty. See
+        Notes below for details.
+    cache_dir : str, optional
+        The directory in which to search for the boxes and write them. By default, this
+        is the directory given by ``direc`` in the configuration file,
+        ``~/.21CMMC/config.yml``. Note that for *reading* data, while the specified
+        ``direc`` is searched first, the default directory will *also* be searched if no
+        appropriate data is found in ``direc``.
+    cache_ionize : bool, optional
+        Whether to cache ionization data sets (done before parameter retention step).
+        Default False.
+
+
+    Notes
+    -----
+    The ``store`` keyword is a dictionary, where each key specifies the name of the
+    resulting data entry in the samples object, and the value is a callable which
+    receives the ``context``, and returns a value from it.
+
+    .. note:: the ``store`` callable is saved to the core instance, which must be
+              pickleable in order to use multiprocessing. Thus it is generally unwise
+              to use a ``lambda`` function as the callable.
+
+    This means that the context can be inspected and arbitrarily summarised before
+    storage. In particular, this allows for taking slices of arrays and saving them. One
+    thing to note is that the context is dictionary-like, but is not a dictionary. The
+    elements of the context are only available by using the ``get`` method, rather than
+    directly subscripting the object like a normal dictionary.
+
+    .. warning:: Only scalars and arrays are supported for storage in the chain itself.
     """
 
-    ignore_attributes = ["keep_data_in_memory"]
+    _ignore_attributes = ["keep_data_in_memory"]
 
     def __init__(
         self,
@@ -232,88 +329,13 @@ class CoreCoevalModule(CoreBase):
         astro_params=None,
         cosmo_params=None,
         regenerate=True,
-        z_step_factor=1.02,
-        z_heat_max=None,
         change_seed_every_iter=False,
-        ctx_variables=None,
+        ctx_variables=("brightness_temp", "xH_box"),
         initial_conditions_seed=None,
+        global_params=None,
         **io_options,
     ):
-        """
-        Initialize the class.
-
-        .. note:: None of the parameters provided here affect the *MCMC* as such; they merely provide a background
-                  model on which the MCMC will be performed. Thus for example, passing `HII_EFF_FACTOR=30` in
-                  `astro_params` here will be over-written per-iteration if `HII_EFF_FACTOR` is also passed as a
-                  `parameter` to an MCMC routine using this Core Module.
-
-        Parameters
-        ----------
-        redshift : float or array_like
-             The redshift(s) at which to evaluate the coeval cubes.
-        user_params : dict or :class:`~py21cmmc._21cmfast.wrapper.UserParams`
-            Parameters affecting the overall dimensions of the cubes (see :class:`~py21cmmc._21cmfast.wrapper.UserParams`
-            for details).
-        flag_options : dict or :class:`~py21cmmc._21cmfast.wrapper.FlagOptions`
-            Options affecting choices for how the reionization is calculated (see
-            :class:`~py21cmmc._21cmfast.wrapper.FlagOptions` for details).
-        astro_params : dict or :class:`~py21cmmc._21cmfast.wrapper.AstroParams`
-            Astrophysical parameters of reionization (see :class:`~py21cmmc._21cmfast.wrapper.AstroParams` for details).
-        cosmo_params : dict or :class:`~py21cmmc._21cmfast.wrapper.CosmoParams`
-            Cosmological parameters of the simulations (see :class:`~py21cmmc._21cmfast.wrapper.CosmoParams` for
-            details).
-        regenerate : bool, optional
-            Whether to force regeneration of simulations, even if matching cached data is found.
-        do_spin_temp: bool, optional
-            Whether to use spin temperature in the calculation, or assume the saturated limit.
-        z_step_factor: float, optional
-            How large the logarithmic steps between redshift are (if required).
-        z_heat_max: float, optional
-            Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
-            are required to specify the ionization field. Beyond this, the ionization field is specified directly from
-            the perturbed density field.
-        ctx_variables : list of str, optional
-            A list of strings, any number of the following: "brightness_temp", "init", "perturb", "xHI". These each
-            correspond to an OutputStruct which will be stored in the context on every iteration. Omitting as many as
-            possible is useful in that it reduces the memory that needs to be transmitted to each process. Furthermore,
-            in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be easily over-run
-            when passing the hires array in the "init" structure.
-        initial_conditions_seed : int, optional
-            If not `change_seeds_every_iter`, then this will define the random seed on which the initial conditions
-            for _all_ iterations is based. By default, a seed will be chosen at random, _unless_ initial conditions
-            exist in cache that match the parameters of this instance (and `regenerate` is False). In this case, the
-            seed of the existing box will be adopted.
-
-        Other Parameters
-        ----------------
-        store :  dict, optional
-            The (derived) quantities/blobs to store in the MCMC chain, default empty. See Notes below for details.
-        cache_dir : str, optional
-            The directory in which to search for the boxes and write them. By default, this is the directory given by
-            ``boxdir`` in the configuration file, ``~/.21CMMC/config.yml``. Note that for *reading* data, while the
-            specified `direc` is searched first, the default directory will *also* be searched if no appropriate data is
-            found in `direc`.
-        cache_ionize : bool, optional
-            Whether to cache ionization data sets (done before parameter retention step). Default False.
-
-
-        Notes
-        -----
-        The ``store`` keyword is a dictionary, where each key specifies the name of the resulting data entry in the
-        samples object, and the value is a callable which receives the ``context``, and returns a value from it.
-
-        This means that the context can be inspected and arbitrarily summarised before storage. In particular, this
-        allows for taking slices of arrays and saving them. One thing to note is that the context is dictionary-like,
-        but is not a dictionary. The elements of the context are only available by using the ``get`` method, rather than
-        directly subscripting the object like a normal dictionary.
-
-        .. warning:: only scalars and arrays are supported for storage in the chain itself.
-        """
-
         super().__init__(io_options.get("store", None))
-
-        if ctx_variables is None:
-            ctx_variables = ["brightness_temp", "xHI"]
 
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
@@ -329,8 +351,7 @@ class CoreCoevalModule(CoreBase):
         self.regenerate = regenerate
         self.ctx_variables = ctx_variables
 
-        self.z_step_factor = z_step_factor
-        self.z_heat_max = z_heat_max
+        self.global_params = global_params or {}
 
         self.io_options = {
             "store": {},  # (derived) quantities to store in the MCMC chain.
@@ -343,7 +364,8 @@ class CoreCoevalModule(CoreBase):
 
         if self.initial_conditions_seed and self.change_seed_every_iter:
             logger.warning(
-                "Attempting to set initial conditions seed while desiring to change seeds every iteration. Unsetting initial conditions seed."
+                "Attempting to set initial conditions seed while desiring to change seeds every "
+                "iteration. Unsetting initial conditions seed."
             )
             self.initial_conditions_seed = None
 
@@ -353,8 +375,8 @@ class CoreCoevalModule(CoreBase):
 
         Notes
         -----
-        This method is called automatically by its parent :class:`~LikelihoodComputationChain`, and should not be
-        invoked directly.
+        This method is called automatically by its parent
+        :class:`~LikelihoodComputationChain`, and should not be invoked directly.
         """
         super().setup()
 
@@ -362,9 +384,6 @@ class CoreCoevalModule(CoreBase):
         self.astro_params, self.cosmo_params = self._update_params(
             self.chain.createChainContext().getParams()
         )
-
-        if self.z_heat_max is not None:
-            p21.global_params.Z_HEAT_MAX = self.z_heat_max
 
         # Here we initialize the init and perturb boxes.
         # If modifying cosmo, we don't want to do this, because we'll create them
@@ -374,13 +393,13 @@ class CoreCoevalModule(CoreBase):
             and not self.change_seed_every_iter
         ):
             logger.info("Initializing init and perturb boxes for the entire chain.")
-
             initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
                 direc=self.io_options["cache_dir"],
                 regenerate=self.regenerate,
                 random_seed=self.initial_conditions_seed,
+                **self.global_params,
             )
 
             # update the seed
@@ -394,11 +413,13 @@ class CoreCoevalModule(CoreBase):
                         init_boxes=initial_conditions,
                         direc=self.io_options["cache_dir"],
                         regenerate=self.regenerate,
+                        **self.global_params,
                     )
                 ]
             logger.info("Initialization done.")
 
     def get_current_init_and_perturb(self, cosmo_params):
+        """Return the init and perturb field structures for given cosmo parameters."""
         initial_conditions = p21.initial_conditions(
             user_params=self.user_params,
             cosmo_params=cosmo_params,
@@ -406,6 +427,7 @@ class CoreCoevalModule(CoreBase):
             regenerate=False,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
+            **self.global_params,
         )
 
         perturb_field = []
@@ -417,12 +439,14 @@ class CoreCoevalModule(CoreBase):
                     direc=self.io_options["cache_dir"],
                     regenerate=False,
                     write=self.io_options["cache_mcmc"],
+                    **self.global_params,
                 )
             ]
 
         return initial_conditions, perturb_field
 
     def build_model_data(self, ctx):
+        """Compute all data defined by this core and add it to the context."""
         # Update parameters
         logger.debug("Updating parameters: {}".format(ctx.getParams()))
         astro_params, cosmo_params = self._update_params(ctx.getParams())
@@ -436,36 +460,36 @@ class CoreCoevalModule(CoreBase):
         )
 
         # Call C-code
-        init, perturb, xHI, brightness_temp = p21.run_coeval(
+        coeval = p21.run_coeval(
             redshift=self.redshift,
             astro_params=astro_params,
             flag_options=self.flag_options,
             init_box=initial_conditions,
             perturb=perturb_field,
-            z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
+            **self.global_params,
         )
 
         logger.debug("Adding {} to context data".format(self.ctx_variables))
         for key in self.ctx_variables:
             try:
-                ctx.add(key, locals()[key])
-            except KeyError:
-                raise KeyError(
-                    "ctx_variables must be drawn from the list ['init', 'perturb', 'xHI', 'brightness_temp']"
+                ctx.add(key, [getattr(c, key) for c in coeval])
+            except AttributeError:
+                raise ValueError(
+                    "ctx_variable {} not an attribute of Coeval".format(key)
                 )
 
     def _update_params(self, params):
         """
-        Update all the parameter structures which get passed to the driver, for this iteration.
+        Update all the parameter structures which get passed to the driver, for one iteration.
 
         Parameters
         ----------
-        params : Parameter object from cosmoHammer
-
+        params :
+            Parameter object from cosmoHammer
         """
         ap_dict = copy.copy(self.astro_params.self)
         cp_dict = copy.copy(self.cosmo_params.self)
@@ -492,38 +516,26 @@ class CoreLightConeModule(CoreCoevalModule):
     """
     Core module for evaluating lightcone simulations.
 
-    See :class:`~CoreCoevalModule` for info on all parameters, which are identical to this class, with the exception
-    of `redshift`, which in this case must be a scalar.
+    See :class:`~CoreCoevalModule` for info on all parameters, which are identical to
+    this class, with the exception of `redshift`, which in this case must be a scalar.
 
     This module will add the following quantities to the context:
 
-    1. ``lightcone``: a :class:`~py21cmmc._21cmfast.wrapper.LightCone` instance.
+    * ``lightcone``: a :class:`~py21cmfast.LightCone` instance.
     """
 
     def __init__(self, *, max_redshift=None, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn(
-                "ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored."
+                "ctx_variables does not apply to the lightcone module (at least not yet). It will "
+                "be ignored."
             )
 
         super().__init__(**kwargs)
         self.max_redshift = max_redshift
 
-    @property
-    def lightcone_slice_redshifts(self):
-        """
-        The redshift at each slice of the lightcone.
-        """
-        # noinspection PyProtectedMember
-        return p21.wrapper._get_lightcone_redshifts(
-            self.cosmo_params,
-            self.max_redshift,
-            self.redshift[0],
-            self.user_params,
-            self.z_step_factor,
-        )
-
     def build_model_data(self, ctx):
+        """Compute all data defined by this core and add it to the context."""
         # Update parameters
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
@@ -535,26 +547,44 @@ class CoreLightConeModule(CoreCoevalModule):
             flag_options=self.flag_options,
             cosmo_params=cosmo_params,
             user_params=self.user_params,
-            z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
+            **self.global_params,
         )
 
         ctx.add("lightcone", lightcone)
 
 
 class CoreLuminosityFunction(CoreCoevalModule):
-    """
-    A Core Module that produces model luminosity functions at a range of redshifts.
+    r"""A Core Module that produces model luminosity functions at a range of redshifts.
+
+    Parameters
+    ----------
+    sigma : float, callable, list of callables, or array_like
+        The standard deviation on the luminosity function measurement. If a float,
+        it is considered to be the standard deviation for all redshifts and luminosity
+        bins. If a 1D array, it is assumed to be a function of luminosity, and must
+        have the same length as the output luminosity from
+        :func:`py21cmfast.wrapper.compute_luminosity_function`. If a callable,
+        assumed to take a single argument -- a UV magitude array -- and return the
+        standard deviation (the same for all redshifts). If a list of callables, must
+        be the same length as redshift, with each callable having the same signature
+        as already described. If a 2D array, must have shape ``(n_redshifts, n_luminosity_bins)``.
+
+    Other Parameters
+    ----------------
+    \*\*kwargs :
+        All other parameters are the same as :class:`CoreCoevalModule`.
     """
 
-    def __init__(self, sigma, z_extrap_min, z_extrap_max, **kwargs):
+    def __init__(self, sigma, **kwargs):
         self._sigma = sigma
         super().__init__(**kwargs)
 
     def setup(self):
+        """Run post-init setup."""
         CoreBase.setup(self)
 
         # If the chain has different parameter truths, we want to use those for our defaults.
@@ -563,6 +593,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
         )
 
     def run(self, astro_params, cosmo_params):
+        """Return the luminosity function for given parameters."""
         return p21.compute_luminosity_function(
             redshifts=self.redshift,
             astro_params=astro_params,
@@ -572,6 +603,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
         )
 
     def build_model_data(self, ctx):
+        """Compute all data defined by this core and add it to the context."""
         # Update parameters
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
@@ -586,6 +618,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
 
     @property
     def sigma(self):
+        """Either a list of callables, or list/array of arrays. Length n_redshifts."""
         if not hasattr(self._sigma, "__len__") or len(self._sigma) != len(
             self.redshift
         ):
@@ -594,6 +627,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
             return self._sigma
 
     def convert_model_to_mock(self, ctx):
+        """Update context entries for luminosity function to have randomness."""
         lfunc = ctx.get("luminosity_function")["lfunc"]
         muv = ctx.get("luminosity_function")["Muv"]
 
@@ -604,27 +638,32 @@ class CoreLuminosityFunction(CoreCoevalModule):
                 lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
 
 
-
-#
 class CoreCMB(CoreBase):
+    r"""A Core Module that calls the CLASS CMB code and computes  Cl^TT,TE,EE and phiphi (the lensing potentials). It takes as an input the reionization history from 21cmFAST and a few cosmological parameters.
 
+    Parameters
+    ----------
+    z_extrap_min : minimal z for reionization in CLASS. should basically always be set to 0.
+    z_extrap_max : maximal z for reionization in CLASS. depends on the reionization model.
+    z_HeI : redshift of the first helium reionization. CLASS models helium reionzation with a tanh centered around zHeI.
+    z_HeII : redshift of the second helium reionization. CLASS models helium reionzation with a tanh centered around zHeII.
+    """
 
-    def __init__(self, verbose = 0, z_extrap_min = 0, z_extrap_max = 20, z_HeI=4, z_HeII=3, *args, **kwargs):
-        """
-        A Core Module that calls the CLASS CMB code and computes  Cl^TT,TE,EE and phiphi (the lensing potentials).
-        It takes as an input the reionization history from 21cmFAST and a few cosmological parameters.
-        """
-        """
-        Parameters
-        ----------
-        z_extrap_min : minimal z for reionization in CLASS. should basically always be set to 0.
-        z_extrap_max : maximal z for reionization in CLASS. depends on the reionization model.
-        z_HeI : redshift of the first helium reionization. CLASS models helium reionzation with a tanh centered around zHeI.
-        z_HeII : redshift of the second helium reionization. CLASS models helium reionzation with a tanh centered around zHeII.
-        """
+    def __init__(
+        self,
+        verbose=0,
+        z_extrap_min=0,
+        z_extrap_max=20,
+        z_HeI=4,
+        z_HeII=3,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
+
         try:
             from classy import Class
+
             if verbose > 0:
                 print("import CLASS")
             global cosmo
@@ -634,40 +673,33 @@ class CoreCMB(CoreBase):
             self.z_extrap_max = z_extrap_max
             self.z_HeI = z_HeI
             self.z_HeII = z_HeII
-        except:
+        except AttributeError:
             raise AttributeError(
-                "You must have compiled the classy.pyx file. Please go to " +
-                "/path/to/class/python and run the command\n " +
-                "python setup.py build")
-
+                "You must have compiled the classy.pyx file. Please go to "
+                + "/path/to/class/python and run the command\n "
+                + "python setup.py build"
+            )
 
     def setup(self):
+        """Perform any post-init setup of the object."""
         CoreBase.setup(self)
 
-
     def build_model_data(self, ctx):
-        """
-        compute the CMB power spectra from a ionization history
-
-        """
-
-
-
-        ##option for class
-        z_class_min = self.z_extrap_min
-        z_HeI = self.z_HeI #4
-        z_HeII = self.z_HeII #3
+        """Compute the CMB power spectra from a ionization history."""
+        # option for class z_class_min = self.z_extrap_min
+        z_HeI = self.z_HeI  # 4
+        z_HeII = self.z_HeII  # 3
         z_class_max = self.z_extrap_max
-        z_xe_0 = z_class_max+1 #xe is set to 0 at z=z_xe_0. placeholder: will be overwritten by recombination table in class.
-
+        z_xe_0 = (
+            z_class_max + 1
+        )  # xe is set to 0 at z=z_xe_0. placeholder: will be overwritten by recombination table in class.
 
         # Extract relevant info from the context.
-        lightcone = ctx.get('lightcone')
+        lightcone = ctx.get("lightcone")
         h = lightcone.cosmo_params.hlittle
-        omega_b = lightcone.cosmo_params.OMb*h*h
-        omega_cdm = lightcone.cosmo_params.OMm*h*h-omega_b
-        # A_s = ctx.get('A_s',2.215e-9)
-        sigma8 =lightcone.cosmo_params.SIGMA_8
+        omega_b = lightcone.cosmo_params.OMb * h * h
+        omega_cdm = lightcone.cosmo_params.OMm * h * h - omega_b
+        sigma8 = lightcone.cosmo_params.SIGMA_8
         n_s = lightcone.cosmo_params.POWER_INDEX
 
         xHI = lightcone.global_xHI
@@ -682,36 +714,38 @@ class CoreCMB(CoreBase):
         redshifts, xHI = np.sort(np.array([redshifts, xHI]))
 
         # Translate xHI into xe for CLASS.
-        #The option -1, -2 ensure helium first and second reionization respectively at z_HeI and z_HeII.
-        xe = 1-xHI
-        xe = np.concatenate(([-2,-2,-1], xe,[0]))
-        redshift_class =np.concatenate(([0,z_HeII,z_HeI],redshifts,[z_xe_0]))
+        # The option -1, -2 ensure helium first and second reionization respectively at z_HeI and z_HeII.
+        xe = 1 - xHI
+        xe = np.concatenate(([-2, -2, -1], xe, [0]))
+        redshift_class = np.concatenate(([0, z_HeII, z_HeI], redshifts, [z_xe_0]))
 
         common_settings = {
-                   'output' : 'tCl, pCl, lCl',
-                   'lensing':'yes',
-                   'l_max_scalars':3000,
-                   # LambdaCDM parameters
-                   'h':h,
-                   'omega_b':omega_b,
-                   'omega_cdm':omega_cdm,
-                   # 'A_s':A_s,
-                   'sigma8':sigma8,
-                   'n_s':n_s,
-                   # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
-                   'reio_parametrization':'reio_inter',
-                   'reio_inter_num':len(xe),
-                   'reio_inter_z':','.join([str(x) for x in redshift_class]), #str(redshift_class),
-                   'reio_inter_xe':','.join([str(x) for x in xe]),
-                    'input_verbose': self.verbose,
-                    'background_verbose': self.verbose,
-                    'thermodynamics_verbose': self.verbose,
-                    'perturbations_verbose': self.verbose,
-                    'transfer_verbose': self.verbose,
-                    'primordial_verbose': self.verbose,
-                    'spectra_verbose': self.verbose,
-                    'nonlinear_verbose': self.verbose,
-                    'lensing_verbose': self.verbose}
+            "output": "tCl, pCl, lCl",
+            "lensing": "yes",
+            "l_max_scalars": 3000,
+            # LambdaCDM parameters
+            "h": h,
+            "omega_b": omega_b,
+            "omega_cdm": omega_cdm,
+            "sigma8": sigma8,
+            "n_s": n_s,
+            # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
+            "reio_parametrization": "reio_inter",
+            "reio_inter_num": len(xe),
+            "reio_inter_z": ",".join(
+                [str(x) for x in redshift_class]
+            ),  # str(redshift_class),
+            "reio_inter_xe": ",".join([str(x) for x in xe]),
+            "input_verbose": self.verbose,
+            "background_verbose": self.verbose,
+            "thermodynamics_verbose": self.verbose,
+            "perturbations_verbose": self.verbose,
+            "transfer_verbose": self.verbose,
+            "primordial_verbose": self.verbose,
+            "spectra_verbose": self.verbose,
+            "nonlinear_verbose": self.verbose,
+            "lensing_verbose": self.verbose,
+        }
         ##############
         #
         # call CLASS
@@ -720,31 +754,23 @@ class CoreCMB(CoreBase):
 
         cosmo.set(common_settings)
         cosmo.compute()
-        thermo = cosmo.get_thermodynamics()
         cl = self.get_cl(cosmo)
         cosmo.struct_cleanup()
         cosmo.empty()
         ctx.add("cl_cmb", cl)
 
-
-
-    def get_cl(self,cosmo, l_max=-1):
-        """
-        Return the :math:`C_{\ell}` from the cosmological code in
-        :math:`\mu {\\rm K}^2`
-
-        """
+    def get_cl(self, cosmo, l_max=-1):
+        r"""Return the :math:`C_{\\ell}` from the cosmological code in :math:`\\mu {\\rm K}^2`."""
         # get C_l^XX from the cosmological code
-
         cl = cosmo.lensed_cl(int(l_max))
         # convert dimensionless C_l's to C_l in muK**2
-        T = cosmo.T_cmb() #checked
+        T = cosmo.T_cmb()  # checked
         for key in cl.keys():
             # All quantities need to be multiplied by this factor, except the
             # phi-phi term, that is already dimensionless
             # phi cross-terms should only be multiplied with this factor once
-            if key not in ['pp', 'ell', 'tp', 'ep']:
-                cl[key] *= (T*1.e6)**2
-            elif key in ['tp', 'ep']:
-                cl[key] *= (T*1.e6)
+            if key not in ["pp", "ell", "tp", "ep"]:
+                cl[key] *= (T * 1.0e6) ** 2
+            elif key in ["tp", "ep"]:
+                cl[key] *= T * 1.0e6
         return cl
