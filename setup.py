@@ -10,19 +10,18 @@ from os.path import basename
 from os.path import dirname
 from os.path import join
 from os.path import splitext
-
 from setuptools import find_packages
 from setuptools import setup
 
 
-def read(*names, **kwargs):
+def _read(*names, **kwargs):
     return io.open(
         join(dirname(__file__), *names), encoding=kwargs.get("encoding", "utf8")
     ).read()
 
 
-def find_version(*file_paths):
-    version_file = read(*file_paths)
+def _find_version(*file_paths):
+    version_file = _read(*file_paths)
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
         return version_match.group(1)
@@ -33,15 +32,15 @@ def find_version(*file_paths):
 
 setup(
     name="21CMMC",
-    version=find_version("src", "py21cmmc", "__init__.py"),
+    version=_find_version("src", "py21cmmc", "__init__.py"),
     license="MIT license",
     description="An extensible MCMC framework for 21cmFAST",
     long_description="%s\n%s"
     % (
         re.compile("^.. start-badges.*^.. end-badges", re.M | re.S).sub(
-            "", read("README.rst")
+            "", _read("README.rst")
         ),
-        re.sub(":[a-z]+:`~?(.*?)`", r"``\1``", read("CHANGELOG.rst")),
+        re.sub(":[a-z]+:`~?(.*?)`", r"``\1``", _read("CHANGELOG.rst")),
     ),
     author="Brad Greig",
     author_email="greigb@unimelb.edu.au",
@@ -75,6 +74,6 @@ setup(
         "emcee<3",
         "powerbox>=0.5.7",
         "cached_property",
-        "21cmFAST @ git+git://github.com/21cmFAST/21cmFAST",
+        "21cmFAST>=3.0.0dev1",
     ],
 )

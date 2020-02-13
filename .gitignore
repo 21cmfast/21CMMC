@@ -16,6 +16,7 @@ vgcore.*
 devel/\.ipynb_checkpoints/
 devel/cosmohammer_data/
 devel/data/
+dist/
 
 docs/faqs/\.ipynb_checkpoints/
 
