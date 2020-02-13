@@ -2,8 +2,6 @@
 This is a script that runs a very basic mock Core/Likelihood
 """
 import gc
-
-# ===================Stuff to track memory usage.===============================
 import tracemalloc
 from concurrent.futures import ProcessPoolExecutor
 
@@ -31,9 +29,6 @@ def trace_print():
             if stat.size_diff != 0:
                 print(stat)
     snapshot = snapshot2
-
-
-# ==============================================================================
 
 
 class LCC:

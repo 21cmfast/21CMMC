@@ -130,6 +130,7 @@ class LikelihoodBaseFile(LikelihoodBase):
     _ignore_attributes = LikelihoodBase._ignore_attributes + ("simulate",)
 
     def __init__(self, datafile=None, noisefile=None, simulate=False, use_data=True):
+        super().__init__()
         self.datafile = datafile
         self.noisefile = noisefile
         self._use_data = use_data
@@ -189,7 +190,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
                 )
             else:
-                data.append(dict(**np.load(fl)))
+                data.append(dict(np.load(fl, allow_pickle=True)))
 
         return data
 
@@ -207,7 +208,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
 
                 else:
-                    noise.append(dict(**np.load(fl)))
+                    noise.append(dict(**np.load(fl, allow_pickle=True)))
 
             return noise
 
@@ -509,7 +510,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 (m["delta"][mask] - pd(m["k"][mask])) ** 2
                 / (moduncert ** 2 + noise ** 2)
             )
-
         logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
         return lnl
@@ -1032,23 +1032,100 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     ----------
     datafile : str, optional
         Input data should be in a `.npz` file, and contain the arrays:
-            * `Muv`: the brightness magnitude array
-            * `lfunc`: the number density of galaxies at each `Muv` bin.
+        * ``Muv``: the brightness magnitude array
+        * ``lfunc``: the number density of galaxies at each ``Muv`` bin.
+        Each of these arrays can be either 1D or 2D. If 1D, they will be
+        interpreted to be arrays over ``Muv``. If 2D, first axis will be
+        interpreted to be redshift. If you require each luminosity function
+        at different redshifts to have different numbers of Muv bins, you
+        should create multiple files, and create a separate core/likelihood
+        instance pair for each, pairing them by ``name``.
     noisefile : str, optional
         Noise should be a `.npz` file with a single array 'sigma` which gives the
-        error at each of the `Muv` bins in the `datafile`.
+        error at each of the `Muv` bins in the `datafile`. If 1D, it must have the
+        same length as ``Muv``. If 2D, must have the same length as the number
+        of redshifts as the first dimension.
+    name : str, optional
+        A name for the instance. This is used to pair it with a particular core
+        instance.
     """
 
     required_cores = (core.CoreLuminosityFunction,)
 
+    def __init__(self, *args, name="", **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.datafile is not None and len(self.datafile) != 1:
+            raise ValueError(
+                "can only pass a single datafile to LikelihoodLuminosityFunction!"
+            )
+        if self.noisefile is not None and len(self.noisefile) != 1:
+            raise ValueError(
+                "can only pass a single noisefile to LikelihoodLuminosityFunction!"
+            )
+
+        self.name = str(name)
+
+    def setup(self):
+        """Setup instance."""
+        super().setup()
+
+        # We only allow one datafile, so get the data out of it
+        # to make it easier to work with.
+        self.data = self.data[0]
+        if self.noise is not None:
+            self.noise = self.noise[0]
+
+    def _read_data(self):
+        data = super()._read_data()
+
+        # data only has one entry (only one file allowed)
+        # if that entry has values with one dimension, add a first
+        # dimension as a redshift dimension of size 1.
+        for key, val in data[0].items():
+            if not hasattr(val[0], "__len__"):
+                data[0][key] = np.atleast_2d(val)
+
+        return data
+
+    def _read_noise(self):
+        noise = super()._read_noise()
+
+        # data only has one entry (only one file allowed)
+        # if that entry has values with one dimension, add a first
+        # dimension as a redshift dimension of size 1.
+        for key, val in noise[0].items():
+            if not hasattr(val[0], "__len__"):
+                noise[0][key] = np.atleast_2d(val)
+
+        return noise
+
+    @cached_property
+    def paired_core(self):
+        """The luminosity function core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if isinstance(c, core.CoreLuminosityFunction) and c.name == self.name:
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreLuminosityFunction with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
+
     @property
     def redshifts(self):
-        """Redshifts of observation."""
-        return self.core_primary.redshift
+        """Redshifts at which luminosity function is defined."""
+        return self.paired_core.redshift
 
     def reduce_data(self, ctx):
-        """Reduce data to model."""
-        return ctx.get("luminosity_function")
+        """Reduce simulated model data."""
+        lfunc = ctx.get("luminosity_function" + self.name)
+        if not self._is_setup:
+            # During setup, return a list, so that it can be matched with the
+            # list of length one of datafile to be written.
+            return [lfunc]
+        else:
+            return lfunc
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
@@ -1057,21 +1134,20 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             model_spline = InterpolatedUnivariateSpline(
                 model["Muv"][i][::-1], model["lfunc"][i][::-1]
             )
-
             lnl += -0.5 * np.sum(
-                (self.data["lfunc"][i] - model_spline(self.data["Muv"][i])) ** 2
-                / self.noise[i]["sigma"] ** 2
+                (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i])) ** 2
+                / self.noise["sigma"][i] ** 2
             )
         return lnl
 
     def define_noise(self, ctx, model):
         """Define noise properties."""
-        sig = self.core_primary.sigma
+        sig = self.paired_core.sigma
 
         if callable(sig[0]):
-            return [{"sigma": s(m["Muv"])} for s, m in zip(sig, model)]
+            return [{"sigma": [s(m["Muv"]) for s, m in zip(sig, model)]}]
         else:
-            return [{"sigma": s} for s in sig]
+            return [{"sigma": sig}]
 
 
 class LikelihoodEDGES(LikelihoodBaseFile):

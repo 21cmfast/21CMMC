@@ -18,6 +18,7 @@ ignore-decorators=click.option
 per-file-ignores =
     tests/*:D
     setup.py:D
+    devel/*:D,I
 rst-roles =
     class
     func
