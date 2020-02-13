@@ -1,9 +1,10 @@
+import os
 import tracemalloc
+
+import psutil
 
 import py21cmmc
 from py21cmmc import mcmc
-import os
-import psutil
 
 print(py21cmmc.__version__)
 
