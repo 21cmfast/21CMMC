@@ -1,6 +1,6 @@
 """21CMMC: a package for running MCMC analyses using 21cmFAST."""
 
-__version__ = "1.0.0dev1"
+__version__ = "1.0.0dev2"
 
 
 from .analyse import get_samples
