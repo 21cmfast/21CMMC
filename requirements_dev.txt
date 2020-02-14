@@ -1,8 +1,8 @@
+21cmFAST>=3.0.0dev1
 astropy
 cffi
 click
 corner
-git+git://github.com/21cmFAST/21cmFAST
 numpy
 powerbox
 pre-commit

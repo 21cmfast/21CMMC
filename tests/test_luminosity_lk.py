@@ -1,12 +1,13 @@
-from py21cmmc import (
-    LikelihoodLuminosityFunction,
-    CoreLuminosityFunction,
-    build_computation_chain,
-)
 import os
-import pytest
-import numpy as np
 import shutil
+
+import pytest
+
+import numpy as np
+
+from py21cmmc import CoreLuminosityFunction
+from py21cmmc import LikelihoodLuminosityFunction
+from py21cmmc import build_computation_chain
 
 
 def test_single_datafile(tmpdir):
@@ -19,7 +20,6 @@ def test_single_datafile(tmpdir):
     chain = build_computation_chain(core, lk, setup=True)
 
     assert os.path.exists(dfile)
-    shutil.copy(dfile, "/home/steven/")
 
     assert isinstance(lk.data, dict)
     assert isinstance(lk.noise, dict)

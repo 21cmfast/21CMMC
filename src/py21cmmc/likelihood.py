@@ -1306,7 +1306,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         self.name = str(name)
 
     def setup(self):
-        """Perform post-init setup."""
+        """Setup instance."""
         super().setup()
 
         # We only allow one datafile, so get the data out of it
@@ -1354,11 +1354,11 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     @property
     def redshifts(self):
-        """Redshifts of observation."""
+        """Redshifts at which luminosity function is defined."""
         return self.paired_core.redshift
 
     def reduce_data(self, ctx):
-        """Reduce data to model."""
+        """Reduce simulated model data."""
         lfunc = ctx.get("luminosity_function" + self.name)
         if not self._is_setup:
             # During setup, return a list, so that it can be matched with the
