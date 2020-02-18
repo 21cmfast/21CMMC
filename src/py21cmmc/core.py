@@ -746,9 +746,9 @@ class CoreCMB(CoreBase):
             "reio_parametrization": "reio_inter",
             "reio_inter_num": len(xe),
             "reio_inter_z": ",".join(
-                [str(x) for x in redshift_class]
+                ["%.5f" % x for x in redshift_class]
             ),  # str(redshift_class),
-            "reio_inter_xe": ",".join([str(x) for x in xe]),
+            "reio_inter_xe": ",".join(["%.5e" % x for x in xe]),
             "input_verbose": self.verbose,
             "background_verbose": self.verbose,
             "thermodynamics_verbose": self.verbose,
