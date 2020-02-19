@@ -1058,32 +1058,33 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     def __init__(self, *args, name="", **kwargs):
         super().__init__(*args, **kwargs)
-        if self.datafile is None:
-            if len(self.redshifts) != 1:
-                raise ValueError(
+        if not self.simulate:
+            if self.datafile is None:
+                if len(self.redshifts) != 1:
+                    raise ValueError(
                     "to use the provided LFs, a separate core/likelihood instance pair for each redshift is required!"
+                    )
+                if self.redshifts[0] not in [6, 7, 8, 10]:
+                    raise ValueError(
+                        "only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
+                    )
+                self.datafile = path.join(
+                    path.dirname(__file__), "data", "LF_lfuncs_z%d.npz" % self.redshifts[0]
                 )
-            if self.redshifts[0] not in [6, 7, 8, 10]:
-                raise ValueError(
-                    "only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
+            else:
+                if len(self.datafile) != 1:
+                    raise ValueError(
+                        "can only pass a single datafile to LikelihoodLuminosityFunction!"
+                    )
+            if self.noisefile is None:
+                self.noisefile = path.join(
+                    path.dirname(__file__), "data", "LF_sigmas_z%d.npz" % self.redshifts[0]
                 )
-            self.datafile = path.join(
-                path.dirname(__file__), "data", "LF_lfuncs_z%d.npz" % self.redshifts[0]
-            )
-        else:
-            if len(self.datafile) != 1:
-                raise ValueError(
-                    "can only pass a single datafile to LikelihoodLuminosityFunction!"
-                )
-        if self.noisefile is None:
-            self.datafile = path.join(
-                path.dirname(__file__), "data", "LF_sigmas_z%d.npz" % self.redshifts[0]
-            )
-        else:
-            if len(self.noisefile) != 1:
-                raise ValueError(
-                    "can only pass a single noisefile to LikelihoodLuminosityFunction!"
-                )
+            else:
+                if len(self.noisefile) != 1:
+                    raise ValueError(
+                        "can only pass a single noisefile to LikelihoodLuminosityFunction!"
+                    )
 
         self.name = str(name)
 
