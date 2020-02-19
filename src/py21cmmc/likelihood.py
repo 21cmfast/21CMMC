@@ -1025,7 +1025,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 
 
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
-    """
+    r"""
     Likelihood based on Chi^2 comparison to luminosity function data.
 
     Parameters
@@ -1040,6 +1040,10 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         at different redshifts to have different numbers of Muv bins, you
         should create multiple files, and create a separate core/likelihood
         instance pair for each, pairing them by ``name``.
+        A set of default LFs (z=6,7,8,10; Bouwens+15,16; Oesch+17) are provided
+        in the folder ``data`` where datafile and noisefile (see below) are named
+        LF_lfuncs_z*.npz and LF_sigmas_z*.npz. To use these files, a separate
+        core/likelihood instance pair for each redshift is required.
     noisefile : str, optional
         Noise should be a `.npz` file with a single array 'sigma` which gives the
         error at each of the `Muv` bins in the `datafile`. If 1D, it must have the
@@ -1054,14 +1058,32 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     def __init__(self, *args, name="", **kwargs):
         super().__init__(*args, **kwargs)
-        if self.datafile is not None and len(self.datafile) != 1:
-            raise ValueError(
-                "can only pass a single datafile to LikelihoodLuminosityFunction!"
+        if self.datafile is None:
+            if len(self.redshifts) != 1:
+                raise ValueError(
+                    "to use the provided LFs, a separate core/likelihood instance pair for each redshift is required!"
+                )
+            if self.redshifts[0] not in [6, 7, 8, 10]:
+                raise ValueError(
+                    "only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
+                )
+            self.datafile = path.join(
+                path.dirname(__file__), "data", "LF_lfuncs_z%d.npz" % self.redshifts[0]
             )
-        if self.noisefile is not None and len(self.noisefile) != 1:
-            raise ValueError(
-                "can only pass a single noisefile to LikelihoodLuminosityFunction!"
+        else:
+            if len(self.datafile) != 1:
+                raise ValueError(
+                    "can only pass a single datafile to LikelihoodLuminosityFunction!"
+                )
+        if self.noisefile is None:
+            self.datafile = path.join(
+                path.dirname(__file__), "data", "LF_sigmas_z%d.npz" % self.redshifts[0]
             )
+        else:
+            if len(self.noisefile) != 1:
+                raise ValueError(
+                    "can only pass a single noisefile to LikelihoodLuminosityFunction!"
+                )
 
         self.name = str(name)
 
