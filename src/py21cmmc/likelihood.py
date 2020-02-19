@@ -1062,14 +1062,16 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             if self.datafile is None:
                 if len(self.redshifts) != 1:
                     raise ValueError(
-                    "to use the provided LFs, a separate core/likelihood instance pair for each redshift is required!"
+                        "to use the provided LFs, a separate core/likelihood instance pair for each redshift is required!"
                     )
                 if self.redshifts[0] not in [6, 7, 8, 10]:
                     raise ValueError(
                         "only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
                     )
                 self.datafile = path.join(
-                    path.dirname(__file__), "data", "LF_lfuncs_z%d.npz" % self.redshifts[0]
+                    path.dirname(__file__),
+                    "data",
+                    "LF_lfuncs_z%d.npz" % self.redshifts[0],
                 )
             else:
                 if len(self.datafile) != 1:
@@ -1078,7 +1080,9 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     )
             if self.noisefile is None:
                 self.noisefile = path.join(
-                    path.dirname(__file__), "data", "LF_sigmas_z%d.npz" % self.redshifts[0]
+                    path.dirname(__file__),
+                    "data",
+                    "LF_sigmas_z%d.npz" % self.redshifts[0],
                 )
             else:
                 if len(self.noisefile) != 1:
