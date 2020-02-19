@@ -1058,7 +1058,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     def __init__(self, *args, name="", **kwargs):
         super().__init__(*args, **kwargs)
-        if not self.simulate:
+        if not self._simulate:
             if self.datafile is None:
                 if len(self.redshifts) != 1:
                     raise ValueError(
