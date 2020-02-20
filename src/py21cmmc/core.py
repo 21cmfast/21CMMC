@@ -557,6 +557,48 @@ class CoreLightConeModule(CoreCoevalModule):
         ctx.add("lightcone", lightcone)
 
 
+class CoreTanhModule(CoreCoevalModule):
+    """Core module for evaluating Tanh EoR history."""
+
+    def __init__(self, *, max_redshift=None, **kwargs):
+        super().__init__(**kwargs)
+        self.max_redshift = max_redshift
+
+    def build_model_data(self, ctx):
+        """Compute all data defined by this core and add it to the context."""
+        astro_params, cosmo_params = self._update_params(ctx.getParams())
+        max_redshift = self.global_params["Z_HEAT_MAX"]
+        z_step_factor = self.global_params["ZPRIME_STEP_FACTOR"]
+        z_re = astro_params.F_STAR10  # okay I'm too lazy to code another parameter...
+        Delta_z_re = (
+            astro_params.ALPHA_STAR
+        )  # okay I'm too lazy to code another parameter...
+        redshifts = [self.redshift[0]]
+        while redshifts[-1] < max_redshift:
+            redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
+        redshifts = np.array(redshifts[::-1])
+
+        y = (1.0 + redshifts) ** 1.5
+        y_re = (1.0 + z_re) ** 1.5
+        Delta_y = 1.5 * (1.0 + z_re) ** 0.5 * Delta_z_re
+        x_e = 0.5 * (1.0 + np.tanh((y_re - y) / Delta_y))
+
+        lightcone = p21.LightCone(
+            self.redshift[0],
+            self.user_params,
+            cosmo_params,
+            astro_params,
+            self.flag_options,
+            None,
+            node_redshifts=redshifts,
+            global_xHI=1.0 - x_e,
+            global_brightness_temp=None,
+            photon_nonconservation_data=None,
+        )
+
+        ctx.add("lightcone", lightcone)
+
+
 class CoreLuminosityFunction(CoreCoevalModule):
     r"""A Core Module that produces model luminosity functions at a range of redshifts.
 

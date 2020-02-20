@@ -702,7 +702,10 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     name_lkl : str, default = Planck_lowl_EE, the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
     """
 
-    required_cores = [core.CoreLightConeModule, core.CoreCMB]
+    required_cores = (
+        (core.CoreLightConeModule, core.CoreCMB),
+        (core.CoreTanhModule, core.CoreCMB),
+    )
 
     def __init__(
         self,
@@ -938,10 +941,10 @@ class LikelihoodPlanck(LikelihoodBase):
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012 (https://arxiv.org/abs/1605.03507) tau_mean = 0.058 tau_sigma = 0.012
     # Cosmology from Planck 2018(https://arxiv.org/pdf/1807.06209.pdf)
-    # TT TE EE lowE lensing
-    tau_mean = 0.0544
-    tau_sigma = 0.0073
-    # TT lowE tau_mean = 0.0522 tau_sigma = 0.0080
+    # TT TE EE lowE lensing tau_mean = 0.0544 tau_sigma = 0.0073
+    # TT lowE
+    tau_mean = 0.0522
+    tau_sigma = 0.0080
 
     # Simple linear extrapolation of the redshift range provided by the user, to be
     # able to estimate the optical depth
@@ -1074,7 +1077,14 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     @property
     def lightcone_modules(self):
         """All lightcone core modules that are loaded."""
-        return [m for m in self._cores if isinstance(m, core.CoreLightConeModule)]
+        return [
+            m
+            for m in self._cores
+            if (
+                isinstance(m, core.CoreLightConeModule)
+                or isinstance(m, core.CoreTanhModule)
+            )
+        ]
 
     @property
     def coeval_modules(self):
