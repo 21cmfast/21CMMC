@@ -865,9 +865,7 @@ class CoreCMB(CoreBase):
         cosmo.set(common_settings)
         cosmo.compute()
         if not self.use_21cmfast:
-            thermo = cosmo.get_thermodynamics()
-            ctx.add("cl_z", thermo["z"])
-            ctx.add("cl_x_e", thermo["x_e"])
+            ctx.add("thermo", cosmo.get_thermodynamics())
         cl = self.get_cl(cosmo)
         cosmo.struct_cleanup()
         cosmo.empty()

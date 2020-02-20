@@ -1130,8 +1130,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 xHI = ctx.get("lightcone").global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts
             else:
-                xHI = 1.0 - ctx.get("cl_x_e")
-                redshifts = ctx.get("cl_z")
+                xHI = 1.0 - ctx.get("thermo")["x_e"]
+                redshifts = ctx.get("thermo")["z"]
 
         redshifts, xHI = np.sort([redshifts, xHI])
         return {"xHI": xHI, "redshifts": redshifts}
