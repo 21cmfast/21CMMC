@@ -557,48 +557,6 @@ class CoreLightConeModule(CoreCoevalModule):
         ctx.add("lightcone", lightcone)
 
 
-class CoreTanhModule(CoreCoevalModule):
-    """Core module for evaluating Tanh EoR history."""
-
-    def __init__(self, *, max_redshift=None, **kwargs):
-        super().__init__(**kwargs)
-        self.max_redshift = max_redshift
-
-    def build_model_data(self, ctx):
-        """Compute all data defined by this core and add it to the context."""
-        astro_params, cosmo_params = self._update_params(ctx.getParams())
-        max_redshift = self.global_params["Z_HEAT_MAX"]
-        z_step_factor = self.global_params["ZPRIME_STEP_FACTOR"]
-        z_re = astro_params.F_STAR10  # okay I'm too lazy to code another parameter...
-        Delta_z_re = (
-            astro_params.ALPHA_STAR
-        )  # okay I'm too lazy to code another parameter...
-        redshifts = [self.redshift[0]]
-        while redshifts[-1] < max_redshift:
-            redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
-        redshifts = np.array(redshifts[::-1])
-
-        y = (1.0 + redshifts) ** 1.5
-        y_re = (1.0 + z_re) ** 1.5
-        Delta_y = 1.5 * (1.0 + z_re) ** 0.5 * Delta_z_re
-        x_e = 0.5 * (1.0 + np.tanh((y_re - y) / Delta_y))
-
-        lightcone = p21.LightCone(
-            self.redshift[0],
-            self.user_params,
-            cosmo_params,
-            astro_params,
-            self.flag_options,
-            None,
-            node_redshifts=redshifts,
-            global_xHI=1.0 - x_e,
-            global_brightness_temp=None,
-            photon_nonconservation_data=None,
-        )
-
-        ctx.add("lightcone", lightcone)
-
-
 class CoreLuminosityFunction(CoreCoevalModule):
     r"""A Core Module that produces model luminosity functions at a range of redshifts.
 
@@ -702,6 +660,7 @@ class CoreCMB(CoreBase):
     z_extrap_max : maximal z for reionization in CLASS. depends on the reionization model.
     z_HeI : redshift of the first helium reionization. CLASS models helium reionzation with a tanh centered around zHeI.
     z_HeII : redshift of the second helium reionization. CLASS models helium reionzation with a tanh centered around zHeII.
+    use_21cmfast : whether or not using EoR history from 21cmfast.
     """
 
     def __init__(
@@ -711,10 +670,42 @@ class CoreCMB(CoreBase):
         z_extrap_max=20,
         z_HeI=4,
         z_HeII=3,
-        *args,
-        **kwargs,
+        use_21cmfast=True,
+        user_params=None,
+        flag_options=None,
+        astro_params=None,
+        cosmo_params=None,
+        regenerate=True,
+        change_seed_every_iter=False,
+        ctx_variables=("brightness_temp", "xH_box"),
+        initial_conditions_seed=None,
+        global_params=None,
+        **io_options,
     ):
-        super().__init__(*args, **kwargs)
+
+        super().__init__(io_options.get("store", None))
+
+        if not use_21cmfast:
+            self.user_params = p21.UserParams(user_params)
+            self.flag_options = p21.FlagOptions(flag_options)
+            self.astro_params = p21.AstroParams(astro_params)
+            self.cosmo_params = p21.CosmoParams(cosmo_params)
+            self.change_seed_every_iter = change_seed_every_iter
+            self.initial_conditions_seed = initial_conditions_seed
+
+            self.regenerate = regenerate
+            self.ctx_variables = ctx_variables
+
+            self.global_params = global_params or {}
+
+            self.io_options = {
+                "store": {},  # (derived) quantities to store in the MCMC chain.
+                "cache_dir": None,  # where full data sets will be written/read from.
+                "cache_mcmc": False,  # whether to cache ionization data sets
+                # (done before parameter retention step)
+            }
+
+            self.io_options.update(io_options)
 
         try:
             from classy import Class
@@ -728,6 +719,7 @@ class CoreCMB(CoreBase):
             self.z_extrap_max = z_extrap_max
             self.z_HeI = z_HeI
             self.z_HeII = z_HeII
+            self.use_21cmfast = use_21cmfast
         except AttributeError:
             raise AttributeError(
                 "You must have compiled the classy.pyx file. Please go to "
@@ -738,6 +730,35 @@ class CoreCMB(CoreBase):
     def setup(self):
         """Perform any post-init setup of the object."""
         CoreBase.setup(self)
+
+    def _update_params(self, params):
+        """
+        Update all the parameter structures which get passed to the driver, for one iteration.
+
+        Parameters
+        ----------
+        params :
+            Parameter object from cosmoHammer
+        """
+        ap_dict = copy.copy(self.astro_params.self)
+        cp_dict = copy.copy(self.cosmo_params.self)
+
+        ap_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.astro_params.defining_dict
+            }
+        )
+        cp_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.cosmo_params.defining_dict
+            }
+        )
+
+        return p21.AstroParams(**ap_dict), p21.CosmoParams(**cp_dict)
 
     def build_model_data(self, ctx):
         """Compute the CMB power spectra from a ionization history."""
@@ -750,57 +771,91 @@ class CoreCMB(CoreBase):
         )  # xe is set to 0 at z=z_xe_0. placeholder: will be overwritten by recombination table in class.
 
         # Extract relevant info from the context.
-        lightcone = ctx.get("lightcone")
-        h = lightcone.cosmo_params.hlittle
-        omega_b = lightcone.cosmo_params.OMb * h * h
-        omega_cdm = lightcone.cosmo_params.OMm * h * h - omega_b
-        sigma8 = lightcone.cosmo_params.SIGMA_8
-        n_s = lightcone.cosmo_params.POWER_INDEX
+        if self.use_21cmfast:
+            lightcone = ctx.get("lightcone")
+            h = lightcone.cosmo_params.hlittle
+            omega_b = lightcone.cosmo_params.OMb * h * h
+            omega_cdm = lightcone.cosmo_params.OMm * h * h - omega_b
+            sigma8 = lightcone.cosmo_params.SIGMA_8
+            n_s = lightcone.cosmo_params.POWER_INDEX
 
-        xHI = lightcone.global_xHI
-        redshifts = lightcone.node_redshifts
+            xHI = lightcone.global_xHI
+            redshifts = lightcone.node_redshifts
 
-        if len(redshifts) < 3:
-            raise ValueError(
-                "You cannot use the Planck prior likelihood with less than 3 redshifts"
-            )
+            if len(redshifts) < 3:
+                raise ValueError(
+                    "You cannot use the Planck prior likelihood with less than 3 redshifts"
+                )
 
-        # Order the redshifts in increasing order
-        redshifts, xHI = np.sort(np.array([redshifts, xHI]))
+            # Order the redshifts in increasing order
+            redshifts, xHI = np.sort(np.array([redshifts, xHI]))
 
-        # Translate xHI into xe for CLASS.
-        # The option -1, -2 ensure helium first and second reionization respectively at z_HeI and z_HeII.
-        xe = 1 - xHI
-        xe = np.concatenate(([-2, -2, -1], xe, [0]))
-        redshift_class = np.concatenate(([0, z_HeII, z_HeI], redshifts, [z_xe_0]))
+            # Translate xHI into xe for CLASS.
+            # The option -1, -2 ensure helium first and second reionization respectively at z_HeI and z_HeII.
+            xe = 1 - xHI
+            xe = np.concatenate(([-2, -2, -1], xe, [0]))
+            redshift_class = np.concatenate(([0, z_HeII, z_HeI], redshifts, [z_xe_0]))
 
-        common_settings = {
-            "output": "tCl, pCl, lCl",
-            "lensing": "yes",
-            "l_max_scalars": 3000,
-            # LambdaCDM parameters
-            "h": h,
-            "omega_b": omega_b,
-            "omega_cdm": omega_cdm,
-            "sigma8": sigma8,
-            "n_s": n_s,
-            # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
-            "reio_parametrization": "reio_inter",
-            "reio_inter_num": len(xe),
-            "reio_inter_z": ",".join(
-                ["%.5f" % x for x in redshift_class]
-            ),  # str(redshift_class),
-            "reio_inter_xe": ",".join(["%.5e" % x for x in xe]),
-            "input_verbose": self.verbose,
-            "background_verbose": self.verbose,
-            "thermodynamics_verbose": self.verbose,
-            "perturbations_verbose": self.verbose,
-            "transfer_verbose": self.verbose,
-            "primordial_verbose": self.verbose,
-            "spectra_verbose": self.verbose,
-            "nonlinear_verbose": self.verbose,
-            "lensing_verbose": self.verbose,
-        }
+            common_settings = {
+                "output": "tCl, pCl, lCl",
+                "lensing": "yes",
+                "l_max_scalars": 3000,
+                # LambdaCDM parameters
+                "h": h,
+                "omega_b": omega_b,
+                "omega_cdm": omega_cdm,
+                "sigma8": sigma8,
+                "n_s": n_s,
+                # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
+                "reio_parametrization": "reio_inter",
+                "reio_inter_num": len(xe),
+                "reio_inter_z": ",".join(
+                    ["%.5f" % x for x in redshift_class]
+                ),  # str(redshift_class),
+                "reio_inter_xe": ",".join(["%.5e" % x for x in xe]),
+                "input_verbose": self.verbose,
+                "background_verbose": self.verbose,
+                "thermodynamics_verbose": self.verbose,
+                "perturbations_verbose": self.verbose,
+                "transfer_verbose": self.verbose,
+                "primordial_verbose": self.verbose,
+                "spectra_verbose": self.verbose,
+                "nonlinear_verbose": self.verbose,
+                "lensing_verbose": self.verbose,
+            }
+        else:
+            # Update parameters
+            astro_params, cosmo_params = self._update_params(ctx.getParams())
+            h = self.cosmo_params.hlittle
+            omega_b = self.cosmo_params.OMb * h * h
+            omega_cdm = self.cosmo_params.OMm * h * h - omega_b
+            sigma8 = self.cosmo_params.SIGMA_8
+            n_s = self.cosmo_params.POWER_INDEX
+
+            common_settings = {
+                "output": "tCl, pCl, lCl",
+                "lensing": "yes",
+                "l_max_scalars": 3000,
+                # LambdaCDM parameters
+                "h": h,
+                "omega_b": omega_b,
+                "omega_cdm": omega_cdm,
+                "sigma8": sigma8,
+                "n_s": n_s,
+                "z_reio": astro_params.F_STAR10,
+                "reionization_width": astro_params.ALPHA_STAR,
+                "helium_fullreio_redshift": z_HeII,
+                "input_verbose": self.verbose,
+                "background_verbose": self.verbose,
+                "thermodynamics_verbose": self.verbose,
+                "perturbations_verbose": self.verbose,
+                "transfer_verbose": self.verbose,
+                "primordial_verbose": self.verbose,
+                "spectra_verbose": self.verbose,
+                "nonlinear_verbose": self.verbose,
+                "lensing_verbose": self.verbose,
+            }
+
         ##############
         #
         # call CLASS
@@ -809,6 +864,10 @@ class CoreCMB(CoreBase):
 
         cosmo.set(common_settings)
         cosmo.compute()
+        if not self.use_21cmfast:
+            thermo = cosmo.get_thermodynamics()
+            ctx.add("cl_z", thermo["z"])
+            ctx.add("cl_x_e", thermo["x_e"])
         cl = self.get_cl(cosmo)
         cosmo.struct_cleanup()
         cosmo.empty()

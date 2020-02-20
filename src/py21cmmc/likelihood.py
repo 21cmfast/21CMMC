@@ -702,10 +702,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     name_lkl : str, default = Planck_lowl_EE, the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
     """
 
-    required_cores = (
-        (core.CoreLightConeModule, core.CoreCMB),
-        (core.CoreTanhModule, core.CoreCMB),
-    )
+    required_cores = ((core.CoreLightConeModule, core.CoreCMB),)
 
     def __init__(
         self,
@@ -1040,7 +1037,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     and 0 otherwise.
     """
 
-    required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule),)
+    required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule), (core.CoreCMB))
     threshold = 0.06
 
     def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
@@ -1077,14 +1074,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     @property
     def lightcone_modules(self):
         """All lightcone core modules that are loaded."""
-        return [
-            m
-            for m in self._cores
-            if (
-                isinstance(m, core.CoreLightConeModule)
-                or isinstance(m, core.CoreTanhModule)
-            )
-        ]
+        return [m for m in self._cores if (isinstance(m, core.CoreLightConeModule))]
 
     @property
     def coeval_modules(self):
@@ -1096,15 +1086,20 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             and not isinstance(m, core.CoreLightConeModule)
         ]
 
+    @property
+    def cmb_modules(self):
+        """All CMB core modules that are loaded."""
+        return [m for m in self._cores if (isinstance(m, core.CoreCMB))]
+
     def setup(self):
         """Perform post-init setup."""
-        if not self.lightcone_modules + self.coeval_modules:
+        if not self.lightcone_modules + self.coeval_modules + self.cmb_modules:
             raise ValueError(
                 "LikelihoodNeutralFraction needs the CoreLightConeModule *or* "
-                "CoreCoevalModule to be loaded."
+                "CoreCoevalModule *or* CoreCMB to be loaded."
             )
 
-        if not self.lightcone_modules:
+        if not (self.lightcone_modules or self.cmb_modules):
             # Get all unique redshifts from all coeval boxes in cores.
             self.redshifts = list(
                 set(sum((x.redshift for x in self.coeval_modules), []))
@@ -1131,8 +1126,12 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             xHI = np.array([np.mean(x) for x in ctx.get("xHI")])
             redshifts = self.redshifts
         else:
-            xHI = ctx.get("lightcone").global_xHI
-            redshifts = ctx.get("lightcone").node_redshifts
+            if not self.cmb_modules:
+                xHI = ctx.get("lightcone").global_xHI
+                redshifts = ctx.get("lightcone").node_redshifts
+            else:
+                xHI = 1.0 - ctx.get("cl_x_e")
+                redshifts = ctx.get("cl_z")
 
         redshifts, xHI = np.sort([redshifts, xHI])
         return {"xHI": xHI, "redshifts": redshifts}

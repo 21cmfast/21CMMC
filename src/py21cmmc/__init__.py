@@ -9,7 +9,6 @@ from .core import CoreCMB
 from .core import CoreCoevalModule
 from .core import CoreLightConeModule
 from .core import CoreLuminosityFunction
-from .core import CoreTanhModule
 from .core import NotAChain
 from .core import NotSetupError
 from .cosmoHammer import HDFStorageUtil
