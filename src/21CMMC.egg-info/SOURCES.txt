@@ -20,8 +20,10 @@ src/py21cmmc/ensemble.py
 src/py21cmmc/likelihood.py
 src/py21cmmc/mcmc.py
 src/py21cmmc/__pycache__/__init__.cpython-36.pyc
+src/py21cmmc/__pycache__/_utils.cpython-36.pyc
 src/py21cmmc/__pycache__/analyse.cpython-36.pyc
 src/py21cmmc/__pycache__/core.cpython-36.pyc
+src/py21cmmc/__pycache__/cosmoHammer.cpython-36.pyc
 src/py21cmmc/__pycache__/ensemble.cpython-36.pyc
 src/py21cmmc/__pycache__/likelihood.cpython-36.pyc
 src/py21cmmc/__pycache__/mcmc.cpython-36.pyc

@@ -1100,24 +1100,25 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 "CoreCoevalModule *or* CoreCMB to be loaded."
             )
 
-        if not (self.lightcone_modules or self.cmb_modules):
-            # Get all unique redshifts from all coeval boxes in cores.
-            self.redshifts = list(
-                set(sum((x.redshift for x in self.coeval_modules), []))
-            )
-
-            for z in self.redshift:
-                if z not in self.redshifts and len(self.redshifts) < 3:
-                    raise ValueError(
-                        "To use LikelihoodNeutralFraction, the core must be a lightcone, "
-                        "or coeval with >=3 redshifts, or containing the desired redshift"
-                    )
-                elif z not in self.redshifts:
-                    self._require_spline = True
-
-            self._use_coeval = True
+        if not self.lightcone_modules:
             if self.cmb_modules:
                 self._use_tanh = True
+            else:
+                # Get all unique redshifts from all coeval boxes in cores.
+                self.redshifts = list(
+                    set(sum((x.redshift for x in self.coeval_modules), []))
+                )
+
+                for z in self.redshift:
+                    if z not in self.redshifts and len(self.redshifts) < 3:
+                        raise ValueError(
+                            "To use LikelihoodNeutralFraction, the core must be a lightcone, "
+                            "or coeval with >=3 redshifts, or containing the desired redshift"
+                        )
+                    elif z not in self.redshifts:
+                        self._require_spline = True
+
+                self._use_coeval = True
         else:
             self._use_coeval = False
             self._require_spline = True
