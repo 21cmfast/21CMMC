@@ -1070,6 +1070,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         )  # these will become the redshifts of all coeval boxes, if that exists.
         self._use_coeval = True
         self._require_spline = False
+        self._use_tanh = False
 
     @property
     def lightcone_modules(self):
@@ -1115,7 +1116,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                     self._require_spline = True
 
             self._use_coeval = True
-
+            if self.cmb_modules:
+                self._use_tanh = True
         else:
             self._use_coeval = False
             self._require_spline = True
@@ -1126,12 +1128,12 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             xHI = np.array([np.mean(x) for x in ctx.get("xHI")])
             redshifts = self.redshifts
         else:
-            if not self.cmb_modules:
-                xHI = ctx.get("lightcone").global_xHI
-                redshifts = ctx.get("lightcone").node_redshifts
-            else:
+            if self._use_tanh:
                 xHI = 1.0 - ctx.get("thermo")["x_e"]
                 redshifts = ctx.get("thermo")["z"]
+            else:
+                xHI = ctx.get("lightcone").global_xHI
+                redshifts = ctx.get("lightcone").node_redshifts
 
         redshifts, xHI = np.sort([redshifts, xHI])
         return {"xHI": xHI, "redshifts": redshifts}
