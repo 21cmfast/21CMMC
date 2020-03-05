@@ -1058,6 +1058,14 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     def __init__(self, *args, name="", **kwargs):
         super().__init__(*args, **kwargs)
+        if self.datafile is not None and len(self.datafile) != 1:
+            raise ValueError(
+                "can only pass a single datafile to LikelihoodLuminosityFunction!"
+            )
+        if self.noisefile is not None and len(self.noisefile) != 1:
+            raise ValueError(
+                "can only pass a single noisefile to LikelihoodLuminosityFunction!"
+            )
         if not self._simulate:
             if self.datafile is None:
                 if len(self.redshifts) != 1:
@@ -1073,22 +1081,12 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     "data",
                     "LF_lfuncs_z%d.npz" % self.redshifts[0],
                 )
-            else:
-                if len(self.datafile) != 1:
-                    raise ValueError(
-                        "can only pass a single datafile to LikelihoodLuminosityFunction!"
-                    )
             if self.noisefile is None:
                 self.noisefile = path.join(
                     path.dirname(__file__),
                     "data",
                     "LF_sigmas_z%d.npz" % self.redshifts[0],
                 )
-            else:
-                if len(self.noisefile) != 1:
-                    raise ValueError(
-                        "can only pass a single noisefile to LikelihoodLuminosityFunction!"
-                    )
 
         self.name = str(name)
 
