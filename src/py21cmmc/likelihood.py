@@ -1103,6 +1103,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         if not self.lightcone_modules:
             if self.cmb_modules:
                 self._use_tanh = True
+                self._use_coeval = False
+                self._require_spline = True
             else:
                 # Get all unique redshifts from all coeval boxes in cores.
                 self.redshifts = list(
@@ -1151,7 +1153,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
             if z in model["redshifts"]:
                 lnprob += self.lnprob(
-                    model["xHI"][self.redshifts.index(z)], data, sigma
+                    model["xHI"][model["redshifts"].index(z)], data, sigma
                 )
             else:
                 lnprob += self.lnprob(model_spline(z), data, sigma)
