@@ -1049,8 +1049,8 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         error at each of the `Muv` bins in the `datafile`. If 1D, it must have the
         same length as ``Muv``. If 2D, must have the same length as the number
         of redshifts as the first dimension.
-    mag_faintest : float, optional
-        Faintest magnitude when calculating the likelihood. Default is -20.
+    mag_brightest : float, optional
+        Brightest magnitude when calculating the likelihood. Default is -20.
     name : str, optional
         A name for the instance. This is used to pair it with a particular core
         instance.
@@ -1058,7 +1058,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     required_cores = (core.CoreLuminosityFunction,)
 
-    def __init__(self, *args, name="", mag_faintest=-20.0, **kwargs):
+    def __init__(self, *args, name="", mag_brightest=-20.0, **kwargs):
         super().__init__(*args, **kwargs)
         if self.datafile is not None and len(self.datafile) != 1:
             raise ValueError(
@@ -1068,6 +1068,12 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             raise ValueError(
                 "can only pass a single noisefile to LikelihoodLuminosityFunction!"
             )
+
+        self.name = str(name)
+        self.mag_brightest = mag_brightest
+
+    def setup(self):
+        """Setup instance."""
         if not self._simulate:
             if self.datafile is None:
                 if len(self.redshifts) != 1:
@@ -1093,12 +1099,6 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                         "LF_sigmas_z%d.npz" % self.redshifts[0],
                     )
                 ]
-
-        self.name = str(name)
-        self.mag_faintest = mag_faintest
-
-    def setup(self):
-        """Setup instance."""
         super().setup()
 
         # We only allow one datafile, so get the data out of it
@@ -1171,7 +1171,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
                     ** 2
                     / self.noise["sigma"][i] ** 2
-                )[self.data["Muv"][i] < self.mag_faintest]
+                )[self.data["Muv"][i] > self.mag_brightest]
             )
         return lnl
 
