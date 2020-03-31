@@ -9,6 +9,7 @@ import numpy as np
 from cached_property import cached_property
 from powerbox.tools import get_power
 from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import interp1d
 
 from py21cmfast import wrapper as lib
 
@@ -883,7 +884,6 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         try:
             import clik
 
-            print("import clik")
         except:
             raise AttributeError(
                 "You must first activate the binaries from the Clik "
@@ -1132,8 +1132,11 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             redshifts = self.redshifts
         else:
             if self._use_tanh:
-                xHI = 1.0 - ctx.get("thermo")["x_e"]
-                redshifts = ctx.get("thermo")["z"]
+                # TODO just a temperory fix to get xHI from x_e
+                # 1.0818709330934035 = 1+0.25*YHe/(1-YHe) with YHe coming from BBN
+                # I think there is a way to fix YHe using user defined value
+                xHI = ctx.get("xHI")
+                redshifts = ctx.get("zs")
             else:
                 xHI = ctx.get("lightcone").global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts

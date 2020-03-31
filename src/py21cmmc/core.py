@@ -842,6 +842,7 @@ class CoreCMB(CoreBase):
                 "omega_cdm": omega_cdm,
                 "sigma8": sigma8,
                 "n_s": n_s,
+                "reionization_z_start_max": 70,
                 "z_reio": astro_params.F_STAR10,
                 "reionization_width": astro_params.ALPHA_STAR,
                 "helium_fullreio_redshift": z_HeII,
@@ -865,7 +866,11 @@ class CoreCMB(CoreBase):
         cosmo.set(common_settings)
         cosmo.compute()
         if not self.use_21cmfast:
-            ctx.add("thermo", cosmo.get_thermodynamics())
+            thermo = cosmo.get_thermodynamics()
+            # TODO: for some reason, truncating the output range is important for late use in the LH, e.g.LikelihoodNeutralFraction
+            flag = (thermo["z"] > 4) & (thermo["z"] < 50)
+            ctx.add("zs", thermo["z"][flag])
+            ctx.add("xHI", 1.0 - thermo["x_e"][flag] / 1.0818709330934035)
         cl = self.get_cl(cosmo)
         cosmo.struct_cleanup()
         cosmo.empty()
