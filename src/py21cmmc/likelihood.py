@@ -990,7 +990,7 @@ class LikelihoodPlanck(LikelihoodBase):
             lc = ctx.get("lightcone")
 
             redshifts = lc.node_redshifts
-            xHI = lc.global_xHI
+            xHI = lc.global_xH
 
         else:
             redshifts = self.core_primary.redshift
@@ -1138,7 +1138,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 xHI = ctx.get("xHI")
                 redshifts = ctx.get("zs")
             else:
-                xHI = ctx.get("lightcone").global_xHI
+                xHI = ctx.get("lightcone").global_xH
                 redshifts = ctx.get("lightcone").node_redshifts
 
         redshifts, xHI = np.sort([redshifts, xHI])

@@ -779,7 +779,7 @@ class CoreCMB(CoreBase):
             sigma8 = lightcone.cosmo_params.SIGMA_8
             n_s = lightcone.cosmo_params.POWER_INDEX
 
-            xHI = lightcone.global_xHI
+            xHI = lightcone.global_xH
             redshifts = lightcone.node_redshifts
 
             if len(redshifts) < 3:
