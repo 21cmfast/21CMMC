@@ -1078,17 +1078,21 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     raise ValueError(
                         "only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
                     )
-                self.datafile = path.join(
-                    path.dirname(__file__),
-                    "data",
-                    "LF_lfuncs_z%d.npz" % self.redshifts[0],
-                )
+                self.datafile = [
+                    path.join(
+                        path.dirname(__file__),
+                        "data",
+                        "LF_lfuncs_z%d.npz" % self.redshifts[0],
+                    )
+                ]
             if self.noisefile is None:
-                self.noisefile = path.join(
-                    path.dirname(__file__),
-                    "data",
-                    "LF_sigmas_z%d.npz" % self.redshifts[0],
-                )
+                self.noisefile = [
+                    path.join(
+                        path.dirname(__file__),
+                        "data",
+                        "LF_sigmas_z%d.npz" % self.redshifts[0],
+                    )
+                ]
 
         self.name = str(name)
         self.mag_faintest = mag_faintest
