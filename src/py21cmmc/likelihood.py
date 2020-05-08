@@ -1292,3 +1292,42 @@ class LikelihoodEDGES(LikelihoodBaseFile):
             return -0.5 * np.square(
                 (model["freq_tb_min"] - self.freq_edges) / self.freq_err_edges
             )
+
+
+class LikelihoodForest(LikelihoodBaseFile):
+    """
+    A likelihood based on chi^2 comparison to measured CDF of Lyman-alpha forest effective optical depth.
+
+    This is the likelihood arising from Bosman et al. (2018), which reports new constraints on Lyman-alpha
+    opacity with a sample of 62 quasars at z>5.7, or D'Odorico et al. in prep., which includes new samples
+    from the XQR-30 survey.
+
+    Parameters
+    ----------
+    sample_name : string (bosman/dodorico)
+        whether to use Bosman or D'Odorico sample in the likelihood, by default it's Bosman
+    """
+
+    required_cores = (core.CoreLightConeModule,)
+
+    def __init__(self, sample_name="bosman", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sample_name = sample_name
+
+    def reduce_data(self, ctx):
+        """Reduce data to model."""
+
+    def computeLikelihood(self, model):
+        """
+        Compute the likelihood, given the lightcone output from 21cmFAST.
+
+        Parameters
+        ----------
+        model : list of dicts
+            Exactly the output of :meth:`simulate`.
+
+        Returns
+        -------
+        lnl : float
+            The log-likelihood for the given model.
+        """
