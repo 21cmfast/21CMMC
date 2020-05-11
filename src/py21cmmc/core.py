@@ -656,21 +656,10 @@ class CoreForest(CoreLightConeModule):
 
     Parameters
     ----------
-    redshifts : float or array_like
-        The redshifts to evaluate the effective optical depth
-
-    bin_size : float
-        The length when binning the pixel optical depth in comoving Mpc. The default value is 50.
-
-    Other Parameters
-    ----------------
-    \*\*kwargs :
-        All other parameters are the same as :class:`CoreLightConeModule`.
+        All parameters are the same as :class:`CoreLightConeModule`.
     """
 
     def __init__(self, redshifts=None, bin_size=50, **kwargs):
-        self.redshifts = redshifts
-        self.bin_size = bin_size
         super().__init__(**kwargs)
 
     def tau_GP(self, Gamma_bg, Delta, Temp, redshifts):
