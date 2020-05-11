@@ -649,3 +649,125 @@ class CoreLuminosityFunction(CoreCoevalModule):
             except TypeError:
 
                 lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
+
+
+class CoreForest(CoreLightConeModule):
+    r"""A Core Module that produces model effective optical depth at a range of redshifts.
+
+    Parameters
+    ----------
+    redshifts : float or array_like
+        The redshifts to evaluate the effective optical depth
+
+    bin_size : float
+        The length when binning the pixel optical depth in comoving Mpc. The default value is 50.
+
+    Other Parameters
+    ----------------
+    \*\*kwargs :
+        All other parameters are the same as :class:`CoreLightConeModule`.
+    """
+
+    def __init__(self, redshifts=None, bin_size=50, **kwargs):
+        self.redshifts = redshifts
+        self.bin_size = bin_size
+        super().__init__(**kwargs)
+
+    def tau_GP(self, Gamma_bg, Delta, Temp, redshifts):
+        r"""Calculating the lyman-alpha optical depth in each pixel using the fluctuating GP approximation.
+
+        Parameters
+        ----------
+        Gamma_bg : float or array_like
+            The background photonionization rate in units of 1e-12 s**-1
+
+        Delta : float or array_like
+            The underlying overdensity
+
+        Temp : float or array_like
+            The kinectic temperature of the gas
+
+        redshifts : float or array_like
+            Correspoding redshifts along the los
+        """
+        Gamma_local = np.zeros_like(Gamma_bg)
+        residual_xHI = np.zeros_like(Gamma_bg, dtype=np.float64)
+
+        flag_neutral = Gamma_bg == 0
+        flag_zeroDelta = Delta == 0
+
+        if Gamma_bg.shape != redshifts.shape:
+            redshifts = np.tile(redshifts, (*Gamma_bg.shape[:-1], 1))
+
+        D_ss = (
+            2.67e4
+            * (Temp / 1e4) ** 0.17
+            * (1.0 + redshifts) ** -3
+            * Gamma_bg ** (2.0 / 3.0)
+        )
+        Gamma_local[~flag_neutral] = Gamma_bg[~flag_neutral] * (
+            0.98
+            * ((1.0 + (Delta[~flag_neutral] / D_ss[~flag_neutral]) ** 1.64) ** -2.28)
+            + 0.02 * (1.0 + (Delta[~flag_neutral] / D_ss[~flag_neutral])) ** -0.84
+        )
+
+        residual_xHI[~flag_zeroDelta] = 1 + Gamma_local[~flag_zeroDelta] * 1.0155e7 / (
+            1.0 + 1.0 / (4.0 / self.global_params["Y_He"] - 3)
+        ) * (Temp[~flag_zeroDelta] / 1e4) ** 0.75 / (
+            Delta[~flag_zeroDelta] * (1.0 + redshifts[~flag_zeroDelta]) ** 3
+        )
+        residual_xHI[~flag_zeroDelta] = residual_xHI[~flag_zeroDelta] - np.sqrt(
+            residual_xHI[~flag_zeroDelta] ** 2 - 1.0
+        )
+
+        return (
+            7875.053145028655
+            / (
+                self.cosmo_params["hlitte"]
+                * np.sqrt(
+                    self.cosmo_params["OMm"] * (1.0 + redshifts) ** 3
+                    + self.cosmo_params["OMl"]
+                )
+            )
+            * Delta
+            * (1.0 + redshifts) ** 3
+            * residual_xHI
+        )
+
+    def build_model_data(self, ctx):
+        """Compute all data defined by this core and add it to the context."""
+        # Update parameters
+        astro_params, cosmo_params = self._update_params(ctx.getParams())
+
+        lightcone_quantities = (
+            "brightness_temp",
+            "xH_box",
+            "temp_kinetic_all_gas",
+            "Gamma12_box",
+            "density",
+        )
+
+        # Call C-code
+        lightcone = p21.run_lightcone(
+            redshift=self.redshift[0],
+            max_redshift=self.max_redshift,
+            astro_params=astro_params,
+            flag_options=self.flag_options,
+            cosmo_params=cosmo_params,
+            user_params=self.user_params,
+            regenerate=self.regenerate,
+            random_seed=self.initial_conditions_seed,
+            write=self.io_options["cache_mcmc"],
+            direc=self.io_options["cache_dir"],
+            lightcone_quantities=lightcone_quantities,
+            global_quantities=lightcone_quantities,
+            **self.global_params,
+        )
+
+        lightcone.tau_lyman_alpha = self.tau_GP(
+            lightcone.Gamma12_box,
+            lightcone.density + 1.0,
+            lightcone.temp_kinetic_all_gas,
+            lightcone.lightcone_redshifts,
+        )
+        ctx.add("lightcone", lightcone)
