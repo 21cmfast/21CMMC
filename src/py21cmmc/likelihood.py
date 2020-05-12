@@ -208,7 +208,10 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
 
                 else:
-                    noise.append(dict(**np.load(fl, allow_pickle=True)))
+                    try:
+                        noise.append(**dict(np.load(fl, allow_pickle=True)))
+                    except TypeError:
+                        noise.append(np.load(fl, allow_pickle=True))
 
             return noise
 
@@ -1339,67 +1342,96 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     Parameters
     ----------
-    obs_data : string (bosman_pessimistic/bosman_optimistic/dodorico)
-        whether to use Bosman or D'Odorico sample in the likelihood, by default it's bosman_optimistic
+    observation : str
+        The observation that is used to construct the tau_eff statisctic.
     """
 
     required_cores = (core.CoreForest,)
 
-    def __init__(self, obs_data="bosman_optimistic", *args, **kwargs):
+    def __init__(self, name="", observation="bosman_optimistic", *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.obs_data = obs_data
-        if "bosman" in obs_data:
-            self.z_targets = [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]
-            self.datafilenames = ["z5pt0", "z5pt2", "z5pt4", "z5pt6", "z5pt8", "z6pt0"]
-            self.pdf_obs = []
-            if "optimistic" in obs_data:
-                folder = "data/Forests/Bosman18/CDFs/optimistic/"
-            elif "pessimistic" in obs_data:
-                folder = "data/Forests/Bosman18/CDFs/pessimistic/"
-            else:
-                raise NotImplementedError(
-                    "Use bosman_optimistic or bosman_pessimistic!"
+        self.name = str(name)
+        self.observation = str(observation)
+
+    def setup(self):
+        """Setup instance."""
+        if len(self.redshifts) != 1:
+            raise ValueError(
+                "to use the provided forests, a separate core/likelihood instance pair for each redshift is required!"
+            )
+        if self.observation == "bosman_optimistic":
+            folder = "data/Forests/Bosman18/CDFs/optimistic/"
+            if self.redshifts[0] not in [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]:
+                raise ValueError(
+                    "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman_optimistic!"
                 )
-            self.ecm = []
-            for datafilename in self.datafilenames:
-                cdf = np.load(
-                    path.join(path.dirname(__file__), folder, "%s.npy" % datafilename)
+        elif self.observation == "bosman_pessimistic":
+            folder = "data/Forests/Bosman18/CDFs/pessimistic/"
+            if self.redshifts[0] not in [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]:
+                raise ValueError(
+                    "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman_pessimistic!"
                 )
-                self.pdf_obs.append(
-                    np.vstack(
-                        [
-                            cdf[1:, 0],
-                            (cdf[1:, 1] - cdf[:-1, 1]) / (cdf[1:, 0] - cdf[:-1, 0]),
-                        ]
-                    ).T
-                )
-                ecm_cv = np.load(
-                    path.join(
-                        path.dirname(__file__),
-                        folder,
-                        "ErrorCovarianceMatrix_CosmicVariance/%s.npy" % datafilename,
-                    )
-                )
-                self.ecm.append(ecm_cv)
         else:
-            raise NotImplementedError("We only have Bosman for now...!")
+            raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
+
+        datafilebase = str(self.redshifts[0]).replace(".", "pt")
+        self.datafile = [
+            path.join(path.dirname(__file__), folder, "%s.npy" % datafilebase)
+        ]
+        self.noisefile = [
+            path.join(
+                path.dirname(__file__),
+                folder,
+                "ErrorCovarianceMatrix_CosmicVariance/%s.npy" % datafilebase,
+            )
+        ]
+        super().setup()
+
+    def _read_data(self):
+        data = super()._read_data()
+        tau_eff = np.array(list((data[0].keys())))
+        CDF = np.array(list(data[0].values()))
+        PDF = (CDF[1:] - CDF[:-1]) / (tau_eff[1:] - tau_eff[:-1])
+
+        return np.vstack([tau_eff[1:], PDF]).T
+
+    def _read_noise(self):
+        noise = super()._read_noise()
+        return noise[0]
+
+    @cached_property
+    def paired_core(self):
+        """The forest core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if isinstance(c, core.CoreForest) and c.name == self.name:
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreForest with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
+
+    @property
+    def redshifts(self):
+        """Redshifts at which forest is defined."""
+        return self.paired_core.redshift
 
     def reduce_data(self, ctx):
         """Reduce data to model."""
-        results = []
-        for ii, z_target in enumerate(self.z_targets):
-            tau_eff = ctx.get("tau_eff_z%.1f" % z_target)
-            hist_bin_size = self.pdf_obs[ii][1:, 0]
+        tau_eff = ctx.get("tau_eff_%s" % self.name)["tau_eff"]
+        # use the same binning as the obs
+        hist_bin_size = self.data[:, 0]
 
-            hist_bins = np.concatenate(
-                [
-                    [hist_bin_size[0] - (hist_bin_size[1] - hist_bin_size[0]) / 2],
-                    hist_bin_size[1:] - (hist_bin_size[1:] - hist_bin_size[:-1]) / 2,
-                    [(hist_bin_size[-1] - hist_bin_size[-2]) / 2 + hist_bin_size[-1]],
-                ]
-            )
+        hist_bins = np.concatenate(
+            [
+                [hist_bin_size[0] - (hist_bin_size[1] - hist_bin_size[0]) / 2],
+                hist_bin_size[1:] - (hist_bin_size[1:] - hist_bin_size[:-1]) / 2,
+                [(hist_bin_size[-1] - hist_bin_size[-2]) / 2 + hist_bin_size[-1]],
+            ]
+        )
 
-            results.append(np.histogram(tau_eff, bins=hist_bins, density=True)[0])
+        return np.histogram(tau_eff, bins=hist_bins, density=True)[0]
 
     def computeLikelihood(self, model):
         """
@@ -1415,9 +1447,5 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        lnl = 0
-        for ii, z_target in enumerate(self.z_targets):
-            diff = (model[ii] - self.pdf_obs[ii]).reshape([1, -1])
-            lnl += -0.5 * np.dot(np.dot(diff, self.ecm[ii]), diff.T)[0, 0]
-
-        return lnl
+        diff = (model - self.data[:, 1]).reshape([1, -1])
+        return -0.5 * np.dot(np.dot(diff, self.noise), diff.T)[0, 0]
