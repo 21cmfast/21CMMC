@@ -15,6 +15,7 @@ from .cosmoHammer import HDFStorageUtil
 from .likelihood import Likelihood1DPowerCoeval
 from .likelihood import Likelihood1DPowerLightcone
 from .likelihood import LikelihoodEDGES
+from .likelihood import LikelihoodForest
 from .likelihood import LikelihoodGlobalSignal
 from .likelihood import LikelihoodGreig
 from .likelihood import LikelihoodLuminosityFunction

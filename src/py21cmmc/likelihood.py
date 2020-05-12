@@ -1339,18 +1339,67 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     Parameters
     ----------
-    sample_name : string (bosman/dodorico)
-        whether to use Bosman or D'Odorico sample in the likelihood, by default it's Bosman
+    obs_data : string (bosman_pessimistic/bosman_optimistic/dodorico)
+        whether to use Bosman or D'Odorico sample in the likelihood, by default it's bosman_optimistic
     """
 
-    required_cores = (core.CoreLightConeModule,)
+    required_cores = (core.CoreForest,)
 
-    def __init__(self, sample_name="bosman", *args, **kwargs):
+    def __init__(self, obs_data="bosman_optimistic", *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.sample_name = sample_name
+        self.obs_data = obs_data
+        if "bosman" in obs_data:
+            self.z_targets = [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]
+            self.datafilenames = ["z5pt0", "z5pt2", "z5pt4", "z5pt6", "z5pt8", "z6pt0"]
+            self.pdf_obs = []
+            if "optimistic" in obs_data:
+                folder = "data/Forests/Bosman18/CDFs/optimistic/"
+            elif "pessimistic" in obs_data:
+                folder = "data/Forests/Bosman18/CDFs/pessimistic/"
+            else:
+                raise NotImplementedError(
+                    "Use bosman_optimistic or bosman_pessimistic!"
+                )
+            self.ecm = []
+            for datafilename in self.datafilenames:
+                cdf = np.load(
+                    path.join(path.dirname(__file__), folder, "%s.npy" % datafilename)
+                )
+                self.pdf_obs.append(
+                    np.vstack(
+                        [
+                            cdf[1:, 0],
+                            (cdf[1:, 1] - cdf[:-1, 1]) / (cdf[1:, 0] - cdf[:-1, 0]),
+                        ]
+                    ).T
+                )
+                ecm_cv = np.load(
+                    path.join(
+                        path.dirname(__file__),
+                        folder,
+                        "ErrorCovarianceMatrix_CosmicVariance/%s.npy" % datafilename,
+                    )
+                )
+                self.ecm.append(ecm_cv)
+        else:
+            raise NotImplementedError("We only have Bosman for now...!")
 
     def reduce_data(self, ctx):
         """Reduce data to model."""
+        results = []
+        for ii, z_target in enumerate(self.z_targets):
+            tau_eff = ctx.get("tau_eff_z%.1f" % z_target)
+            hist_bin_size = self.pdf_obs[ii][1:, 0]
+
+            hist_bins = np.concatenate(
+                [
+                    [hist_bin_size[0] - (hist_bin_size[1] - hist_bin_size[0]) / 2],
+                    hist_bin_size[1:] - (hist_bin_size[1:] - hist_bin_size[:-1]) / 2,
+                    [(hist_bin_size[-1] - hist_bin_size[-2]) / 2 + hist_bin_size[-1]],
+                ]
+            )
+
+            results.append(np.histogram(tau_eff, bins=hist_bins, density=True)[0])
 
     def computeLikelihood(self, model):
         """
@@ -1358,7 +1407,7 @@ class LikelihoodForest(LikelihoodBaseFile):
 
         Parameters
         ----------
-        model : list of dicts
+        model : list of pdfs
             Exactly the output of :meth:`simulate`.
 
         Returns
@@ -1366,3 +1415,9 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
+        lnl = 0
+        for ii, z_target in enumerate(self.z_targets):
+            diff = (model[ii] - self.pdf_obs[ii]).reshape([1, -1])
+            lnl += -0.5 * np.dot(np.dot(diff, self.ecm[ii]), diff.T)[0, 0]
+
+        return lnl

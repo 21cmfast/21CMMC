@@ -8,6 +8,7 @@ import copy
 import inspect
 import logging
 import warnings
+from os import path
 
 import numpy as np
 
@@ -656,11 +657,66 @@ class CoreForest(CoreLightConeModule):
 
     Parameters
     ----------
-        All parameters are the same as :class:`CoreLightConeModule`.
+    obs_data : array or string
+        The mean transmission from observations. If it's an array, obs_data[:,0],
+        obs_data[:,1], and obs_data[:,2] are redshift, transmission and number of los,
+        resepctively. If it's a string, it should be one of bosman_pessimistic,
+        bosman_optimistic and will take from exsiting observational data. Default is
+        bosman_optimistic
+
+    bin_size : float
+        The size when binning the pixel transmission in units of cMpc, default is 50
+
+    Other Parameters
+    ----------------
+    \*\*kwargs :
+        All other parameters are the same as :class:`CoreCoevalModule`.
     """
 
-    def __init__(self, redshifts=None, bin_size=50, **kwargs):
+    def __init__(self, obs_data="bosman_optimistic", bin_size=50, **kwargs):
         super().__init__(**kwargs)
+        self.bin_size = bin_size
+        if isinstance(obs_data, str):
+            self.z_targets = [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]
+            self.mean_F_obs = [0.135, 0.114, 0.084, 0.050, 0.023, 0.0072]
+            self.Nlos = np.zeros(len(self.z_targets), dtype=np.int)
+            if obs_data == "bosman_optimistic":
+                Nlos_obs = np.load(
+                    path.join(
+                        path.dirname(__file__),
+                        "data/Forests/Bosman18/CDFs/optimistic/",
+                        "Nlos.npy",
+                    )
+                )
+            elif obs_data == "bosman_pessimistic":
+                Nlos_obs = np.load(
+                    path.join(
+                        path.dirname(__file__),
+                        "data/Forests/Bosman18/CDFs/pessimistic/",
+                        "Nlos.npy",
+                    )
+                )
+            else:
+                raise NotImplementedError(
+                    "Use bosman_optimistic or bosman_pessimistic!"
+                )
+            for ii, z_target in enumerate(self.z_targets):
+                self.Nlos[ii] = sum(
+                    Nlos_obs[:, 1][
+                        np.argmin(np.abs(Nlos_obs[:, 0] - z_target + 0.1)) : np.argmin(
+                            np.abs(Nlos_obs[:, 0] - z_target - 0.1)
+                        )
+                    ]
+                )
+        else:
+            self.z_targets = obs_data[:, 0]
+            self.mean_F_obs = obs_data[:, 1]
+            self.Nlos = obs_data[:, 2]
+        if np.any(self.Nlos > self.user_params.HII_DIM ** 2):
+            raise ValueError(
+                "You asked for %d los, larger than what the box has (%d)! Increase HII_DIM!"
+                % (self.Nlos, self.user_params.HII_DIM ** 2)
+            )
 
     def tau_GP(self, Gamma_bg, Delta, Temp, redshifts):
         r"""Calculating the lyman-alpha optical depth in each pixel using the fluctuating GP approximation.
@@ -700,8 +756,10 @@ class CoreForest(CoreLightConeModule):
             + 0.02 * (1.0 + (Delta[~flag_neutral] / D_ss[~flag_neutral])) ** -0.84
         )
 
+        Y_He = 0.245
+        # TODO: use global_params
         residual_xHI[~flag_zeroDelta] = 1 + Gamma_local[~flag_zeroDelta] * 1.0155e7 / (
-            1.0 + 1.0 / (4.0 / self.global_params["Y_He"] - 3)
+            1.0 + 1.0 / (4.0 / Y_He - 3)
         ) * (Temp[~flag_zeroDelta] / 1e4) ** 0.75 / (
             Delta[~flag_zeroDelta] * (1.0 + redshifts[~flag_zeroDelta]) ** 3
         )
@@ -712,16 +770,33 @@ class CoreForest(CoreLightConeModule):
         return (
             7875.053145028655
             / (
-                self.cosmo_params["hlitte"]
+                self.cosmo_params.hlittle
                 * np.sqrt(
-                    self.cosmo_params["OMm"] * (1.0 + redshifts) ** 3
-                    + self.cosmo_params["OMl"]
+                    self.cosmo_params.OMm * (1.0 + redshifts) ** 3
+                    + self.cosmo_params.OMl
                 )
             )
             * Delta
             * (1.0 + redshifts) ** 3
             * residual_xHI
         )
+
+    def find_n_rescale(self, tau, mean_Fave_target):
+        """Find the rescaling factor so that the mean transmission equal to observations."""
+        # Newton-Raphson method
+        x = 1
+        Ntry = 0
+        while np.abs(np.mean(np.exp(-tau * x)) / mean_Fave_target - 1) > 1e-2:
+            f_x = np.mean(np.exp(-tau * x)) - mean_Fave_target
+            f_prime_x = np.nanmean(-tau * np.exp(-tau * x))
+            x -= f_x / f_prime_x
+            if x < 0:
+                x = 0
+            Ntry += 1
+            if Ntry > 1e3:
+                break
+                raise RuntimeError("I've tried too many times...", x, f_x, f_prime_x)
+        return x
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
@@ -752,11 +827,48 @@ class CoreForest(CoreLightConeModule):
             global_quantities=lightcone_quantities,
             **self.global_params,
         )
+        ctx.add("lightcone", lightcone)
 
-        lightcone.tau_lyman_alpha = self.tau_GP(
+        tau_lyman_alpha = self.tau_GP(
             lightcone.Gamma12_box,
             lightcone.density + 1.0,
             lightcone.temp_kinetic_all_gas,
             lightcone.lightcone_redshifts,
         )
-        ctx.add("lightcone", lightcone)
+
+        lightcone_redshifts = lightcone.lightcone_redshifts
+        lightcone_distances = lightcone.lightcone_distances
+        f_rescale = np.zeros(len(self.z_targets))
+
+        for ii, z_target in enumerate(self.z_targets):
+            index_right = np.where(
+                lightcone_distances
+                > (
+                    lightcone_distances[np.where(lightcone_redshifts > z_target)[0][0]]
+                    + self.bin_size / 2
+                )
+            )[0][0]
+            index_left = np.where(
+                lightcone_distances
+                > (
+                    lightcone_distances[np.where(lightcone_redshifts > z_target)[0][0]]
+                    - self.bin_size / 2
+                )
+            )[0][0]
+            if index_left == 0:
+                # TODO here should give a warning!
+                index_right = np.where(
+                    lightcone_distances > (lightcone_distances[0] + self.bin_size)
+                )[0][0]
+
+            # select the correct redshift range
+            tau_sub = tau_lyman_alpha[:, :, index_left:index_right].reshape(
+                [-1, index_right - index_left]
+            )
+            # select a few number of the los according to the observation
+            tau_sub = tau_sub[:: int(tau_sub.shape[0] / self.Nlos[ii])][: self.Nlos[ii]]
+
+            f_rescale[ii] = self.find_n_rescale(tau_sub, self.mean_F_obs[ii])
+            tau_eff = -np.log(np.mean(np.exp(-tau_sub * f_rescale[ii]), axis=1))
+            ctx.add("tau_eff_z%.1f" % z_target, tau_eff)
+        ctx.add("tau_eff_f_rescale", f_rescale)
