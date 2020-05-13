@@ -208,7 +208,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
 
                 else:
-                    noise.append(dict(**np.load(fl, allow_pickle=True)))
+                    noise.append(dict(np.load(fl, allow_pickle=True)))
 
             return noise
 
