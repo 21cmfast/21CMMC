@@ -862,4 +862,5 @@ class CoreForest(CoreLightConeModule):
 
         f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_F_obs)
         tau_eff = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
-        ctx.add("tau_eff_%s" % self.name, {"tau_eff": tau_eff, "f_rescale": f_rescale})
+        ctx.add("tau_eff_%s" % self.name, tau_eff)
+        ctx.add("f_rescale_%s" % self.name, f_rescale)

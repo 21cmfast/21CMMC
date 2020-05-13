@@ -1420,7 +1420,8 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     def reduce_data(self, ctx):
         """Reduce data to model."""
-        tau_eff = ctx.get("tau_eff_%s" % self.name)["tau_eff"]
+        tau_eff = ctx.get("tau_eff_%s" % self.name)
+        print(self.name, tau_eff)
         # use the same binning as the obs
         hist_bin_size = self.data[:, 0]
 
