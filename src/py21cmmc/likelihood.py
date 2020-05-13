@@ -210,7 +210,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                 else:
                     try:
                         noise.append(dict(np.load(fl, allow_pickle=True)))
-                    except TypeError:
+                    except ValueError:
                         # TODO: this one is for reading the error covariance matrix, need to better deal with it
                         noise.append(np.load(fl, allow_pickle=True))
 
@@ -1377,13 +1377,13 @@ class LikelihoodForest(LikelihoodBaseFile):
 
         datafilebase = str(self.redshifts[0]).replace(".", "pt")
         self.datafile = [
-            path.join(path.dirname(__file__), folder, "%s.npy" % datafilebase)
+            path.join(path.dirname(__file__), folder, "z%s.npy" % datafilebase)
         ]
         self.noisefile = [
             path.join(
                 path.dirname(__file__),
                 folder,
-                "ErrorCovarianceMatrix_CosmicVariance/%s.npy" % datafilebase,
+                "ErrorCovarianceMatrix_CosmicVariance/z%s.npy" % datafilebase,
             )
         ]
         super().setup()
