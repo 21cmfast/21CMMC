@@ -722,7 +722,7 @@ class CoreForest(CoreLightConeModule):
                     "Use bosman_optimistic or bosman_pessimistic!"
                 )
             self.Nlos = sum(
-                Nlos_obs[:, 1][
+                Nlos_obs[:, 1].astype(np.int)[
                     np.argmin(np.abs(Nlos_obs[:, 0] - self.redshift + 0.1)) : np.argmin(
                         np.abs(Nlos_obs[:, 0] - self.redshift - 0.1)
                     )
