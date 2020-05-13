@@ -209,8 +209,9 @@ class LikelihoodBaseFile(LikelihoodBase):
 
                 else:
                     try:
-                        noise.append(**dict(np.load(fl, allow_pickle=True)))
+                        noise.append(dict(np.load(fl, allow_pickle=True)))
                     except TypeError:
+                        # TODO: this one is for reading the error covariance matrix, need to better deal with it
                         noise.append(np.load(fl, allow_pickle=True))
 
             return noise
