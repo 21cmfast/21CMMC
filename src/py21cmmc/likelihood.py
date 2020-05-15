@@ -1383,7 +1383,7 @@ class LikelihoodForest(LikelihoodBaseFile):
             path.join(
                 path.dirname(__file__),
                 folder,
-                "ErrorCovarianceMatrix_CosmicVariance/z%s.npy" % datafilebase,
+                "ErrorCovarianceMatrix_TYPE/z%s.npy" % datafilebase,
             )
         ]
         super().setup()
@@ -1397,8 +1397,13 @@ class LikelihoodForest(LikelihoodBaseFile):
         return np.vstack([tau_eff[1:], PDF]).T
 
     def _read_noise(self):
-        noise = super()._read_noise()
-        return noise[0]
+        # read the ECM due to CosmicVariance
+        self.noisefile = self.noisefile.replace("TYPE", "CosmicVariance")
+        ErrorCovarianceMatrix_CosmicVariance = super()._read_noise()
+        # read the ECM due to the GP approximation
+        self.noisefile = self.noisefile.replace("TYPE", "GP")
+        ErrorCovarianceMatrix_GP = super()._read_noise()
+        return ErrorCovarianceMatrix_CosmicVariance[0] + ErrorCovarianceMatrix_GP[0]
 
     @cached_property
     def paired_core(self):
@@ -1421,7 +1426,6 @@ class LikelihoodForest(LikelihoodBaseFile):
     def reduce_data(self, ctx):
         """Reduce data to model."""
         tau_eff = ctx.get("tau_eff_%s" % self.name)
-        print(self.name, tau_eff)
         # use the same binning as the obs
         hist_bin_size = self.data[:, 0]
 
@@ -1450,4 +1454,4 @@ class LikelihoodForest(LikelihoodBaseFile):
             The log-likelihood for the given model.
         """
         diff = (model - self.data[:, 1]).reshape([1, -1])
-        return -0.5 * np.dot(np.dot(diff, self.noise), diff.T)[0, 0]
+        return -0.5 * np.dot(np.dot(diff, self.noise ** -1), diff.T)[0, 0]
