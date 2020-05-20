@@ -704,8 +704,8 @@ class LikelihoodPlanck(LikelihoodBase):
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012
     # (https://arxiv.org/abs/1605.03507)
-    tau_mean = 0.058
-    tau_sigma = 0.012
+    tau_mean = 0.054
+    tau_sigma = 0.007
 
     # Simple linear extrapolation of the redshift range provided by the user, to be
     # able to estimate the optical depth
@@ -908,7 +908,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             else:
                 lnprob += self.lnprob(model_spline(z), data, sigma)
 
-        return lnprob
+        return -1  # lnprob
 
     def lnprob(self, model, data, sigma):
         """Compute the log prob given a model, data and error."""
@@ -1398,10 +1398,10 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     def _read_noise(self):
         # read the ECM due to CosmicVariance
-        self.noisefile = self.noisefile.replace("TYPE", "CosmicVariance")
+        self.noisefile[0] = self.noisefile[0].replace("TYPE", "CosmicVariance")
         ErrorCovarianceMatrix_CosmicVariance = super()._read_noise()
         # read the ECM due to the GP approximation
-        self.noisefile = self.noisefile.replace("TYPE", "GP")
+        self.noisefile[0] = self.noisefile[0].replace("TYPE", "GP")
         ErrorCovarianceMatrix_GP = super()._read_noise()
         return ErrorCovarianceMatrix_CosmicVariance[0] + ErrorCovarianceMatrix_GP[0]
 
@@ -1453,5 +1453,10 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        diff = (model - self.data[:, 1]).reshape([1, -1])
-        return -0.5 * np.dot(np.dot(diff, self.noise ** -1), diff.T)[0, 0]
+        diff = (model - self.data[:, 1])[self.data[:, 1] > 5e-2].reshape([1, -1])
+        lnl = -0.5 * np.dot(np.dot(diff, self.noise ** -1), diff.T)[0, 0]
+        lnl -= 0.5 * len(self.noise) * np.log(2 * np.pi) + np.log(
+            np.sqrt(np.sum(self.noise ** 2))
+        )
+        print(lnl)
+        return lnl
