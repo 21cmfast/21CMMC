@@ -62,8 +62,9 @@ def run_mcmc(
     continue_sampling=True,
     reuse_burnin=True,
     log_level_21CMMC=None,
+    sampler_cls=CosmoHammerSampler,
     **mcmc_options,
-):
+) -> CosmoHammerSampler:
     r"""Run an MCMC chain.
 
     Parameters
@@ -95,7 +96,6 @@ def run_mcmc(
         re-compute the samples themselves.
     log_level_21CMMC : (int or str, optional)
         The logging level of the cosmoHammer log file.
-
 
     Other Parameters
     ----------------
@@ -172,7 +172,7 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
     if log_level_21CMMC is not None:
         logging.getLogger("21CMMC").setLevel(log_level_21CMMC)
 
-    sampler = CosmoHammerSampler(
+    sampler = sampler_cls(
         continue_sampling=continue_sampling,
         likelihoodComputationChain=chain,
         storageUtil=HDFStorageUtil(file_prefix),
