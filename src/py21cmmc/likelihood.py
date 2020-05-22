@@ -86,9 +86,8 @@ class LikelihoodBase(core.ModuleBase):
                 if hasattr(m, k):
                     if hasattr(self, k) and getattr(self, k) != getattr(m, k):
                         raise ValueError(
-                            "Setup has detected incompatible input parameter dicts in specified cores: {k}".format(
-                                k=k
-                            )
+                            f"Setup has detected incompatible input parameter dicts in "
+                            f"specified cores: {k}"
                         )
                     else:
                         setattr(self, k, getattr(m, k))
@@ -358,18 +357,14 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         for i, d in enumerate(self.data):
             if "k" not in d or "delta" not in d:
                 raise ValueError(
-                    "datafile #{} of {} has the wrong format".format(
-                        i + 1, len(self.datafile)
-                    )
+                    f"datafile #{i+1} of {len(self.datafile)} has the wrong format."
                 )
 
     def _check_noise_format(self):
         for i, n in enumerate(self.noise):
             if "k" not in n or "errs" not in n:
                 raise ValueError(
-                    "noisefile #{j} of {n} has the wrong format".format(
-                        j=i + 1, n=len(self.noise)
-                    )
+                    f"noisefile #{i+1} of {len(self.noise)} has the wrong format"
                 )
 
     def setup(self):
