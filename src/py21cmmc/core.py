@@ -675,7 +675,7 @@ class CoreForest(CoreLightConeModule):
         The size when binning the pixel transmission in units of cMpc, default is 50
 
     N_realization : int
-        The number of realizations to evaluate the error covariance matrix, default is 250
+        The number of realizations to evaluate the error covariance matrix, default is 150
 
     Other Parameters
     ----------------
@@ -690,7 +690,7 @@ class CoreForest(CoreLightConeModule):
         observation="bosman_optimistic",
         Nlos=None,
         bin_size=50,
-        N_realization=250,
+        N_realization=150,
         **kwargs,
     ):
         self.name = str(name)
