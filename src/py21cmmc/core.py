@@ -77,7 +77,7 @@ class ModuleBase:
 
     @property
     def chain(self):
-        """Reference to the :class:`~py21cmmc.cosmoHammer.LikelihoodComputationChain` containing this core."""
+        """Reference to the :class:`~LikelihoodComputationChain` containing this core."""
         try:
             return self._LikelihoodComputationChain
         except AttributeError:
@@ -112,15 +112,11 @@ class ModuleBase:
                     if getattr(self, arg) != getattr(other, arg):
                         return False
                 else:
-                    logger.warning(
-                        "parameter {arg} not found in instance".format(arg=arg)
-                    )
+                    logger.warning(f"parameter {arg} not found in instance")
 
             except ValueError:
                 logger.warning(
-                    "parameter {arg} has type which does not allow for comparison".format(
-                        arg=arg
-                    )
+                    f"parameter {arg} has type which does not allow for comparison"
                 )
 
         return True
