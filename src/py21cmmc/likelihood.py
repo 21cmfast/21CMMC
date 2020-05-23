@@ -1393,12 +1393,13 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     def _read_noise(self):
         # read the ECM due to CosmicVariance
-        self.noisefile[0] = self.noisefile[0].replace("TYPE", "CosmicVariance")
-        ErrorCovarianceMatrix_CosmicVariance = super()._read_noise()
+        # currently disabled since we are esimating it for each model, self.noisefile[0] = self.noisefile[0].replace("TYPE", "CosmicVariance")
+        # ErrorCovarianceMatrix_CosmicVariance = super()._read_noise()[-]
         # read the ECM due to the GP approximation
         self.noisefile[0] = self.noisefile[0].replace("TYPE", "GP")
-        ErrorCovarianceMatrix_GP = super()._read_noise()
-        return ErrorCovarianceMatrix_CosmicVariance[0] + ErrorCovarianceMatrix_GP[0]
+        ErrorCovarianceMatrix_GP = super()._read_noise()[0]
+        # We only consider the diagnonal
+        return ErrorCovarianceMatrix_GP.diagonal()
 
     @cached_property
     def paired_core(self):
@@ -1432,7 +1433,15 @@ class LikelihoodForest(LikelihoodBaseFile):
             ]
         )
 
-        return np.histogram(tau_eff, bins=hist_bins, density=True)[0]
+        N_realization = tau_eff.shape[0]
+        PDFs = np.zeros([N_realization, len(hist_bin_size)])
+        for jj in range(N_realization):
+            PDFs[jj] = np.histogram(tau_eff[jj], bins=hist_bins, density=True)[0]
+
+        ErrorCovarianceMatrix_CosmicVariance = np.cov(PDFs.T)
+        self.noise = self.noise + ErrorCovarianceMatrix_CosmicVariance.diagonal()
+
+        return np.mean(PDFs, axis=0)
 
     def computeLikelihood(self, model):
         """
@@ -1448,10 +1457,6 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        diff = (model - self.data[:, 1])[self.data[:, 1] > 5e-2].reshape([1, -1])
-        lnl = -0.5 * np.dot(np.dot(diff, self.noise ** -1), diff.T)[0, 0]
-        lnl -= 0.5 * len(self.noise) * np.log(2 * np.pi) + np.log(
-            np.sqrt(np.sum(self.noise ** 2))
-        )
-        print(lnl)
+        diff = model - self.data[:, 1]
+        lnl = -0.5 * np.sum(diff[self.noise > 0] ** 2 / self.noise[self.noise > 0])
         return lnl

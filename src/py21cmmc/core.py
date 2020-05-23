@@ -674,6 +674,9 @@ class CoreForest(CoreLightConeModule):
     bin_size : float
         The size when binning the pixel transmission in units of cMpc, default is 50
 
+    N_realization : int
+        The number of realizations to evaluate the error covariance matrix, default is 250
+
     Other Parameters
     ----------------
     \*\*kwargs :
@@ -687,12 +690,14 @@ class CoreForest(CoreLightConeModule):
         observation="bosman_optimistic",
         Nlos=None,
         bin_size=50,
+        N_realization=250,
         **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
         self.mean_F_obs = mean_F_obs
         self.bin_size = bin_size
+        self.N_realization = N_realization
         super().__init__(**kwargs)
         if Nlos:
             self.Nlos = Nlos
@@ -724,10 +729,10 @@ class CoreForest(CoreLightConeModule):
                     )
                 ]
             )
-        if self.Nlos > self.user_params.HII_DIM ** 2:
+        if self.Nlos * self.N_realization > self.user_params.HII_DIM ** 2:
             raise ValueError(
-                "You asked for %d los, larger than what the box has (%d)! Increase HII_DIM!"
-                % (self.Nlos, self.user_params.HII_DIM ** 2)
+                "You asked for %d los and %d realizations, larger than what the box has (%d)! Increase HII_DIM!"
+                % (self.Nlos, self.N_realization, self.user_params.HII_DIM ** 2)
             )
 
     def setup(self):
@@ -837,26 +842,30 @@ class CoreForest(CoreLightConeModule):
             )[0][0]
 
         # select a few number of the los according to the observation
-        Gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
-            [total_los, index_right - index_left]
-        )[:: int(total_los / self.Nlos)][: self.Nlos]
-        Delta = (
-            lc.density[:, :, index_left:index_right].reshape(
-                [total_los, index_right - index_left]
-            )[:: int(total_los / self.Nlos)][: self.Nlos]
-            + 1.0
-        )
-        Temp = (
-            lc.temp_kinetic_all_gas[:, :, index_left:index_right].reshape(
-                [total_los, index_right - index_left]
-            )[:: int(total_los / self.Nlos)][: self.Nlos]
-            / 1e4
-        )
-        tau_lyman_alpha = self.tau_GP(
-            Gamma_bg, Delta, Temp, lightcone_redshifts[index_left:index_right]
-        )
+        tau_eff = np.zeros([self.N_realization, self.Nlos])
+        f_rescale = np.zeros(self.N_realization)
 
-        f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_F_obs)
-        tau_eff = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
+        for jj in range(self.N_realization):
+            Gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
+                [total_los, index_right - index_left]
+            )[jj :: int(total_los / self.Nlos)][: self.Nlos]
+            Delta = (
+                lc.density[:, :, index_left:index_right].reshape(
+                    [total_los, index_right - index_left]
+                )[jj :: int(total_los / self.Nlos)][: self.Nlos]
+                + 1.0
+            )
+            Temp = (
+                lc.temp_kinetic_all_gas[:, :, index_left:index_right].reshape(
+                    [total_los, index_right - index_left]
+                )[jj :: int(total_los / self.Nlos)][: self.Nlos]
+                / 1e4
+            )
+            tau_lyman_alpha = self.tau_GP(
+                Gamma_bg, Delta, Temp, lightcone_redshifts[index_left:index_right]
+            )
+
+            f_rescale[jj] = self.find_n_rescale(tau_lyman_alpha, self.mean_F_obs)
+            tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
         ctx.add("tau_eff_%s" % self.name, tau_eff)
         ctx.add("f_rescale_%s" % self.name, f_rescale)
