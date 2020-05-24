@@ -804,7 +804,7 @@ class CoreForest(CoreLightConeModule):
         Ntry = 0
         while np.abs(np.mean(np.exp(-tau * x)) / mean_Fave_target - 1) > 1e-2:
             f_x = np.mean(np.exp(-tau * x)) - mean_Fave_target
-            f_prime_x = np.nanmean(-tau * np.exp(-tau * x))
+            f_prime_x = np.min([-1e-10, np.mean(-tau * np.exp(-tau * x))])
             x -= f_x / f_prime_x
             if x < 0:
                 x = 0
@@ -866,6 +866,6 @@ class CoreForest(CoreLightConeModule):
             )
 
             f_rescale[jj] = self.find_n_rescale(tau_lyman_alpha, self.mean_F_obs)
-            tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
+            tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale[jj]), axis=1))
         ctx.add("tau_eff_%s" % self.name, tau_eff)
         ctx.add("f_rescale_%s" % self.name, f_rescale)
