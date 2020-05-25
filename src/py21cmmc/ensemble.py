@@ -28,6 +28,62 @@ class EnsembleSampler(emcee.EnsembleSampler):
         self.pmin = -np.inf * np.ones(self.dim) if pmin is None else pmin
         self.pmax = np.inf * np.ones(self.dim) if pmax is None else pmax
 
+    def _propose_stretch(self, p0, p1, lnprob0):
+        """
+        Propose a new position for one sub-ensemble given the positions of another.
+
+        Parameters
+        ----------
+        p0 : ndarray
+            The positions from which to jump.
+        p1 : ndarray
+            The positions of the other ensemble.
+        lnprob0 :
+            The log-probabilities at ``p0``.
+
+        Returns
+        -------
+        q : ndarray
+            The new proposed positions for the walkers in ``ensemble``.
+        newlnprob : ndarray
+            The vector of log-probabilities at the positions given by ``q``.
+        accept : bool ndarray
+            A vector indicating whether or not the proposed position for each walker
+            should be accepted.
+        blob : dict
+            The new meta data blobs or ``None`` if nothing was returned by ``lnprobfn``.
+        """
+        logger.debug("Proposing new walker positions")
+
+        s = np.atleast_2d(p0)
+        Ns = len(s)
+        c = np.atleast_2d(p1)
+        Nc = len(c)
+
+        # Generate the vectors of random numbers that will produce the
+        # proposal.
+        zz = ((self.a - 1.) * self._random.rand(Ns) + 1) ** 2. / self.a
+        rint = self._random.randint(Nc, size=(Ns,))
+
+        # Calculate the proposed positions and the log-probability there.
+        q = c[rint] - zz[:, np.newaxis] * (c[rint] - s)
+        
+        for i in range(len(q)):
+            for j in range(len(self.pmin)):
+                if (q[i][j] < self.pmin[j]):
+                    q[i][j] = self.pmax[j] - np.abs( q[i][j] - self.pmin[j] )
+
+                if (q[i][j] > self.pmax[j]):
+                    q[i][j] = self.pmin[j] + np.abs( q[i][j] - self.pmax[j] )
+
+        newlnprob, blob = self._get_lnprob(q)
+
+        # Decide whether or not the proposals should be accepted.
+        lnpdiff = (self.dim - 1.0) * np.log(zz) + newlnprob - lnprob0
+        accept = lnpdiff > np.log(self._random.rand(len(lnpdiff)))
+
+        return q, newlnprob, accept, blob
+        
     def sample(
         self,
         p0,
