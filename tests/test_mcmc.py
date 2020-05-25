@@ -426,3 +426,22 @@ def test_wrong_ctx_variable():
 
     with pytest.raises(ValueError):
         chain.build_model_data()
+
+
+def test_wrong_lf_paring():
+    redshifts = [6, 7, 8, 10]
+    with pytest.raises(ValueError):
+        cores = [ mcmc.CoreLuminosityFunction( redshift=z, sigma=0, name='lf') for z in redshifts ]
+        lks   = [ mcmc.LikelihoodLuminosityFunction(name='lf') for z in redshifts ]
+        chain = mcmc.build_computation_chain(cores, lks, setup=True)
+
+    cores = [ mcmc.CoreLuminosityFunction( redshift=z, sigma=0, name='lfz%d'%z) for z in redshifts ]
+    lks   = [ mcmc.LikelihoodLuminosityFunction(name='lfz%d'%z) for z in redshifts ]
+    chain = mcmc.build_computation_chain(cores, lks, setup=True)
+
+
+def test_wrong_lf_redshift():
+    with pytest.raises(ValueError):
+        cores = [ mcmc.CoreLuminosityFunction( redshift=9, sigma=0, name='lf'), ]
+        lks   = [ mcmc.LikelihoodLuminosityFunction(name='lf'), ]
+        chain = mcmc.build_computation_chain(cores, lks, setup=True)
