@@ -189,7 +189,11 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
                 )
             else:
-                data.append(dict(np.load(fl, allow_pickle=True)))
+                try:
+                    data.append(dict(np.load(fl, allow_pickle=True)))
+                except ValueError:
+                    # TODO: need to better handle this
+                    data.append(dict(np.load(fl, allow_pickle=True).item()))
 
         return data
 
@@ -1338,8 +1342,12 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     Parameters
     ----------
+    name : str
+        The name used to match the core
+
     observation : str
         The observation that is used to construct the tau_eff statisctic.
+
     """
 
     required_cores = (core.CoreForest,)
@@ -1355,48 +1363,51 @@ class LikelihoodForest(LikelihoodBaseFile):
             raise ValueError(
                 "to use the provided forests, a separate core/likelihood instance pair for each redshift is required!"
             )
-        if self.observation == "bosman_optimistic":
-            folder = "data/Forests/Bosman18/CDFs/optimistic/"
+        if "bosman" in self.observation:
             if self.redshifts[0] not in [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]:
                 raise ValueError(
-                    "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman_optimistic!"
+                    "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman!"
                 )
-        elif self.observation == "bosman_pessimistic":
-            folder = "data/Forests/Bosman18/CDFs/pessimistic/"
-            if self.redshifts[0] not in [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]:
-                raise ValueError(
-                    "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman_pessimistic!"
+            self.tau_range = [0, 8]
+            self.hist_bin_size = 40
+
+            self.datafile = [
+                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npy")
+            ]
+            self.noisefile = [
+                path.join(
+                    path.dirname(__file__),
+                    "data/Forests/Bosman18/PDF_ErrorCovarianceMatrix_GP/z%s.npy"
+                    % str(self.redshifts[0]).replace(".", "pt"),
                 )
+            ]
+
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
 
-        datafilebase = str(self.redshifts[0]).replace(".", "pt")
-        self.datafile = [
-            path.join(path.dirname(__file__), folder, "z%s.npy" % datafilebase)
-        ]
-        self.noisefile = [
-            path.join(
-                path.dirname(__file__),
-                folder,
-                "ErrorCovarianceMatrix_TYPE/z%s.npy" % datafilebase,
-            )
-        ]
         super().setup()
 
     def _read_data(self):
-        data = super()._read_data()
-        tau_eff = np.array(list((data[0].keys())))
-        CDF = np.array(list(data[0].values()))
-        PDF = (CDF[1:] - CDF[:-1]) / (tau_eff[1:] - tau_eff[:-1])
+        data = super()._read_data()[0]
+        if self.observation == "bosman_optimistic":
+            tau_eff = data["tau_lower"]
+        elif self.observation == "bosman_pessimistic":
+            tau_eff = data["tau_upper"]
 
-        return np.vstack([tau_eff[1:], PDF]).T
+        tau_eff = tau_eff[
+            (data["zs"] > (self.redshifts[0] - 0.1))
+            * (data["zs"] <= (self.redshifts[0] + 0.1))
+        ]
+        PDF = np.histogram(
+            tau_eff, range=self.tau_range, bins=self.hist_bin_size, density=True
+        )[0]
+        if self.observation == "bosman_pessimistic":
+            PDF *= float(sum(~np.isinf(tau_eff)) / len(tau_eff))
+
+        return PDF
 
     def _read_noise(self):
-        # read the ECM due to CosmicVariance
-        # currently disabled since we are esimating it for each model, self.noisefile[0] = self.noisefile[0].replace("TYPE", "CosmicVariance")
-        # ErrorCovarianceMatrix_CosmicVariance = super()._read_noise()[-]
         # read the ECM due to the GP approximation
-        self.noisefile[0] = self.noisefile[0].replace("TYPE", "GP")
         ErrorCovarianceMatrix_GP = super()._read_noise()[0]
         # We only consider the diagnonal
         return ErrorCovarianceMatrix_GP.diagonal()
@@ -1423,20 +1434,13 @@ class LikelihoodForest(LikelihoodBaseFile):
         """Reduce data to model."""
         tau_eff = ctx.get("tau_eff_%s" % self.name)
         # use the same binning as the obs
-        hist_bin_size = self.data[:, 0]
-
-        hist_bins = np.concatenate(
-            [
-                [hist_bin_size[0] - (hist_bin_size[1] - hist_bin_size[0]) / 2],
-                hist_bin_size[1:] - (hist_bin_size[1:] - hist_bin_size[:-1]) / 2,
-                [(hist_bin_size[-1] - hist_bin_size[-2]) / 2 + hist_bin_size[-1]],
-            ]
-        )
 
         N_realization = tau_eff.shape[0]
-        PDFs = np.zeros([N_realization, len(hist_bin_size)])
+        PDFs = np.zeros([N_realization, self.hist_bin_size])
         for jj in range(N_realization):
-            PDFs[jj] = np.histogram(tau_eff[jj], bins=hist_bins, density=True)[0]
+            PDFs[jj] = np.histogram(
+                tau_eff[jj], range=self.tau_range, bins=self.hist_bin_size, density=True
+            )[0]
 
         ErrorCovarianceMatrix_CosmicVariance = np.cov(PDFs.T)
         self.noise = self.noise + ErrorCovarianceMatrix_CosmicVariance.diagonal()
@@ -1457,6 +1461,6 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        diff = model - self.data[:, 1]
+        diff = model - self.data
         lnl = -0.5 * np.sum(diff[self.noise > 0] ** 2 / self.noise[self.noise > 0])
         return lnl

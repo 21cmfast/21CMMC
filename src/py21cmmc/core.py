@@ -662,17 +662,11 @@ class CoreLuminosityFunction(CoreCoevalModule):
 class CoreForest(CoreLightConeModule):
     r"""A Core Module that produces model effective optical depth at a range of redshifts.
 
-    mean_F_obs : float
-        The mean observed transimission.
+    name : str
+        The name used to match the likelihood
 
     observation : str
         The observation that is used to construct the tau_eff statisctic.
-
-    Nlos : int
-        The number of line of sight used to construct tau_eff statisctic. If None, existing data will be read in according to the observation.
-
-    bin_size : float
-        The size when binning the pixel transmission in units of cMpc, default is 50
 
     N_realization : int
         The number of realizations to evaluate the error covariance matrix, default is 150
@@ -684,56 +678,35 @@ class CoreForest(CoreLightConeModule):
     """
 
     def __init__(
-        self,
-        mean_F_obs,
-        name="",
-        observation="bosman_optimistic",
-        Nlos=None,
-        bin_size=50,
-        N_realization=150,
-        **kwargs,
+        self, name="", observation="bosman_optimistic", N_realization=150, **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
-        self.mean_F_obs = mean_F_obs
-        self.bin_size = bin_size
         self.N_realization = N_realization
         super().__init__(**kwargs)
-        if Nlos:
-            self.Nlos = Nlos
+
+        if (
+            self.observation == "bosman_optimistic"
+            or self.observation == "bosman_pessimistic"
+        ):
+            data = np.load(
+                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npy"),
+                allow_pickle=True,
+            ).item()
+            targets = (data["zs"] > self.redshift - 0.1) * (
+                data["zs"] <= self.redshift + 0.1
+            )
+            self.mean_F_obs = np.mean(data["flux"][targets])
+            self.Nlos = sum(targets)
+            self.bin_size = 50
         else:
-            if observation == "bosman_optimistic":
-                Nlos_obs = np.load(
-                    path.join(
-                        path.dirname(__file__),
-                        "data/Forests/Bosman18/CDFs/optimistic/",
-                        "Nlos.npy",
-                    )
+            raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
+
+            if self.Nlos * self.N_realization > self.user_params.HII_DIM ** 2:
+                raise ValueError(
+                    "You asked for %d realizations, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
+                    % (self.N_realization, self.user_params.HII_DIM ** 2, self.Nlos)
                 )
-            elif observation == "bosman_pessimistic":
-                Nlos_obs = np.load(
-                    path.join(
-                        path.dirname(__file__),
-                        "data/Forests/Bosman18/CDFs/pessimistic/",
-                        "Nlos.npy",
-                    )
-                )
-            else:
-                raise NotImplementedError(
-                    "Use bosman_optimistic or bosman_pessimistic!"
-                )
-            self.Nlos = sum(
-                Nlos_obs[:, 1].astype(np.int)[
-                    np.argmin(np.abs(Nlos_obs[:, 0] - self.redshift + 0.1)) : np.argmin(
-                        np.abs(Nlos_obs[:, 0] - self.redshift - 0.1)
-                    )
-                ]
-            )
-        if self.Nlos * self.N_realization > self.user_params.HII_DIM ** 2:
-            raise ValueError(
-                "You asked for %d los and %d realizations, larger than what the box has (%d)! Increase HII_DIM!"
-                % (self.Nlos, self.N_realization, self.user_params.HII_DIM ** 2)
-            )
 
     def setup(self):
         """Run post-init setup."""
@@ -866,6 +839,8 @@ class CoreForest(CoreLightConeModule):
             )
 
             f_rescale[jj] = self.find_n_rescale(tau_lyman_alpha, self.mean_F_obs)
-            tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale[jj]), axis=1))
+            tau_eff[jj] = -np.log(
+                np.mean(np.exp(-tau_lyman_alpha * f_rescale[jj]), axis=1)
+            )
         ctx.add("tau_eff_%s" % self.name, tau_eff)
         ctx.add("f_rescale_%s" % self.name, f_rescale)
