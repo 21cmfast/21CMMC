@@ -191,7 +191,7 @@ class LikelihoodBaseFile(LikelihoodBase):
             else:
                 try:
                     data.append(dict(np.load(fl, allow_pickle=True)))
-                except ValueError:
+                except TypeError:
                     # TODO: need to better handle this
                     data.append(dict(np.load(fl, allow_pickle=True).item()))
 
@@ -1410,7 +1410,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         # read the ECM due to the GP approximation
         ErrorCovarianceMatrix_GP = super()._read_noise()[0]
         # We only consider the diagnonal
-        return ErrorCovarianceMatrix_GP.diagonal()
+        return ErrorCovarianceMatrix_GP
 
     @cached_property
     def paired_core(self):
@@ -1443,7 +1443,7 @@ class LikelihoodForest(LikelihoodBaseFile):
             )[0]
 
         ErrorCovarianceMatrix_CosmicVariance = np.cov(PDFs.T)
-        self.noise = self.noise + ErrorCovarianceMatrix_CosmicVariance.diagonal()
+        self.noise = self.noise + ErrorCovarianceMatrix_CosmicVariance
 
         return np.mean(PDFs, axis=0)
 
@@ -1461,6 +1461,12 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        diff = model - self.data
-        lnl = -0.5 * np.sum(diff[self.noise > 0] ** 2 / self.noise[self.noise > 0])
+        diff = (model - self.data).reshape([1,-1])
+        det = np.linalg.det(self.noise)
+        if det==0:
+            logger.warning("Determinant is zero for this error covariance matrix, return -inf for lnl")
+            return -np.inf
+
+        lnl = -0.5 * (np.linalg.multi_dot([diff, np.linalg.inv(co), diff.T])[0,0] + len(diff) * np.log(2*np.pi) + np.log(det))
+        print(lnl)
         return lnl

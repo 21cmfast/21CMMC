@@ -693,8 +693,8 @@ class CoreForest(CoreLightConeModule):
                 path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npy"),
                 allow_pickle=True,
             ).item()
-            targets = (data["zs"] > self.redshift - 0.1) * (
-                data["zs"] <= self.redshift + 0.1
+            targets = (data["zs"] > self.redshift[0] - 0.1) * (
+                data["zs"] <= self.redshift[0] + 0.1
             )
             self.mean_F_obs = np.mean(data["flux"][targets])
             self.Nlos = sum(targets)
@@ -797,14 +797,14 @@ class CoreForest(CoreLightConeModule):
         index_right = np.where(
             lightcone_distances
             > (
-                lightcone_distances[np.where(lightcone_redshifts > self.redshift)[0][0]]
+                lightcone_distances[np.where(lightcone_redshifts > self.redshift[0])[0][0]]
                 + self.bin_size / 2
             )
         )[0][0]
         index_left = np.where(
             lightcone_distances
             > (
-                lightcone_distances[np.where(lightcone_redshifts > self.redshift)[0][0]]
+                lightcone_distances[np.where(lightcone_redshifts > self.redshift[0])[0][0]]
                 - self.bin_size / 2
             )
         )[0][0]
@@ -842,5 +842,12 @@ class CoreForest(CoreLightConeModule):
             tau_eff[jj] = -np.log(
                 np.mean(np.exp(-tau_lyman_alpha * f_rescale[jj]), axis=1)
             )
+        md,low,high = np.percentile(tau_eff,[50,16,84])
+        mdf,lowf,highf = np.percentile(f_rescale,[50,16,84])
+        print("redshift=%.2f"%self.redshift[0])
+        print(r'$\tau_{\rm eff} = %.2f_{-%.2f}^{+%.2f}$'%(md, md-low, high-md))
+        print(r'$\f{\rm rescale} = %.5f_{-%.5f}^{+%.5f}$'%(mdf, mdf-lowf, highf-mdf))
+        print(r'$\tau_{\rm eff} = %2.f-%2.f$'%(np.min(tau_eff), np.max(tau_eff)))
+        print(r'$\f{\rm rescale} = %.5f-%.5f$'%(np.min(f_rescale), np.max(f_rescale)))
         ctx.add("tau_eff_%s" % self.name, tau_eff)
         ctx.add("f_rescale_%s" % self.name, f_rescale)
