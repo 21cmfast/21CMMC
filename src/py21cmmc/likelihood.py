@@ -1465,8 +1465,8 @@ class LikelihoodForest(LikelihoodBaseFile):
         det = np.linalg.det(self.noise)
         if det==0:
             logger.warning("Determinant is zero for this error covariance matrix, return -inf for lnl")
-            return -np.inf
-
-        lnl = -0.5 * (np.linalg.multi_dot([diff, np.linalg.inv(co), diff.T])[0,0] + len(diff) * np.log(2*np.pi) + np.log(det))
+            lnl = -np.inf
+        else:
+            lnl = -0.5 * (np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0,0] + len(diff) * np.log(2*np.pi) + np.log(det))
         print(lnl)
         return lnl
