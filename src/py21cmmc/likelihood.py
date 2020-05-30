@@ -1356,6 +1356,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.observation = str(observation)
+        self.N_realization = 150
 
     def setup(self):
         """Setup instance."""
@@ -1389,27 +1390,24 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     def _read_data(self):
         data = super()._read_data()[0]
-        if self.observation == "bosman_optimistic":
-            tau_eff = data["tau_lower"]
-        elif self.observation == "bosman_pessimistic":
-            tau_eff = data["tau_upper"]
-
-        tau_eff = tau_eff[
+        targets = np.where(
             (data["zs"] > (self.redshifts[0] - 0.1))
             * (data["zs"] <= (self.redshifts[0] + 0.1))
-        ]
-        PDF = np.histogram(
-            tau_eff, range=self.tau_range, bins=self.hist_bin_size, density=True
         )[0]
-        if self.observation == "bosman_pessimistic":
-            PDF *= float(sum(~np.isinf(tau_eff)) / len(tau_eff))
+        PDFs = np.zeros([self.N_realization, self.hist_bin_size])
+        for jj in range(self.N_realization):
+            tau_eff = -np.log(
+                np.random.normal(data["flux"][targets], data["flux_err"][targets])
+            )
+            PDFs[jj] = np.histogram(
+                tau_eff, range=self.tau_range, bins=self.hist_bin_size, density=True
+            )[0]
 
-        return PDF
+        return PDFs
 
     def _read_noise(self):
         # read the ECM due to the GP approximation
         ErrorCovarianceMatrix_GP = super()._read_noise()[0]
-        # We only consider the diagnonal
         return ErrorCovarianceMatrix_GP
 
     @cached_property
@@ -1443,7 +1441,14 @@ class LikelihoodForest(LikelihoodBaseFile):
             )[0]
 
         ErrorCovarianceMatrix_CosmicVariance = np.cov(PDFs.T)
-        self.noise = self.noise + ErrorCovarianceMatrix_CosmicVariance
+        ErrorCovarianceMatrix_obs = np.cov(self.data.T)
+        self.noise = (
+            self.noise
+            + ErrorCovarianceMatrix_CosmicVariance
+            + ErrorCovarianceMatrix_obs
+        )
+        flag = np.where(self.noise.diagonal() <= 1e-5)
+        self.noise[flag, flag] = 1e-5
 
         return np.mean(PDFs, axis=0)
 
@@ -1461,12 +1466,16 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        diff = (model - self.data).reshape([1,-1])
+        diff = (model - self.data).reshape([1, -1])
         det = np.linalg.det(self.noise)
-        if det==0:
-            logger.warning("Determinant is zero for this error covariance matrix, return -inf for lnl")
+        if det == 0:
+            logger.warning(
+                "Determinant is zero for this error covariance matrix, return -inf for lnl"
+            )
             lnl = -np.inf
         else:
-            lnl = -0.5 * (np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0,0] + len(diff) * np.log(2*np.pi) + np.log(det))
-        print(lnl)
+            lnl = (
+                -0.5
+                * np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0, 0]
+            )
         return lnl

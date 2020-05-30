@@ -668,6 +668,10 @@ class CoreForest(CoreLightConeModule):
     observation : str
         The observation that is used to construct the tau_eff statisctic.
 
+    mean_F_obs : float, optional
+        The mean flux to rescale the modelled optical depth, if None, mean_F_obs will be
+        calculated using the provided observational data directly.
+
     N_realization : int
         The number of realizations to evaluate the error covariance matrix, default is 150
 
@@ -678,10 +682,16 @@ class CoreForest(CoreLightConeModule):
     """
 
     def __init__(
-        self, name="", observation="bosman_optimistic", N_realization=150, **kwargs,
+        self,
+        name="",
+        observation="bosman_optimistic",
+        mean_F_obs=None,
+        N_realization=150,
+        **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
+        self.mean_F_obs = mean_F_obs
         self.N_realization = N_realization
         super().__init__(**kwargs)
 
@@ -696,7 +706,8 @@ class CoreForest(CoreLightConeModule):
             targets = (data["zs"] > self.redshift[0] - 0.1) * (
                 data["zs"] <= self.redshift[0] + 0.1
             )
-            self.mean_F_obs = np.mean(data["flux"][targets])
+            if self.mean_F_obs is None:
+                self.mean_F_obs = np.mean(data["flux"][targets])
             self.Nlos = sum(targets)
             self.bin_size = 50
         else:
@@ -710,7 +721,7 @@ class CoreForest(CoreLightConeModule):
 
     def setup(self):
         """Run post-init setup."""
-        CoreLightConeModule.setup(self)
+        CoreBase.setup(self)
 
     def tau_GP(self, Gamma_bg, Delta, Temp, redshifts):
         r"""Calculating the lyman-alpha optical depth in each pixel using the fluctuating GP approximation.
@@ -797,14 +808,18 @@ class CoreForest(CoreLightConeModule):
         index_right = np.where(
             lightcone_distances
             > (
-                lightcone_distances[np.where(lightcone_redshifts > self.redshift[0])[0][0]]
+                lightcone_distances[
+                    np.where(lightcone_redshifts > self.redshift[0])[0][0]
+                ]
                 + self.bin_size / 2
             )
         )[0][0]
         index_left = np.where(
             lightcone_distances
             > (
-                lightcone_distances[np.where(lightcone_redshifts > self.redshift[0])[0][0]]
+                lightcone_distances[
+                    np.where(lightcone_redshifts > self.redshift[0])[0][0]
+                ]
                 - self.bin_size / 2
             )
         )[0][0]
@@ -842,12 +857,7 @@ class CoreForest(CoreLightConeModule):
             tau_eff[jj] = -np.log(
                 np.mean(np.exp(-tau_lyman_alpha * f_rescale[jj]), axis=1)
             )
-        md,low,high = np.percentile(tau_eff,[50,16,84])
-        mdf,lowf,highf = np.percentile(f_rescale,[50,16,84])
-        print("redshift=%.2f"%self.redshift[0])
-        print(r'$\tau_{\rm eff} = %.2f_{-%.2f}^{+%.2f}$'%(md, md-low, high-md))
-        print(r'$\f{\rm rescale} = %.5f_{-%.5f}^{+%.5f}$'%(mdf, mdf-lowf, highf-mdf))
-        print(r'$\tau_{\rm eff} = %2.f-%2.f$'%(np.min(tau_eff), np.max(tau_eff)))
-        print(r'$\f{\rm rescale} = %.5f-%.5f$'%(np.min(f_rescale), np.max(f_rescale)))
+        md, low, high = np.percentile(tau_eff, [50, 16, 84])
+        mdf, lowf, highf = np.percentile(f_rescale, [50, 16, 84])
         ctx.add("tau_eff_%s" % self.name, tau_eff)
         ctx.add("f_rescale_%s" % self.name, f_rescale)
