@@ -729,8 +729,8 @@ class CoreCMB(CoreBase):
             self.z_HeI = z_HeI
             self.z_HeII = z_HeII
             self.use_21cmfast = use_21cmfast
-        except AttributeError:
-            raise AttributeError(
+        except ImportError:
+            raise ImportError(
                 "You must have compiled the classy.pyx file. Please go to "
                 + "/path/to/class/python and run the command\n "
                 + "python setup.py build"
@@ -738,7 +738,7 @@ class CoreCMB(CoreBase):
 
     def setup(self):
         """Perform any post-init setup of the object."""
-        CoreBase.setup(self)
+        super().setup(self)
 
     def _update_params(self, params):
         """
