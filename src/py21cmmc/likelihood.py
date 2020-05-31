@@ -805,15 +805,15 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                     for j in range(my_clik.get_lmax()[i] + 1):
                         if i == 0:
                             tot[index + j] = cl["tt"][j]
-                        if i == 1:
+                        elif i == 1:
                             tot[index + j] = cl["ee"][j]
-                        if i == 2:
+                        elif i == 2:
                             tot[index + j] = cl["bb"][j]
-                        if i == 3:
+                        elif i == 3:
                             tot[index + j] = cl["te"][j]
-                        if i == 4:
+                        elif i == 4:
                             tot[index + j] = 0  # cl['tb'][j] class does not compute tb
-                        if i == 5:
+                        elif i == 5:
                             tot[index + j] = 0  # cl['eb'][j] class does not compute eb
 
                     index += my_clik.get_lmax()[i] + 1
@@ -825,19 +825,19 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                         for j in range(my_clik.get_lmax()[i] + 1):
                             if i == 0:
                                 tot[index + j] = cl["pp"][j]
-                            if i == 1:
+                            elif i == 1:
                                 tot[index + j] = cl["tt"][j]
-                            if i == 2:
+                            elif i == 2:
                                 tot[index + j] = cl["ee"][j]
-                            if i == 3:
+                            elif i == 3:
                                 tot[index + j] = cl["bb"][j]
-                            if i == 4:
+                            elif i == 4:
                                 tot[index + j] = cl["te"][j]
-                            if i == 5:
+                            elif i == 5:
                                 tot[
                                     index + j
                                 ] = 0  # cl['tb'][j] class does not compute tb
-                            if i == 6:
+                            elif i == 6:
                                 tot[
                                     index + j
                                 ] = 0  # cl['eb'][j] class does not compute eb
@@ -1070,7 +1070,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     @property
     def lightcone_modules(self):
         """All lightcone core modules that are loaded."""
-        return [m for m in self._cores if (isinstance(m, core.CoreLightConeModule))]
+        return [m for m in self._cores if isinstance(m, core.CoreLightConeModule)]
 
     @property
     def coeval_modules(self):
