@@ -648,15 +648,28 @@ class CoreLuminosityFunction(CoreCoevalModule):
 
 
 class CoreCMB(CoreBase):
-    r"""A Core Module that calls the CLASS CMB code and computes  Cl^TT,TE,EE and phiphi (the lensing potentials). It takes as an input the reionization history from 21cmFAST and a few cosmological parameters.
+    r"""A Core Module that computes Cl^TT,TE,EE and phiphi (the lensing potentials).
+
+    Notes
+    -----
+    This core calls the CLASS CMB code and takes as an input the reionization history from 21cmFAST and a few cosmological parameters.
 
     Parameters
     ----------
-    z_extrap_min : minimal z for reionization in CLASS. should basically always be set to 0.
-    z_extrap_max : maximal z for reionization in CLASS. depends on the reionization model.
-    z_HeI : redshift of the first helium reionization. CLASS models helium reionzation with a tanh centered around zHeI.
-    z_HeII : redshift of the second helium reionization. CLASS models helium reionzation with a tanh centered around zHeII.
-    use_21cmfast : whether or not using EoR history from 21cmfast.
+    z_extrap_min : float
+        Minimal z for reionization in CLASS. It should basically always be set to 0.
+
+    z_extrap_max : float
+        Maximal z for reionization in CLASS. It depends on the reionization model.
+
+    z_HeI : float
+        Redshift of the first helium reionization. CLASS models helium reionzation with a tanh centered around zHeI.
+
+    z_HeII : float
+        Redshift of the second helium reionization. CLASS models helium reionzation with a tanh centered around zHeII.
+
+    use_21cmfast : float
+        Whether or not using EoR history from 21cmfast.
     """
 
     def __init__(
