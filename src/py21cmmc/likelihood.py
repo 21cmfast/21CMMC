@@ -703,8 +703,8 @@ class LikelihoodPlanck(LikelihoodBase):
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012
     # (https://arxiv.org/abs/1605.03507)
-    tau_mean = 0.054
-    tau_sigma = 0.007
+    tau_mean = 0.0561
+    tau_sigma = 0.0071
 
     # Simple linear extrapolation of the redshift range provided by the user, to be
     # able to estimate the optical depth
@@ -1370,7 +1370,8 @@ class LikelihoodForest(LikelihoodBaseFile):
                     "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman!"
                 )
             self.tau_range = [0, 8]
-            self.hist_bin_size = 40
+            self.hist_bin_width = 0.1
+            self.hist_bin_size = int((self.tau_range[1] - self.tau_range[0])/self.hist_bin_width)
 
             self.datafile = [
                 path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npy")
@@ -1466,7 +1467,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        diff = (model - self.data).reshape([1, -1])
+        diff = (model - np.mean(self.data, axis=0)).reshape([1, -1])
         det = np.linalg.det(self.noise)
         if det == 0:
             logger.warning(
