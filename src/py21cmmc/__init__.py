@@ -11,6 +11,7 @@ from .core import CoreLuminosityFunction
 from .core import NotAChain
 from .core import NotSetupError
 from .cosmoHammer import HDFStorageUtil
+from .likelihood import LikelihoodIsocBispecCoeval
 from .likelihood import Likelihood1DPowerCoeval
 from .likelihood import Likelihood1DPowerLightcone
 from .likelihood import LikelihoodEDGES
