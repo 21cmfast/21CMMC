@@ -14,7 +14,7 @@ addons:
 
 
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
-install: pip install -U tox-travis coverage coveralls
+install: pip install -U tox-travis coverage coveralls tox-pip-version
 
 # command to run tests, e.g. python setup.py test
 script:

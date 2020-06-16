@@ -14,8 +14,9 @@ _build/
 _autosummary
 vgcore.*
 devel/\.ipynb_checkpoints/
-
+devel/cosmohammer_data/
 devel/data/
+dist/
 
 docs/faqs/\.ipynb_checkpoints/
 
@@ -30,8 +31,11 @@ docs/tutorials/data/
 \.tox/
 
 \.coverage
+\.coverage.*
 
 htmlcov/
 
 
 pip-wheel-metadata/
+src/21CMMC.egg-info/
+devel/*.out

@@ -1,16 +1,15 @@
 import os
 
-import numpy as np
 import pytest
-from py21cmfast import LightCone
+
+import numpy as np
 
 import py21cmmc as mcmc
-from py21cmmc.cosmoHammer import (
-    CosmoHammerSampler,
-    HDFStorageUtil,
-    Params,
-    LikelihoodComputationChain,
-)
+from py21cmfast import LightCone
+from py21cmmc.cosmoHammer import CosmoHammerSampler
+from py21cmmc.cosmoHammer import HDFStorageUtil
+from py21cmmc.cosmoHammer import LikelihoodComputationChain
+from py21cmmc.cosmoHammer import Params
 
 
 @pytest.fixture(scope="module")
@@ -74,10 +73,10 @@ def test_core_coeval_setup(core, likelihood_coeval):
 
     ctx = chain.build_model_data()
 
-    assert ctx.get("xHI") is not None
+    assert ctx.get("xH_box") is not None
     assert ctx.get("brightness_temp") is not None
 
-    assert not np.all(ctx.get("xHI") == 0)
+    assert not np.all(ctx.get("xH_box") == 0)
     assert not np.all(ctx.get("brightness_temp") == 0)
 
 
@@ -302,8 +301,6 @@ def test_lightcone_core(lc_core, lc_core_ctx):
     mcmc.build_computation_chain(lc_core, lk, setup=False)
     lk.setup()
 
-    assert lc_core.lightcone_slice_redshifts[-1] > 8.0
-
     assert lc_core_ctx.contains("lightcone")
     assert isinstance(lc_core_ctx.get("lightcone"), LightCone)
 
@@ -415,3 +412,36 @@ def test_load_chain(core, likelihood_coeval, default_params, tmpdirec):
     lcc = mcmc.load_primitive_chain("TESTLOADCHAIN", direc=tmpdirec.strpath)
 
     assert lcc.getCoreModules()[0].redshift == core.redshift
+
+
+def test_wrong_ctx_variable():
+    core = mcmc.CoreCoevalModule(
+        redshift=6,
+        user_params={"HII_DIM": 35, "BOX_LEN": 70},
+        ctx_variables=("bad_key", "good key"),
+    )
+    lk = mcmc.Likelihood1DPowerCoeval(use_data=False)
+
+    chain = mcmc.build_computation_chain(core, lk, setup=False)
+
+    with pytest.raises(ValueError):
+        chain.build_model_data()
+
+
+def test_wrong_lf_paring():
+    redshifts = [6, 7, 8, 10]
+    with pytest.raises(ValueError):
+        cores = [ mcmc.CoreLuminosityFunction( redshift=z, sigma=0, name='lf') for z in redshifts ]
+        lks   = [ mcmc.LikelihoodLuminosityFunction(name='lf') for z in redshifts ]
+        chain = mcmc.build_computation_chain(cores, lks, setup=True)
+
+    cores = [ mcmc.CoreLuminosityFunction( redshift=z, sigma=0, name='lfz%d'%z) for z in redshifts ]
+    lks   = [ mcmc.LikelihoodLuminosityFunction(name='lfz%d'%z) for z in redshifts ]
+    chain = mcmc.build_computation_chain(cores, lks, setup=True)
+
+
+def test_wrong_lf_redshift():
+    with pytest.raises(ValueError):
+        cores = [ mcmc.CoreLuminosityFunction( redshift=9, sigma=0, name='lf'), ]
+        lks   = [ mcmc.LikelihoodLuminosityFunction(name='lf'), ]
+        chain = mcmc.build_computation_chain(cores, lks, setup=True)
