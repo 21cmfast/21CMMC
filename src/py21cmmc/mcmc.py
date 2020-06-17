@@ -234,9 +234,6 @@ def run_multinest(
     log_level_21CMMC : (int or str, optional)
         The logging level of the 21cmFAST Python code (specifically the "21CMMC" logging object). By default, this
         logger has only a stdout handler. See https://docs.python.org/3/library/logging.html#logging-levels
-
-    Essential MultiNest Parameters
-    ------------------------------
     n_live_points : int, optional
         number of live points
     importance_nested_sampling : bool, optional
