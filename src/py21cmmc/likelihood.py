@@ -694,8 +694,10 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
 
     Parameters
     ----------
-    datafolder : folder that contains Planck data if "clik" format.
-    name_lkl : str, default = Planck_lowl_EE, the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
+    datafolder : str
+        folder that contains Planck data if "clik" format.
+    name_lkl : str
+        default = Planck_lowl_EE, the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
     """
 
     required_cores = ((core.CoreLightConeModule, core.CoreCMB),)
@@ -703,7 +705,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     def __init__(
         self,
         *args,
-        datafolder="blah",
+        datafolder="./",
         name_lkl="Planck_lowl_EE",
         A_planck_prior_center=1,
         A_planck_prior_variance=0.1,
@@ -765,6 +767,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         cl = model["cl_cmb"]
 
         if self.lensing:
+            # these my_clik * are global variables defined in initialize_clik_and_class.
             my_clik = my_clik_lensing
             my_l_max = my_l_max_lensing
         if self.TTTEEE:
@@ -926,27 +929,38 @@ class LikelihoodPlanck(LikelihoodBase):
 
     In practice, any optical depth measurement (or mock measurement) may be used, by
     defining the class variables ``tau_mean`` and ``tau_sigma``.
+
+    Parameters
+    ----------
+    tau_mean : float
+        Mean for the optical depth constraint.
+        By default, it is 0.0544 from Planck 2018
+    tau_sigma : float
+        One sigma errors for the optical depth constraint.
+        By default, it is 0.0073 from Planck 2018
     """
 
     required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
 
-    # Mean and one sigma errors for the Planck constraints
-    # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012 (https://arxiv.org/abs/1605.03507) tau_mean = 0.058 tau_sigma = 0.012
-    # Cosmology from Planck 2018(https://arxiv.org/pdf/1807.06209.pdf)
-    # TT TE EE lowE lensing tau_mean = 0.0544 tau_sigma = 0.0073
-    # TT lowE
-    tau_mean = 0.0522
-    tau_sigma = 0.0080
+    def __init__(
+        self,
+        *args,
+        tau_mean = 0.0544,
+        tau_sigma = 0.0073,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
 
-    # Simple linear extrapolation of the redshift range provided by the user, to be
-    # able to estimate the optical depth
-    n_z_interp = 25
+        # Mean and one sigma errors for the Planck constraints
+        # Cosmology from Planck 2018(https://arxiv.org/pdf/1807.06209.pdf)
+        self.tau_mean = tau_mean
+        self.tau_sigma = tau_sigma
 
-    # Minimum of extrapolation is chosen to 5.9, to correspond to the McGreer et al.
-    # prior on the IGM neutral fraction.
-    # The maximum is chosen to be z = 18., which is arbitrary.
-    z_extrap_min = 5.0
-    z_extrap_max = 30.0
+        # Simple linear extrapolation of the redshift range provided by the user, to be
+        # able to estimate the optical depth
+        self.n_z_interp = 25
+        self.z_extrap_min = 5.0
+        self.z_extrap_max = 30.0
 
     def computeLikelihood(self, model):
         """
@@ -1032,7 +1046,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     and 0 otherwise.
     """
 
-    required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule), (core.CoreCMB))
+    required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule, core.CoreCMB),)
     threshold = 0.06
 
     def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
