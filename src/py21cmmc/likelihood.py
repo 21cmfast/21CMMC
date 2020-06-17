@@ -695,9 +695,9 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     Parameters
     ----------
     datafolder : str
-        folder that contains Planck data if "clik" format.
+        folder that contains Planck data in "clik" format.
     name_lkl : str
-        default = Planck_lowl_EE, the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
+        the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
     """
 
     required_cores = ((core.CoreLightConeModule, core.CoreCMB),)
@@ -705,8 +705,8 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     def __init__(
         self,
         *args,
-        datafolder="./",
-        name_lkl="Planck_lowl_EE",
+        datafolder=None,
+        name_lkl=None
         A_planck_prior_center=1,
         A_planck_prior_variance=0.1,
         **kwargs,
@@ -738,7 +738,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
 
         self.initialize = True
         if self.initialize:
-            self.initialize_clik_and_class(datafolder, name_lkl)
+            self.initialize_clik_and_class(self.path_clik, self.name)
 
     def reduce_data(self, ctx):
         """Get the CMB power spectra and the nuisance parameter A_planck from the coreCMB."""
