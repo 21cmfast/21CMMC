@@ -238,7 +238,7 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
             return 1
 
         except OSError:
-            raise ImportError("You also need to build MultiNest library")
+            raise ImportError("You also need to build MultiNest library. See https://johannesbuchner.github.io/PyMultiNest/install.html#id4 for more information.")
 
     else:
         sampler = sampler_cls(
