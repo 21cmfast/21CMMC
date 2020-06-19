@@ -21,9 +21,11 @@ install:
     - pip install -U tox-travis coverage coveralls tox-pip-version Cython
     - git clone https://github.com/lesgourg/class_public.git class
     - cd class && make
-    - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz" -o COM_Likelihood_Data-baseline_R3.00.tar.gz && tar zxvf COM_Likelihood_Data-baseline_R3.00.tar.gz
+    - wget https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio_latest.tar.gz && tar zxvf cfitsio_latest.tar.gz
+    - cd cfitsio* && ./configure && make shared && pwd && export LD_LIBRARY_PATH="`pwd`:$LD_LIBRARY_PATH"
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Code-v3.0_R3.01.tar.gz" -o COM_Likelihood_Code-v3.0_R3.01.tar.gz && tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz 
-    - cd code/plc_3.0/plc-3.01 && ./waf configure --cfitsio_install && ./waf install
+    - cd code/plc_3.0/plc-3.01 && ./waf configure && ./waf install
+    - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz" -o COM_Likelihood_Data-baseline_R3.00.tar.gz && tar zxvf COM_Likelihood_Data-baseline_R3.00.tar.gz
 
 # command to run tests, e.g. python setup.py test
 script:
