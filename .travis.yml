@@ -11,6 +11,8 @@ addons:
     - libfftw3-dev
     - libgsl0-dev
     - gfortran
+    - libblas-dev
+    - liblapack-dev
     update: true
 
 
