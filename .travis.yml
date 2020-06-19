@@ -20,11 +20,11 @@ addons:
 install:
     - pip install -U tox-travis coverage coveralls tox-pip-version Cython
     - git clone https://github.com/lesgourg/class_public.git class
-    - cd class && make
+    - cd class && make && cd ..
     - wget https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.48.tar.gz && tar zxvf cfitsio-3.48.tar.gz
-    - cd cfitsio-3.48 && ./configure && make shared
+    - cd cfitsio-3.48 && ./configure && make shared && cd ..
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Code-v3.0_R3.01.tar.gz" -o COM_Likelihood_Code-v3.0_R3.01.tar.gz && tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz 
-    - cd code/plc_3.0/plc-3.01 && ./waf configure --cfitsio_prefix=../../../cfitsio-3.48 && ./waf install && source clik_profile.sh
+    - cd code/plc_3.0/plc-3.01 && ./waf configure --cfitsio_prefix=../../../cfitsio-3.48 && ./waf install && source clik_profile.sh && cd ../../../
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz" -o COM_Likelihood_Data-baseline_R3.00.tar.gz && tar zxvf COM_Likelihood_Data-baseline_R3.00.tar.gz
 
 # command to run tests, e.g. python setup.py test
