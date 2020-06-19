@@ -706,7 +706,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         self,
         *args,
         datafolder=None,
-        name_lkl=None
+        name_lkl=None,
         A_planck_prior_center=1,
         A_planck_prior_variance=0.1,
         **kwargs,
@@ -882,8 +882,8 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         try:
             import clik
 
-        except:
-            raise AttributeError(
+        except ModuleNotFoundError:
+            raise ImportError(
                 "You must first activate the binaries from the Clik "
                 + "distribution. Please run : \n "
                 + "]$ source /path/to/clik/bin/clik_profile.sh \n "
