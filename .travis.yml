@@ -1,9 +1,12 @@
 # Config file for automatic testing at travis-ci.org
 dist: xenial
 language: python
-python:
-  - 3.7
-  - 3.6
+matrix:
+    include:
+        - python: 3.7
+          env: TOXENV=py37
+        - python: 3.6
+          env: TOXENV=py36
 
 addons:
   apt:
@@ -18,11 +21,10 @@ addons:
 
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 install:
-    - echo $TRAVIS_BUILD_DIR
-    - pwd
+    - which python
     - pip install -U tox-travis coverage coveralls tox-pip-version Cython
     - git clone https://github.com/lesgourg/class_public.git class
-    - cd class && PYTHON=`which python` make all && cd $TRAVIS_BUILD_DIR
+    - cd class && make all && cd $TRAVIS_BUILD_DIR
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz" -o COM_Likelihood_Data-baseline_R3.00.tar.gz && tar zxvf COM_Likelihood_Data-baseline_R3.00.tar.gz
     - wget https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio_latest.tar.gz && tar zxvf cfitsio_latest.tar.gz
     - cd cfitsio* && ./configure --prefix=$TRAVIS_BUILD_DIR && make shared  && make install && cd $TRAVIS_BUILD_DIR
