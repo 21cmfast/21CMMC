@@ -23,7 +23,7 @@ install:
     - cd class && make
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz" -o COM_Likelihood_Data-baseline_R3.00.tar.gz && tar zxvf COM_Likelihood_Data-baseline_R3.00.tar.gz
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Code-v3.0_R3.01.tar.gz" -o COM_Likelihood_Code-v3.0_R3.01.tar.gz && tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz 
-    - cd code/plc_3.0/plc-3.01 && ./waf configure && ./waf install
+    - cd code/plc_3.0/plc-3.01 && ./waf configure --cfitsio_install && ./waf install
 
 # command to run tests, e.g. python setup.py test
 script:
