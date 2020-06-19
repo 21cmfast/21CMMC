@@ -15,7 +15,7 @@ addons:
 
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 install:
-    - pip install -U tox-travis coverage coveralls tox-pip-version
+    - pip install -U tox-travis coverage coveralls tox-pip-version Cython
     - git clone https://github.com/lesgourg/class_public.git class
     - cd class && make
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz" -o COM_Likelihood_Data-baseline_R3.00.tar.gz && tar zxvf COM_Likelihood_Data-baseline_R3.00.tar.gz
