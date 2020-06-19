@@ -14,7 +14,11 @@ addons:
 
 
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
-install: pip install -U tox-travis coverage coveralls tox-pip-version
+install: 
+  - pip install -U tox-travis coverage coveralls tox-pip-version
+  - git clone https://github.com/JohannesBuchner/MultiNest
+  - cd MultiNest/build && cmake .. && make && make install
+  - pip install -U pymultinest
 
 # command to run tests, e.g. python setup.py test
 script:
