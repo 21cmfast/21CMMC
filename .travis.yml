@@ -22,7 +22,7 @@ install:
     - git clone https://github.com/lesgourg/class_public.git class
     - cd class && make && cd ..
     - wget https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio_latest.tar.gz && tar zxvf cfitsio_latest.tar.gz
-    - cd cfitsio* && ./configure --prefix=$HOME && make shared && cd ..
+    - cd cfitsio* && ./configure --prefix=$HOME && make shared  && make install && cd ..
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Code-v3.0_R3.01.tar.gz" -o COM_Likelihood_Code-v3.0_R3.01.tar.gz && tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz 
     - cd code/plc_3.0/plc-3.01 && ./waf configure --prefix=$HOME --cfitsio_prefix=$HOME && ./waf install && source clik_profile.sh && cd ../../../
     - curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz" -o COM_Likelihood_Data-baseline_R3.00.tar.gz && tar zxvf COM_Likelihood_Data-baseline_R3.00.tar.gz
