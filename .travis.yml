@@ -20,7 +20,7 @@ addons:
 install: 
   - pip install -U tox-travis coverage coveralls tox-pip-version
   - git clone https://github.com/JohannesBuchner/MultiNest
-  - cd MultiNest/build && cmake .. && make && make install
+  - cd MultiNest/build && cmake .. && make && sudo make install
   - pip install -U pymultinest
 
 # command to run tests, e.g. python setup.py test
