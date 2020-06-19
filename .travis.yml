@@ -10,7 +10,7 @@ addons:
     packages:
     - libfftw3-dev
     - libgsl0-dev
-    - libblas
+    - libblas-dev
     - gfortran
     update: true
 
