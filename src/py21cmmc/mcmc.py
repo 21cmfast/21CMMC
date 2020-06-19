@@ -218,22 +218,28 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
         def prior(p, ndim, nparams):
             p = [params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)]
 
-        sampler = run(
-            likelihood,
-            prior,
-            n_dims=len(params.keys),
-            n_params=len(params.keys),
-            n_live_points=n_live_points,
-            resume=continue_sampling,
-            write_output=write_output,
-            outputfiles_basename=datadir + model_name,
-            max_iter=max_iter,
-            importance_nested_sampling=importance_nested_sampling,
-            multimodal=multimodal,
-            evidence_tolerance=evidence_tolerance,
-            sampling_efficiency=sampling_efficiency,
-            init_MPI=False,
-        )
+        try:
+            sampler = run(
+                likelihood,
+                prior,
+                n_dims=len(params.keys),
+                n_params=len(params.keys),
+                n_live_points=n_live_points,
+                resume=continue_sampling,
+                write_output=write_output,
+                outputfiles_basename=datadir + model_name,
+                max_iter=max_iter,
+                importance_nested_sampling=importance_nested_sampling,
+                multimodal=multimodal,
+                evidence_tolerance=evidence_tolerance,
+                sampling_efficiency=sampling_efficiency,
+                init_MPI=False,
+            )
+            return 1
+
+        except OSError:
+            raise ImportError("You also need to build MultiNest library")
+
     else:
         sampler = sampler_cls(
             continue_sampling=continue_sampling,
@@ -250,4 +256,4 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
         # The sampler writes to file, so no need to save anything ourselves.
         sampler.startSampling()
     
-    return sampler
+        return sampler
