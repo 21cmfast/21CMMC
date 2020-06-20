@@ -800,6 +800,8 @@ class CoreForest(CoreLightConeModule):
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
+        astro_params, cosmo_params = self._update_params(ctx.getParams())
+
         lc = ctx.get("lightcone")
         lightcone_redshifts = lc.lightcone_redshifts
         lightcone_distances = lc.lightcone_distances
@@ -831,7 +833,8 @@ class CoreForest(CoreLightConeModule):
 
         # select a few number of the los according to the observation
         tau_eff = np.zeros([self.N_realization, self.Nlos])
-        f_rescale = np.zeros(self.N_realization)
+        f_rescale = ctx.getParams()['f_rescale_z5'] + ctx.getParams()['f_rescale_slope'] * (1.+self.redshift[0])/6.
+        print(ctx.getParams(), f_rescale)
 
         for jj in range(self.N_realization):
             Gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
@@ -853,11 +856,7 @@ class CoreForest(CoreLightConeModule):
                 Gamma_bg, Delta, Temp, lightcone_redshifts[index_left:index_right]
             )
 
-            f_rescale[jj] = self.find_n_rescale(tau_lyman_alpha, self.mean_F_obs)
             tau_eff[jj] = -np.log(
-                np.mean(np.exp(-tau_lyman_alpha * f_rescale[jj]), axis=1)
+                np.mean(np.exp(-tau_lyman_alpha), axis=1)
             )
-        md, low, high = np.percentile(tau_eff, [50, 16, 84])
-        mdf, lowf, highf = np.percentile(f_rescale, [50, 16, 84])
         ctx.add("tau_eff_%s" % self.name, tau_eff)
-        ctx.add("f_rescale_%s" % self.name, f_rescale)

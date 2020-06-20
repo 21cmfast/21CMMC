@@ -1395,15 +1395,15 @@ class LikelihoodForest(LikelihoodBaseFile):
             (data["zs"] > (self.redshifts[0] - 0.1))
             * (data["zs"] <= (self.redshifts[0] + 0.1))
         )[0]
-        PDFs = np.zeros([self.N_realization, self.hist_bin_size])
-        for jj in range(self.N_realization):
-            tau_eff = -np.log(
-                np.random.normal(data["flux"][targets], data["flux_err"][targets])
-            )
-            PDFs[jj] = np.histogram(
-                tau_eff, range=self.tau_range, bins=self.hist_bin_size, density=True
-            )[0]
+        PDFs = np.zeros([2, self.hist_bin_size])
 
+        PDFs[0] = np.histogram(
+            data["tau_lower"][targets], range=self.tau_range, bins=self.hist_bin_size
+        )[0]
+
+        PDFs[1] = np.histogram(
+            data["tau_upper"][targets], range=self.tau_range, bins=self.hist_bin_size
+        )[0]
         return PDFs
 
     def _read_noise(self):
@@ -1438,18 +1438,15 @@ class LikelihoodForest(LikelihoodBaseFile):
         PDFs = np.zeros([N_realization, self.hist_bin_size])
         for jj in range(N_realization):
             PDFs[jj] = np.histogram(
-                tau_eff[jj], range=self.tau_range, bins=self.hist_bin_size, density=True
+                tau_eff[jj], range=self.tau_range, bins=self.hist_bin_size
             )[0]
 
         ErrorCovarianceMatrix_CosmicVariance = np.cov(PDFs.T)
-        ErrorCovarianceMatrix_obs = np.cov(self.data.T)
         self.noise = (
             self.noise
             + ErrorCovarianceMatrix_CosmicVariance
-            + ErrorCovarianceMatrix_obs
+            + np.diag(np.ones(self.hist_bin_size) * 1e-5)
         )
-        flag = np.where(self.noise.diagonal() <= 1e-5)
-        self.noise[flag, flag] = 1e-5
 
         return np.mean(PDFs, axis=0)
 
@@ -1467,16 +1464,27 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        diff = (model - np.mean(self.data, axis=0)).reshape([1, -1])
         det = np.linalg.det(self.noise)
         if det == 0:
             logger.warning(
                 "Determinant is zero for this error covariance matrix, return -inf for lnl"
             )
-            lnl = -np.inf
-        else:
-            lnl = (
-                -0.5
-                * np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0, 0]
+            return -np.inf
+
+        diff = model - self.data[0]
+        for ii in np.where(self.data[0]!=self.data[1])[0]:
+            if model[ii] < self.data[0][ii]:
+                diff[ii] = min(0, model[ii] - self.data[1][ii])
+        diff = diff.reshape([1, -1])
+
+        lnl = (
+            -0.5
+            * np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0, 0]
+        )
+        if det < 0:
+            logger.warning(
+                "Determinant (%f) is negative for this error covariance matrix, lnl=%f, return -inf for lnl"%(det, lnl)
             )
+            return -np.inf
+        print(lnl)
         return lnl
