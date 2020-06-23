@@ -15,5 +15,3 @@ def setup_package():
     txt = "".join(a.decode() for a in global_params.external_table_path)
     txt.replace(r"\x00", "")
     print("External table path: ", txt)
-    if not os.path.exists(txt):
-        raise IOError("External table path does not exist!")
