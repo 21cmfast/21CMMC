@@ -1,4 +1,4 @@
-21cmFAST == 3.0.0dev2
+21cmFAST >= 3.0.0dev6
 astropy
 cffi
 click
