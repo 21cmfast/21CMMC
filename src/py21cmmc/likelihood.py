@@ -207,7 +207,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
 
                 else:
-                    noise.append(dict(**np.load(fl, allow_pickle=True)))
+                    noise.append(dict(np.load(fl, allow_pickle=True)))
 
             return noise
 
@@ -1020,7 +1020,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 
 
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
-    """
+    r"""
     Likelihood based on Chi^2 comparison to luminosity function data.
 
     Parameters
@@ -1035,11 +1035,17 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         at different redshifts to have different numbers of Muv bins, you
         should create multiple files, and create a separate core/likelihood
         instance pair for each, pairing them by ``name``.
+        A set of default LFs (z=6,7,8,10; Bouwens+15,16; Oesch+17) are provided
+        in the folder ``data`` where datafile and noisefile (see below) are named
+        LF_lfuncs_z*.npz and LF_sigmas_z*.npz. To use these files, a separate
+        core/likelihood instance pair for each redshift is required.
     noisefile : str, optional
         Noise should be a `.npz` file with a single array 'sigma` which gives the
         error at each of the `Muv` bins in the `datafile`. If 1D, it must have the
         same length as ``Muv``. If 2D, must have the same length as the number
         of redshifts as the first dimension.
+    mag_brightest : float, optional
+        Brightest magnitude when calculating the likelihood. Default is -20.
     name : str, optional
         A name for the instance. This is used to pair it with a particular core
         instance.
@@ -1047,7 +1053,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     required_cores = (core.CoreLuminosityFunction,)
 
-    def __init__(self, *args, name="", **kwargs):
+    def __init__(self, *args, name="", mag_brightest=-20.0, **kwargs):
         super().__init__(*args, **kwargs)
         if self.datafile is not None and len(self.datafile) != 1:
             raise ValueError(
@@ -1059,9 +1065,35 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             )
 
         self.name = str(name)
+        self.mag_brightest = mag_brightest
 
     def setup(self):
         """Setup instance."""
+        if not self._simulate:
+            if self.datafile is None:
+                if len(self.redshifts) != 1:
+                    raise ValueError(
+                        "to use the provided LFs, a separate core/likelihood instance pair for each redshift is required!"
+                    )
+                if self.redshifts[0] not in [6, 7, 8, 10]:
+                    raise ValueError(
+                        "only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
+                    )
+                self.datafile = [
+                    path.join(
+                        path.dirname(__file__),
+                        "data",
+                        "LF_lfuncs_z%d.npz" % self.redshifts[0],
+                    )
+                ]
+            if self.noisefile is None:
+                self.noisefile = [
+                    path.join(
+                        path.dirname(__file__),
+                        "data",
+                        "LF_sigmas_z%d.npz" % self.redshifts[0],
+                    )
+                ]
         super().setup()
 
         # We only allow one datafile, so get the data out of it
@@ -1130,8 +1162,11 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 model["Muv"][i][::-1], model["lfunc"][i][::-1]
             )
             lnl += -0.5 * np.sum(
-                (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i])) ** 2
-                / self.noise["sigma"][i] ** 2
+                (
+                    (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
+                    ** 2
+                    / self.noise["sigma"][i] ** 2
+                )[self.data["Muv"][i] > self.mag_brightest]
             )
         return lnl
 
