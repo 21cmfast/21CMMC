@@ -11,3 +11,4 @@ pytest-cov
 pyyaml
 scipy
 tox
+Cython

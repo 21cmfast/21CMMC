@@ -694,8 +694,6 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
 
     Parameters
     ----------
-    datafolder : str
-        folder that contains Planck data in "clik" format.
     name_lkl : str
         the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
     """
@@ -705,14 +703,12 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     def __init__(
         self,
         *args,
-        datafolder=None,
         name_lkl=None,
         A_planck_prior_center=1,
         A_planck_prior_variance=0.1,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.path_clik = datafolder
         self.name = name_lkl
         self.A_planck_prior_center = A_planck_prior_center
         self.A_planck_prior_variance = A_planck_prior_variance
@@ -738,7 +734,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
 
         self.initialize = True
         if self.initialize:
-            self.initialize_clik_and_class(self.path_clik, self.name)
+            self.initialize_clik_and_class(self.name)
 
     def reduce_data(self, ctx):
         """Get the CMB power spectra and the nuisance parameter A_planck from the coreCMB."""
@@ -874,7 +870,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
 
         return lkl
 
-    def initialize_clik_and_class(self, my_path="/path/to/clik/files", name="blah"):
+    def initialize_clik_and_class(self, name=None):
         """Initialize clik and class."""
         global my_clik_TTTEEE, my_clik_lensing, my_clik_EE, my_l_max_lensing, my_l_max_EE, my_l_max_TTTEEE
         self.initialize = False
@@ -889,6 +885,13 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                 + "]$ source /path/to/clik/bin/clik_profile.sh \n "
                 + "and try again."
             )
+	
+        my_path = path.join(path.dirname(__file__), "baseline/plc_3.0/low_l/simall/simall_100x143_offlike5_EE_Aplanck_B.clik/")
+        if not path.isdir(my_path):
+            import tarfile
+            from astropy.utils.data import download_file
+            tarfile.open(download_file('http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz', 'r:gz')).extractall()
+
         try:
             if self.lensing:
                 my_clik_lensing = clik.clik_lensing(my_path)
