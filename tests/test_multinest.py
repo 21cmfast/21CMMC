@@ -30,3 +30,5 @@ def test_multinest():
 
     nest  = pymultinest.Analyzer(4, outputfiles_basename = './MultiNest/%s'%model_name)
     data  = nest.get_data()
+
+    assert(data.shape[1]==6)
