@@ -31,7 +31,7 @@ install:
     - |
       if [ ! -d "/home/travis/.ccode/class_public" ]
       then
-        git clone https://github.com/lesgourg/class_public.git /home/travis/class_public
+        git clone https://github.com/lesgourg/class_public.git /home/travis/.ccode/class_public
         make all -C /home/travis/.ccode/class_public
       fi
     - ls /home/travis/class_public/
