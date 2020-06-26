@@ -32,17 +32,17 @@ install:
     - |
       if [ ! -d "/home/travis/class_public" ]
       then
-        git clone https://github.com/lesgourg/class_public.git
-        make all -C class_public
+        git clone https://github.com/lesgourg/class_public.git /home/travis/class_public
+        make all -C /home/travis/class_public
       fi
-    - ls class_public/
+    - ls /home/travis/class_public/
     - |
       if [ ! -d "/home/travis/code/plc_3.0/plc-3.01" ]
       then
         wget "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Code-v3.0_R3.01.tar.gz" -O COM_Likelihood_Code-v3.0_R3.01.tar.gz
-        tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz
-        bash -c 'cd ./code/plc_3.0/plc-3.01/ && ./waf configure'
-        bash -c 'cd ./code/plc_3.0/plc-3.01/ && ./waf install'
+        tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz -c /home/travis
+        bash -c 'cd /home/travis/code/plc_3.0/plc-3.01/ && ./waf configure'
+        bash -c 'cd /home/travis/code/plc_3.0/plc-3.01/ && ./waf install'
       fi
     - ls code/plc_3.0/plc-3.01/
 
