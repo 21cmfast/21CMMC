@@ -44,7 +44,8 @@ install:
         bash -c 'cd /home/travis/.ccode/code/plc_3.0/plc-3.01/ && ./waf install'
       fi
     - ls /home/travis/.ccode/code/plc_3.0/plc-3.01/
-    - bash -c 'source /home/travis/.ccode/code/plc_3.0/plc-3.01/bin/clik_profile.sh'
+    - source /home/travis/.ccode/code/plc_3.0/plc-3.01/bin/clik_profile.sh
+    - echo $CLIK_PATH
 
 # command to run tests, e.g. python setup.py test
 script:
