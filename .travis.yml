@@ -21,8 +21,7 @@ addons:
 
 cache:
   directories:
-    - /home/travis/class_public
-    - /home/travis/code/plc_3.0/plc-3.01/
+    - /home/travis/.ccode
     # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 
 install:
@@ -30,22 +29,22 @@ install:
     - pip install -U tox-travis coverage coveralls tox-pip-version Cython
     - pwd
     - |
-      if [ ! -d "/home/travis/class_public" ]
+      if [ ! -d "/home/travis/.ccode/class_public" ]
       then
         git clone https://github.com/lesgourg/class_public.git /home/travis/class_public
-        make all -C /home/travis/class_public
+        make all -C /home/travis/.ccode/class_public
       fi
     - ls /home/travis/class_public/
     - |
-      if [ ! -d "/home/travis/code/plc_3.0/plc-3.01" ]
+      if [ ! -d "/home/travis/.ccode/code/plc_3.0/plc-3.01" ]
       then
         wget "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Code-v3.0_R3.01.tar.gz" -O COM_Likelihood_Code-v3.0_R3.01.tar.gz
         tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz -c /home/travis
-        bash -c 'cd /home/travis/code/plc_3.0/plc-3.01/ && ./waf configure'
-        bash -c 'cd /home/travis/code/plc_3.0/plc-3.01/ && ./waf install'
+        bash -c 'cd /home/travis/.ccode/code/plc_3.0/plc-3.01/ && ./waf configure'
+        bash -c 'cd /home/travis/.ccode/code/plc_3.0/plc-3.01/ && ./waf install'
       fi
-    - ls /home/travis/code/plc_3.0/plc-3.01/
-    - bash -c 'source /home/travis/code/plc_3.0/plc-3.01/bin/clik_profile.sh'
+    - ls /home/travis/.ccode/code/plc_3.0/plc-3.01/
+    - bash -c 'source /home/travis/.ccode/code/plc_3.0/plc-3.01/bin/clik_profile.sh'
 
 # command to run tests, e.g. python setup.py test
 script:
