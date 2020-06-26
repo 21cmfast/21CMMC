@@ -39,7 +39,7 @@ install:
       if [ ! -d "/home/travis/.ccode/code/plc_3.0/plc-3.01" ]
       then
         wget "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Code-v3.0_R3.01.tar.gz" -O COM_Likelihood_Code-v3.0_R3.01.tar.gz
-        tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz -c /home/travis
+        tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz -C /home/travis/.ccode
         bash -c 'cd /home/travis/.ccode/code/plc_3.0/plc-3.01/ && ./waf configure'
         bash -c 'cd /home/travis/.ccode/code/plc_3.0/plc-3.01/ && ./waf install'
       fi
