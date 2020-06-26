@@ -34,6 +34,7 @@ install:
         git clone https://github.com/lesgourg/class_public.git
         make all -C class_public
       fi
+    - ls class_public/
     - |
       if [ ! -d "/home/travis/code/plc_3.0/plc-3.01" ]
       then
@@ -42,6 +43,7 @@ install:
         bash -c 'cd ./code/plc_3.0/plc-3.01/ && ./waf configure'
         bash -c 'cd ./code/plc_3.0/plc-3.01/ && ./waf install'
       fi
+    - ls code/plc_3.0/plc-3.01/
 
 # command to run tests, e.g. python setup.py test
 script:
