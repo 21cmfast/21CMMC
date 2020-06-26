@@ -48,7 +48,7 @@ install:
 
 # command to run tests, e.g. python setup.py test
 script:
-  - tox
+  - CLASS_DIR=/home/travis/.ccode/class_public tox
   - coverage report
 
 
