@@ -19,11 +19,27 @@ addons:
     - libcfitsio-dev
     update: true
 
+cache:
+  directories:
+    - /home/travis/class_public
+    - /home/travis/code/plc_3.0/plc-3.01/
+    # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 
-# command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 install:
     - which python
     - pip install -U tox-travis coverage coveralls tox-pip-version Cython
+    - |
+      if [ ! -d "/home/travis/class_public" ] then
+        git clone https://github.com/lesgourg/class_public.git
+        make all -C class_public
+      fi
+    - |
+      if [ ! -d "/home/travis/code/plc_3.0/plc-3.01" ] then
+        wget "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Code-v3.0_R3.01.tar.gz" -O COM_Likelihood_Code-v3.0_R3.01.tar.gz
+        tar zxvf COM_Likelihood_Code-v3.0_R3.01.tar.gz
+        bash -c 'cd ./code/plc_3.0/plc-3.01/ && ./waf configure'
+        bash -c 'cd ./code/plc_3.0/plc-3.01/ && ./waf install'
+      fi
 
 # command to run tests, e.g. python setup.py test
 script:
