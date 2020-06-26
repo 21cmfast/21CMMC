@@ -34,7 +34,7 @@ install:
         git clone https://github.com/lesgourg/class_public.git /home/travis/.ccode/class_public
         make all -C /home/travis/.ccode/class_public
       fi
-    - ls /home/travis/class_public/
+    - ls /home/travis/.ccode/class_public/
     - |
       if [ ! -d "/home/travis/.ccode/code/plc_3.0/plc-3.01" ]
       then
