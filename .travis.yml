@@ -28,6 +28,7 @@ cache:
 install:
     - which python
     - pip install -U tox-travis coverage coveralls tox-pip-version Cython
+    - pwd
     - |
       if [ ! -d "/home/travis/class_public" ]
       then
