@@ -16,6 +16,7 @@ addons:
     - gfortran
     - libblas-dev
     - liblapack-dev
+    - cfitsio-dev
     update: true
 
 
