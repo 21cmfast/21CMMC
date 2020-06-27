@@ -885,12 +885,22 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                 + "]$ source /path/to/clik/bin/clik_profile.sh \n "
                 + "and try again."
             )
-	
-        my_path = path.join(path.dirname(__file__), "baseline/plc_3.0/low_l/simall/simall_100x143_offlike5_EE_Aplanck_B.clik/")
+
+        my_path = path.join(
+            "%s/.ccode/baseline/plc_3.0/low_l/simall/simall_100x143_offlike5_EE_Aplanck_B.clik"
+            % path.expanduser("~")
+        )
+        print(my_path)
         if not path.isdir(my_path):
             import tarfile
             from astropy.utils.data import download_file
-            tarfile.open(download_file('http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz', 'r:gz')).extractall()
+
+            tarfile.open(
+                download_file(
+                    "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz",
+                    "r:gz",
+                )
+            ).extractall(path.expanduser("~/.ccode"))
 
         try:
             if self.lensing:
@@ -946,11 +956,7 @@ class LikelihoodPlanck(LikelihoodBase):
     required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
 
     def __init__(
-        self,
-        *args,
-        tau_mean = 0.0544,
-        tau_sigma = 0.0073,
-        **kwargs,
+        self, *args, tau_mean=0.0544, tau_sigma=0.0073, **kwargs,
     ):
         super().__init__(*args, **kwargs)
 

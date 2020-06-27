@@ -431,17 +431,47 @@ def test_wrong_ctx_variable():
 def test_wrong_lf_paring():
     redshifts = [6, 7, 8, 10]
     with pytest.raises(ValueError):
-        cores = [ mcmc.CoreLuminosityFunction( redshift=z, sigma=0, name='lf') for z in redshifts ]
-        lks   = [ mcmc.LikelihoodLuminosityFunction(name='lf') for z in redshifts ]
-        chain = mcmc.build_computation_chain(cores, lks, setup=True)
+        cores = [
+            mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name="lf")
+            for z in redshifts
+        ]
+        lks = [mcmc.LikelihoodLuminosityFunction(name="lf") for z in redshifts]
+        mcmc.build_computation_chain(cores, lks, setup=True)
 
-    cores = [ mcmc.CoreLuminosityFunction( redshift=z, sigma=0, name='lfz%d'%z) for z in redshifts ]
-    lks   = [ mcmc.LikelihoodLuminosityFunction(name='lfz%d'%z) for z in redshifts ]
-    chain = mcmc.build_computation_chain(cores, lks, setup=True)
+    cores = [
+        mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name="lfz%d" % z)
+        for z in redshifts
+    ]
+    lks = [mcmc.LikelihoodLuminosityFunction(name="lfz%d" % z) for z in redshifts]
+    mcmc.build_computation_chain(cores, lks, setup=True)
 
 
 def test_wrong_lf_redshift():
     with pytest.raises(ValueError):
-        cores = [ mcmc.CoreLuminosityFunction( redshift=9, sigma=0, name='lf'), ]
-        lks   = [ mcmc.LikelihoodLuminosityFunction(name='lf'), ]
-        chain = mcmc.build_computation_chain(cores, lks, setup=True)
+        cores = [
+            mcmc.CoreLuminosityFunction(redshift=9, sigma=0, name="lf"),
+        ]
+        lks = [
+            mcmc.LikelihoodLuminosityFunction(name="lf"),
+        ]
+        mcmc.build_computation_chain(cores, lks, setup=True)
+
+
+def test_planckpowerspectra(default_params, tmpdirec):
+    global_params = {"Z_HEAT_MAX": 20.0, "ZPRIME_STEP_FACTOR": 1.1}
+
+    mcmc.run_mcmc(
+        [
+            mcmc.CoreLightConeModule(redshift=5.0, global_params=global_params),
+            mcmc.CoreCMB(),
+        ],
+        mcmc.LikelihoodPlanckPowerSpectra(name_lkl="Planck_lowl_EE"),
+        model_name="TESTPLANCK",
+        continue_sampling=False,
+        datadir=tmpdirec.strpath,
+        params=default_params,
+        walkersRatio=2,
+        burninIterations=0,
+        sampleIterations=2,
+        threadCount=1,
+    )

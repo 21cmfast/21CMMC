@@ -738,7 +738,7 @@ class CoreCMB(CoreBase):
 
     def setup(self):
         """Perform any post-init setup of the object."""
-        super().setup(self)
+        super().setup()
 
     def _update_params(self, params):
         """
