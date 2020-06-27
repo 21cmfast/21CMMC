@@ -55,6 +55,7 @@ install:
       fi
     - ls /home/travis/.ccode/MultiNest/
     - |
+    - export LD_LIBRARY_PATH="/home/travis/.ccode/MultiNest/lib/:$LD_LIBRARY_PATH"
 
 # command to run tests, e.g. python setup.py test
 script:
