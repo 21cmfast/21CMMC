@@ -46,6 +46,15 @@ install:
     - ls /home/travis/.ccode/code/plc_3.0/plc-3.01/
     - source /home/travis/.ccode/code/plc_3.0/plc-3.01/bin/clik_profile.sh
     - echo $CLIK_PATH
+    - |
+      if [ ! -d "/home/travis/.ccode/MultiNest" ]
+      then
+        git clone https://github.com/JohannesBuchner/MultiNest /home/travis/.ccode/MultiNest
+        cmake -B /home/travis/.ccode/MultiNest/build/ -S /home/travis/.ccode/MultiNest/
+        make && make all
+      fi
+    - ls /home/travis/.ccode/MultiNest/
+    - |
 
 # command to run tests, e.g. python setup.py test
 script:

@@ -6,6 +6,9 @@ dependencies. Thus, you must ensure that these dependencies (usually system-wide
 are installed *before* attempting to install ``21CMMC``. See
 https://21cmfast.readthedocs.org/en/latest/installation for details on these dependencies.
 
+To use the MultiNest sampler, you will also need to install ``multinest`` and its 
+Python interface ``pymultinest``.
+
 Then follow the instructions below, depending on whether you are a user or developer.
 
 For Users
