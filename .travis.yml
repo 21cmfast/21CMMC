@@ -10,11 +10,15 @@ addons:
     packages:
     - libfftw3-dev
     - libgsl0-dev
+    - libblas-dev
+    - liblapack-dev
+    - gfortran
     update: true
 
-
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
-install: pip install -U tox-travis coverage coveralls tox-pip-version
+install: 
+  - pip install -U tox-travis coverage coveralls tox-pip-version
+  - export LD_LIBRARY_PATH="/usr/local/lib/:$LD_LIBRARY_PATH"
 
 # command to run tests, e.g. python setup.py test
 script:

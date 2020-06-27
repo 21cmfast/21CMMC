@@ -75,5 +75,7 @@ setup(
         "powerbox>=0.5.7",
         "cached_property",
         "21cmFAST>=3.0.0dev1",
+        "pymultinest",
     ],
+    extras_require={"samplers": ["pymultinest"]},
 )
