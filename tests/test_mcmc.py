@@ -465,9 +465,8 @@ def test_planckpowerspectra(default_params, tmpdirec):
             mcmc.CoreLightConeModule(
                 redshift=5.0, user_params=user_params, global_params=global_params
             ),
-            mcmc.CoreCMB(z_extrap_max=global_params['Z_HEAT_MAX']+1),
         ],
-        mcmc.LikelihoodPlanckPowerSpectra(name_lkl="Planck_lowl_EE"),
+        mcmc.LikelihoodPlanck()
         model_name="TESTPLANCK",
         continue_sampling=False,
         datadir=tmpdirec.strpath,
