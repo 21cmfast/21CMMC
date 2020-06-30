@@ -458,10 +458,12 @@ def test_wrong_lf_redshift():
 
 
 def test_planckpowerspectra(default_params, tmpdirec):
+    global_params = {'Z_HEAT_MAX': 20.0, 'ZPRIME_STEP_FACTOR': 1.1}
+    user_params   = {"HII_DIM": 35, "DIM": 70}
     mcmc.run_mcmc(
         [
             mcmc.CoreLightConeModule(
-                redshift=7.0, max_redshift=8.0, user_params={"HII_DIM": 35, "DIM": 70}
+                redshift=5.0, user_params=user_params, global_params=global_params
             ),
             mcmc.CoreCMB(z_extrap_max=9.0),
         ],
