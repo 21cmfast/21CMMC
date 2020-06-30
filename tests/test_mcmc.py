@@ -458,14 +458,12 @@ def test_wrong_lf_redshift():
 
 
 def test_planckpowerspectra(default_params, tmpdirec):
-    global_params = {'Z_HEAT_MAX': 20.0, 'ZPRIME_STEP_FACTOR': 1.02}
+    global_params = {'Z_HEAT_MAX': 20.0, 'ZPRIME_STEP_FACTOR': 1.1}
     user_params   = {'HII_DIM':128, 'BOX_LEN':250.0}
-    flag_options = {'USE_MASS_DEPENDENT_ZETA': True, 'INHOMO_RECO': True, 'PHOTON_CONS': False}
+    flag_options = {'USE_MASS_DEPENDENT_ZETA': True, 'INHOMO_RECO': False, 'PHOTON_CONS': False}
     mcmc.run_mcmc(
         [
-            mcmc.CoreLightConeModule(
-                redshift=5.0, user_params=user_params, global_params=global_params, flag_options=flag_options,
-            ),
+            mcmc.CoreLightConeModule(redshift=5.0, user_params=user_params, global_params=global_params, flag_options=flag_options),
             mcmc.CoreCMB(z_extrap_max=global_params['Z_HEAT_MAX']+1),
         ],
         [
@@ -485,6 +483,6 @@ def test_planckpowerspectra(default_params, tmpdirec):
         ),
         walkersRatio=2,
         burninIterations=0,
-        sampleIterations=2,
+        sampleIterations=1,
         threadCount=1,
     )
