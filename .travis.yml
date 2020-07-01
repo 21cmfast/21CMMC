@@ -32,6 +32,7 @@ install:
       if [ ! -d "/home/travis/.ccode/class_public" ]
       then
         git clone https://github.com/lesgourg/class_public.git /home/travis/.ccode/class_public
+        git --git-dir=/home/travis/.ccode/class_public/.git --work-tree=/home/travis/.ccode/class_public checkout 63f3cf18fad0061688b8bf9
         make all -C /home/travis/.ccode/class_public
       fi
     - ls /home/travis/.ccode/class_public/
