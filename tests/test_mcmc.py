@@ -463,7 +463,7 @@ def test_planckpowerspectra(lc_core, default_params, tmpdirec):
 	    lc_core,
             mcmc.CoreCMB(z_extrap_max=30),
         ],
-        mcmc.LikelihoodPlanckPowerSpectra(name_lkl="Planck_lowl_EE"),
+        mcmc.LikelihoodPlanck(),#PowerSpectra(name_lkl="Planck_lowl_EE"),
         model_name="TESTPLANCK",
         continue_sampling=False,
         datadir=tmpdirec.strpath,
