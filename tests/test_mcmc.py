@@ -457,32 +457,19 @@ def test_wrong_lf_redshift():
         mcmc.build_computation_chain(cores, lks, setup=True)
 
 
-def test_planckpowerspectra(default_params, tmpdirec):
-    global_params = {'Z_HEAT_MAX': 20.0, 'ZPRIME_STEP_FACTOR': 1.1}
-    user_params   = {'HII_DIM':128, 'BOX_LEN':250.0}
-    flag_options = {'USE_MASS_DEPENDENT_ZETA': True, 'INHOMO_RECO': False, 'PHOTON_CONS': False}
+def test_planckpowerspectra(lc_core, default_params, tmpdirec):
     mcmc.run_mcmc(
         [
-            mcmc.CoreLightConeModule(redshift=5.0, user_params=user_params, global_params=global_params, flag_options=flag_options),
-            mcmc.CoreCMB(z_extrap_max=global_params['Z_HEAT_MAX']+1),
+	    lc_core,
+            mcmc.CoreCMB(z_extrap_max=30),
         ],
-        [
-            mcmc.LikelihoodPlanckPowerSpectra(name_lkl="Planck_lowl_EE"),
-            mcmc.LikelihoodPlanck(),
-        ],
+        mcmc.LikelihoodPlanckPowerSpectra(name_lkl="Planck_lowl_EE"),
         model_name="TESTPLANCK",
         continue_sampling=False,
         datadir=tmpdirec.strpath,
-        params=dict(             # Parameter dict as described above.
-            F_STAR10 = [-1.3, -3, 0, 1.0],
-            ALPHA_STAR = [0.5, -0.5, 1.0, 1.0],
-            F_ESC10 = [-1, -3, 0, 1.0],
-            ALPHA_ESC = [-0.5, -1.0, 0.5, 1.0],
-            M_TURN = [8.69897, 8, 10, 1.0],
-            t_STAR = [0.5, 0.01, 1, 0.5],
-        ),
+        params=default_params,
         walkersRatio=2,
         burninIterations=0,
-        sampleIterations=1,
+        sampleIterations=2,
         threadCount=1,
     )
