@@ -871,6 +871,8 @@ class CoreCMB(CoreBase):
         # call CLASS
         #
         ###############
+        print(redshift_class)
+        print(xe)
 
         cosmo.set(common_settings)
         cosmo.compute()
@@ -881,9 +883,13 @@ class CoreCMB(CoreBase):
             ctx.add("zs", thermo["z"][flag])
             ctx.add("xHI", 1.0 - thermo["x_e"][flag] / 1.0818709330934035)
         cl = self.get_cl(cosmo)
+        print(redshift_class)
+        print(xe)
         cosmo.struct_cleanup()
         cosmo.empty()
         ctx.add("cl_cmb", cl)
+        print(redshift_class)
+        print(xe)
 
     def get_cl(self, cosmo, l_max=-1):
         r"""Return the :math:`C_{\\ell}` from the cosmological code in :math:`\\mu {\\rm K}^2`."""
