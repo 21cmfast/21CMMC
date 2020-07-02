@@ -668,10 +668,6 @@ class CoreForest(CoreLightConeModule):
     observation : str
         The observation that is used to construct the tau_eff statisctic.
 
-    mean_F_obs : float, optional
-        The mean flux to rescale the modelled optical depth, if None, mean_F_obs will be
-        calculated using the provided observational data directly.
-
     N_realization : int
         The number of realizations to evaluate the error covariance matrix, default is 150
 
@@ -682,16 +678,10 @@ class CoreForest(CoreLightConeModule):
     """
 
     def __init__(
-        self,
-        name="",
-        observation="bosman_optimistic",
-        mean_F_obs=None,
-        N_realization=150,
-        **kwargs,
+        self, name="", observation="bosman_optimistic", N_realization=150, **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
-        self.mean_F_obs = mean_F_obs
         self.N_realization = N_realization
         super().__init__(**kwargs)
 
@@ -706,8 +696,6 @@ class CoreForest(CoreLightConeModule):
             targets = (data["zs"] > self.redshift[0] - 0.1) * (
                 data["zs"] <= self.redshift[0] + 0.1
             )
-            if self.mean_F_obs is None:
-                self.mean_F_obs = np.mean(data["flux"][targets])
             self.Nlos = sum(targets)
             self.bin_size = 50
         else:
@@ -833,8 +821,10 @@ class CoreForest(CoreLightConeModule):
 
         # select a few number of the los according to the observation
         tau_eff = np.zeros([self.N_realization, self.Nlos])
-        f_rescale = ctx.getParams()['f_rescale_z5'] + ctx.getParams()['f_rescale_slope'] * (1.+self.redshift[0])/6.
-        print(ctx.getParams(), f_rescale)
+
+        f_rescale = 10 ** ctx.getParams()["log10_f_rescale"] + ctx.getParams()[
+            "f_rescale_slope"
+        ] * (self.redshift[0] - 5.7)
 
         for jj in range(self.N_realization):
             Gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
@@ -856,7 +846,5 @@ class CoreForest(CoreLightConeModule):
                 Gamma_bg, Delta, Temp, lightcone_redshifts[index_left:index_right]
             )
 
-            tau_eff[jj] = -np.log(
-                np.mean(np.exp(-tau_lyman_alpha), axis=1)
-            )
+            tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
         ctx.add("tau_eff_%s" % self.name, tau_eff)
