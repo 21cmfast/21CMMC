@@ -801,8 +801,8 @@ class CoreCMB(CoreBase):
 
             # Translate xHI into xe for CLASS.
             # The option -1, -2 ensure helium first and second reionization respectively at z_HeI and z_HeII.
-            redshift_class = np.concatenate(([0, z_HeII, z_HeI], redshifts[xe>0], [z_xe_0]))
             xe = 1 - xHI
+            redshift_class = np.concatenate(([0, z_HeII, z_HeI], redshifts[xe>0], [z_xe_0]))
             xe = np.concatenate(([-2, -2, -1], xe[xe>0], [0]))
 
             common_settings = {
