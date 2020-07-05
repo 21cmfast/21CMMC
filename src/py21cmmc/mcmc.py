@@ -63,6 +63,7 @@ def run_mcmc(
     reuse_burnin=True,
     log_level_21CMMC=None,
     sampler_cls=CosmoHammerSampler,
+    use_multinest=False,
     **mcmc_options,
 ) -> CosmoHammerSampler:
     r"""Run an MCMC chain.
@@ -96,6 +97,8 @@ def run_mcmc(
         re-compute the samples themselves.
     log_level_21CMMC : (int or str, optional)
         The logging level of the cosmoHammer log file.
+    use_multinest : bool, optional
+        If true, use the MultiNest sampler instead.
 
     Other Parameters
     ----------------
@@ -105,15 +108,44 @@ def run_mcmc(
         options such as ``walkersRatio`` (the number of walkers is
         ``walkersRatio*nparams``), ``sampleIterations``, ``burninIterations``, ``pool``,
         ``log_level_stream`` and ``threadCount``.
+        If use_multinest, parameters required by MultiNest as shown below should be
+        provided here.
+    n_live_points : int, optional
+        number of live points
+    importance_nested_sampling : bool, optional
+        If True, Multinest will use Importance Nested Sampling (INS).
+    sampling_efficiency : float, optional
+        defines the sampling efficiency. 0.8 and 0.3 are recommended for parameter 
+        estimation & evidence evalutation
+    evidence_tolerance : float, optional
+        A value of 0.5 should give good enough accuracy.
+    max_iter : int, optional
+        maximum number of iterations. 0 is unlimited.
+    multimodal : bool, optional
+        whether or not to detect multi mode
+    write_output : bool, optional
+        write output files? This is required for analysis.
 
     Returns
     -------
     sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
         The sampler object, from which the chain itself may be accessed (via the
-        ``samples`` attribute).
+        ``samples`` attribute). If use_multinest, return multinest sampler 
     """
     file_prefix = path.join(datadir, model_name)
-
+    if use_multinest:
+        n_live_points = mcmc_options.get('n_live_points', 100)
+        importance_nested_sampling = mcmc_options.get('importance_nested_sampling', True)
+        sampling_efficiency = mcmc_options.get('sampling_efficiency', 0.8)
+        evidence_tolerance = mcmc_options.get('evidence_tolerance', 0.5)
+        max_iter = mcmc_options.get('max_iter', 50)
+        multimodal = mcmc_options.get('multimodal', True)
+        write_output = mcmc_options.get('write_output', True)
+        datadir = datadir + "/MultiNest/"
+        try:
+            from pymultinest import run
+        except ImportError:
+            raise ImportError("You need to install pymultinest to use this function!")
     try:
         mkdir(datadir)
     except FileExistsError:
@@ -127,7 +159,7 @@ def run_mcmc(
         core_modules, likelihood_modules, params, setup=False
     )
 
-    if continue_sampling:
+    if continue_sampling and not use_multinest:
         try:
             with open(file_prefix + ".LCC.yml", "r") as f:
                 old_chain = yaml.load(f)
@@ -172,19 +204,56 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
     if log_level_21CMMC is not None:
         logging.getLogger("21CMMC").setLevel(log_level_21CMMC)
 
-    sampler = sampler_cls(
-        continue_sampling=continue_sampling,
-        likelihoodComputationChain=chain,
-        storageUtil=HDFStorageUtil(file_prefix),
-        filePrefix=file_prefix,
-        reuseBurnin=reuse_burnin,
-        pool=mcmc_options.get(
-            "pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))
-        ),
-        **mcmc_options,
-    )
+    if use_multinest:
+        def likelihood(p, ndim, nparams):
+            input = [
+                params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)
+            ]
+            return chain.computeLikelihoods(
+                chain.build_model_data(
+                    Params(*[(k, v) for k, v in zip(params.keys, input)])
+                )
+            )
 
-    # The sampler writes to file, so no need to save anything ourselves.
-    sampler.startSampling()
+        def prior(p, ndim, nparams):
+            p = [params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)]
 
-    return sampler
+        try:
+            sampler = run(
+                likelihood,
+                prior,
+                n_dims=len(params.keys),
+                n_params=len(params.keys),
+                n_live_points=n_live_points,
+                resume=continue_sampling,
+                write_output=write_output,
+                outputfiles_basename=datadir + model_name,
+                max_iter=max_iter,
+                importance_nested_sampling=importance_nested_sampling,
+                multimodal=multimodal,
+                evidence_tolerance=evidence_tolerance,
+                sampling_efficiency=sampling_efficiency,
+                init_MPI=False,
+            )
+            return 1
+
+        except OSError:
+            raise ImportError("You also need to build MultiNest library. See https://johannesbuchner.github.io/PyMultiNest/install.html#id4 for more information.")
+
+    else:
+        sampler = sampler_cls(
+            continue_sampling=continue_sampling,
+            likelihoodComputationChain=chain,
+            storageUtil=HDFStorageUtil(file_prefix),
+            filePrefix=file_prefix,
+            reuseBurnin=reuse_burnin,
+            pool=mcmc_options.get(
+                "pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))
+            ),
+            **mcmc_options,
+        )
+    
+        # The sampler writes to file, so no need to save anything ourselves.
+        sampler.startSampling()
+    
+        return sampler
