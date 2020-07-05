@@ -701,11 +701,11 @@ class CoreForest(CoreLightConeModule):
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
 
-            if self.Nlos * self.N_realization > self.user_params.HII_DIM ** 2:
-                raise ValueError(
-                    "You asked for %d realizations, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
-                    % (self.N_realization, self.user_params.HII_DIM ** 2, self.Nlos)
-                )
+        if self.Nlos * self.N_realization > self.user_params.HII_DIM ** 2:
+            raise ValueError(
+                "You asked for %d realizations, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
+                % (self.N_realization, self.user_params.HII_DIM ** 2, self.Nlos)
+            )
 
     def setup(self):
         """Run post-init setup."""
@@ -822,9 +822,22 @@ class CoreForest(CoreLightConeModule):
         # select a few number of the los according to the observation
         tau_eff = np.zeros([self.N_realization, self.Nlos])
 
-        f_rescale = 10 ** ctx.getParams()["log10_f_rescale"] + ctx.getParams()[
-            "f_rescale_slope"
-        ] * (self.redshift[0] - 5.7)
+        if not hasattr(ctx.getParams(), "log10_f_rescale"):
+            logger.warning(
+                f"missing input hyper parameter, log10_f_rescale, assigning 0!"
+            )
+            f_rescale = 1
+        else:
+            f_rescale = 10 ** ctx.getParams().log10_f_rescale
+
+        if not hasattr(ctx.getParams(), "f_rescale_slope"):
+            logger.warning(
+                f"missing input hyper parameter, f_rescale_slope, assigning 0!"
+            )
+        else:
+            f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
+
+        print(f_rescale)
 
         for jj in range(self.N_realization):
             Gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
