@@ -1,7 +1,6 @@
 import os
-import tracemalloc
-
 import psutil
+import tracemalloc
 
 import py21cmmc
 from py21cmmc import mcmc

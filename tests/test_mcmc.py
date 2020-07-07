@@ -1,31 +1,52 @@
-import os
-
 import pytest
 
+import logging
 import numpy as np
+import os
+from pathlib import Path
+from py21cmfast import LightCone
 
 import py21cmmc as mcmc
-from py21cmfast import LightCone
-from py21cmmc.cosmoHammer import CosmoHammerSampler
-from py21cmmc.cosmoHammer import HDFStorageUtil
-from py21cmmc.cosmoHammer import LikelihoodComputationChain
-from py21cmmc.cosmoHammer import Params
+from py21cmmc.cosmoHammer import (
+    CosmoHammerSampler,
+    HDFStorageUtil,
+    LikelihoodComputationChain,
+    Params,
+)
 
 
 @pytest.fixture(scope="module")
-def core():
+def core(cache: Path):
     return mcmc.CoreCoevalModule(
         redshift=9,
         user_params={"HII_DIM": 35, "DIM": 70},
         cache_mcmc=False,
-        cache_init=False,
+        cache_dir=str(cache),
     )
 
 
 @pytest.fixture(scope="module")
-def likelihood_coeval(tmpdirec):
+def core_lc(cache: Path):
+    return mcmc.CoreLightConeModule(
+        redshift=9,
+        max_redshift=11,
+        user_params={"HII_DIM": 35, "DIM": 70},
+        cache_mcmc=False,
+        cache_dir=str(cache),
+    )
+
+
+@pytest.fixture(scope="module")
+def likelihood_coeval(tmpdirec: Path):
     return mcmc.Likelihood1DPowerCoeval(
-        simulate=True, datafile=os.path.join(tmpdirec.strpath, "likelihood_coeval.npz")
+        simulate=True, datafile=str(tmpdirec / "likelihood_coeval.npz")
+    )
+
+
+@pytest.fixture(scope="module")
+def likelihood_lc(tmpdirec: Path):
+    return mcmc.Likelihood1DPowerLightcone(
+        simulate=True, datafile=str(tmpdirec / "likelihood_lc.npz")
     )
 
 
@@ -80,13 +101,35 @@ def test_core_coeval_setup(core, likelihood_coeval):
     assert not np.all(ctx.get("brightness_temp") == 0)
 
 
+def test_core_coeval_init_cache(core, likelihood_coeval, caplog):
+    """Ensures that perturb_field boxes are read in, rather than re-computed."""
+    with caplog.at_level(logging.INFO):
+        chain = mcmc.build_computation_chain(core, likelihood_coeval, setup=True)
+        print(caplog.text)
+    with caplog.at_level(logging.INFO):
+        chain.build_model_data()
+        assert "perturb_field boxes found and read in" in caplog.text
+
+
+def test_core_lc_init_cache(core_lc, likelihood_lc, caplog):
+    """Ensures that perturb_field boxes are read in, rather than re-computed."""
+    chain = mcmc.build_computation_chain(core_lc, likelihood_lc, setup=True)
+
+    with caplog.at_level(logging.INFO):
+        ctx = chain.build_model_data()
+        for z in ctx.get("lightcone").node_redshifts:
+            assert (
+                f"Existing z={z} perturb_field boxes found and read in" in caplog.text
+            )
+
+
 def test_mcmc(core, likelihood_coeval, default_params, tmpdirec):
     chain = mcmc.run_mcmc(
         core,
         likelihood_coeval,
         model_name="TEST",
         continue_sampling=False,
-        datadir=tmpdirec.strpath,
+        datadir=str(tmpdirec),
         params=default_params,
         walkersRatio=2,
         burninIterations=0,
@@ -95,7 +138,7 @@ def test_mcmc(core, likelihood_coeval, default_params, tmpdirec):
     )
 
     samples_from_chain = mcmc.get_samples(chain)
-    samples_from_file = mcmc.get_samples(os.path.join(tmpdirec.strpath, "TEST"))
+    samples_from_file = mcmc.get_samples(tmpdirec / "TEST")
 
     # make sure reading from file is the same as the chain.
     assert samples_from_chain.iteration == samples_from_file.iteration
@@ -117,7 +160,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
             likelihood_coeval,
             model_name="TESTBURNIN",
             continue_sampling=False,
-            datadir=tmpdirec.strpath,
+            datadir=str(tmpdirec),
             params=default_params,
             walkersRatio=2,
             burninIterations=1,
@@ -130,7 +173,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
         likelihood_coeval,
         model_name="TESTBURNIN",
         continue_sampling=False,
-        datadir=tmpdirec.strpath,
+        datadir=str(tmpdirec),
         params=default_params,
         walkersRatio=2,
         burninIterations=1,
@@ -148,7 +191,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
         likelihood_coeval,
         model_name="TESTBURNIN",
         continue_sampling=True,
-        datadir=tmpdirec.strpath,
+        datadir=tmpdirec,
         params=default_params,
         walkersRatio=2,
         burninIterations=2,
@@ -174,7 +217,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
         likelihood_coeval,
         model_name="TESTBURNIN",
         continue_sampling=True,
-        datadir=tmpdirec.strpath,
+        datadir=tmpdirec,
         params=default_params,
         walkersRatio=2,
         burninIterations=2,
@@ -199,7 +242,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
             likelihood_coeval,
             model_name="TESTBURNIN",
             continue_sampling=True,
-            datadir=tmpdirec.strpath,
+            datadir=tmpdirec,
             params=default_params,
             walkersRatio=2,
             burninIterations=2,
@@ -219,7 +262,7 @@ def test_bad_continuation(core, likelihood_coeval, default_params, tmpdirec):
         likelihood_coeval,
         model_name="TESTBURNIN",
         continue_sampling=False,
-        datadir=tmpdirec.strpath,
+        datadir=tmpdirec,
         params=default_params,
         walkersRatio=2,
         burninIterations=0,
@@ -240,7 +283,7 @@ def test_bad_continuation(core, likelihood_coeval, default_params, tmpdirec):
             likelihood_coeval,
             model_name="TESTBURNIN",
             continue_sampling=True,
-            datadir=tmpdirec.strpath,
+            datadir=tmpdirec,
             params=default_params,
             walkersRatio=2,
             burninIterations=0,
@@ -259,8 +302,8 @@ def test_init_pos_generator_good(core, likelihood_coeval, tmpdirec):
     sampler = CosmoHammerSampler(
         continue_sampling=False,
         likelihoodComputationChain=chain,
-        storageUtil=HDFStorageUtil(os.path.join(tmpdirec.strpath, "POSGENERATORTEST")),
-        filePrefix=os.path.join(tmpdirec.strpath, "POSGENERATORTEST"),
+        storageUtil=HDFStorageUtil(str(tmpdirec / "POSGENERATORTEST")),
+        filePrefix=str(tmpdirec / "POSGENERATORTEST"),
         reuseBurnin=False,
         burninIterations=0,
         sampleIterations=1,
@@ -283,8 +326,8 @@ def test_init_pos_generator_bad(core, likelihood_coeval, tmpdirec):
     sampler = CosmoHammerSampler(
         continue_sampling=False,
         likelihoodComputationChain=chain,
-        storageUtil=HDFStorageUtil(os.path.join(tmpdirec.strpath, "POSGENERATORTEST")),
-        filePrefix=os.path.join(tmpdirec.strpath, "POSGENERATORTEST"),
+        storageUtil=HDFStorageUtil(str(tmpdirec / "POSGENERATORTEST")),
+        filePrefix=str(tmpdirec / "POSGENERATORTEST"),
         reuseBurnin=False,
         burninIterations=0,
         sampleIterations=1,
@@ -401,7 +444,7 @@ def test_load_chain(core, likelihood_coeval, default_params, tmpdirec):
         likelihood_coeval,
         model_name="TESTLOADCHAIN",
         continue_sampling=False,
-        datadir=tmpdirec.strpath,
+        datadir=tmpdirec,
         params=default_params,
         walkersRatio=2,
         burninIterations=0,
@@ -409,7 +452,7 @@ def test_load_chain(core, likelihood_coeval, default_params, tmpdirec):
         threadCount=1,
     )
 
-    lcc = mcmc.load_primitive_chain("TESTLOADCHAIN", direc=tmpdirec.strpath)
+    lcc = mcmc.load_primitive_chain("TESTLOADCHAIN", direc=tmpdirec)
 
     assert lcc.getCoreModules()[0].redshift == core.redshift
 
@@ -431,17 +474,27 @@ def test_wrong_ctx_variable():
 def test_wrong_lf_paring():
     redshifts = [6, 7, 8, 10]
     with pytest.raises(ValueError):
-        cores = [ mcmc.CoreLuminosityFunction( redshift=z, sigma=0, name='lf') for z in redshifts ]
-        lks   = [ mcmc.LikelihoodLuminosityFunction(name='lf') for z in redshifts ]
-        chain = mcmc.build_computation_chain(cores, lks, setup=True)
+        cores = [
+            mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name="lf")
+            for z in redshifts
+        ]
+        lks = [mcmc.LikelihoodLuminosityFunction(name="lf") for z in redshifts]
+        mcmc.build_computation_chain(cores, lks, setup=True)
 
-    cores = [ mcmc.CoreLuminosityFunction( redshift=z, sigma=0, name='lfz%d'%z) for z in redshifts ]
-    lks   = [ mcmc.LikelihoodLuminosityFunction(name='lfz%d'%z) for z in redshifts ]
-    chain = mcmc.build_computation_chain(cores, lks, setup=True)
+    cores = [
+        mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name="lfz%d" % z)
+        for z in redshifts
+    ]
+    lks = [mcmc.LikelihoodLuminosityFunction(name="lfz%d" % z) for z in redshifts]
+    mcmc.build_computation_chain(cores, lks, setup=True)
 
 
 def test_wrong_lf_redshift():
     with pytest.raises(ValueError):
-        cores = [ mcmc.CoreLuminosityFunction( redshift=9, sigma=0, name='lf'), ]
-        lks   = [ mcmc.LikelihoodLuminosityFunction(name='lf'), ]
-        chain = mcmc.build_computation_chain(cores, lks, setup=True)
+        cores = [
+            mcmc.CoreLuminosityFunction(redshift=9, sigma=0, name="lf"),
+        ]
+        lks = [
+            mcmc.LikelihoodLuminosityFunction(name="lf"),
+        ]
+        mcmc.build_computation_chain(cores, lks, setup=True)

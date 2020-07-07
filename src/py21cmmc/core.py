@@ -8,9 +8,8 @@ import copy
 import inspect
 import logging
 import numpy as np
-import warnings
-
 import py21cmfast as p21
+import warnings
 
 from . import _utils as ut
 
@@ -423,7 +422,7 @@ class CoreCoevalModule(CoreBase):
             cosmo_params=cosmo_params,
             flag_options=self.flag_options,
             user_params=self.user_params,
-            regenerate=self.regenerate,
+            regenerate=False,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
@@ -538,7 +537,7 @@ class CoreLightConeModule(CoreCoevalModule):
             flag_options=self.flag_options,
             cosmo_params=cosmo_params,
             user_params=self.user_params,
-            regenerate=self.regenerate,
+            regenerate=False,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],

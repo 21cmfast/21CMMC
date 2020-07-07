@@ -1,21 +1,19 @@
 """A set of extensions to the basic ``CosmoHammer`` package."""
-
+import emcee
 import gc
+import h5py
 import logging
+import numpy as np
 import os
 import time
 import warnings
-
-import emcee
-import h5py
-import numpy as np
 from cosmoHammer import CosmoHammerSampler as _CosmoHammerSampler
 from cosmoHammer import getLogger
 from cosmoHammer import util as _util
 from cosmoHammer.ChainContext import ChainContext
 from cosmoHammer.LikelihoodComputationChain import LikelihoodComputationChain as _Chain
-
 from py21cmfast.wrapper import ParameterError
+
 from py21cmmc.ensemble import EnsembleSampler
 
 logger = getLogger()
@@ -647,11 +645,9 @@ class LikelihoodComputationChain(_Chain):
         if not self._setup:
             self.setup()
 
-        logger.debug(
-            "Invoking {}...".format(os.getpid(), coremodule.__class__.__name__)
-        )
+        logger.debug(f"Invoking {coremodule.__class__.__name__}...")
         coremodule(ctx)
-        logger.debug("... finished.".format(os.getpid()))
+        logger.debug("... finished.")
 
         coremodule.prepare_storage(
             ctx, ctx.getData()
@@ -663,18 +659,18 @@ class LikelihoodComputationChain(_Chain):
         if not self._setup:
             self.setup()
 
-        logger.debug("Reducing data for {}...".format(module.__class__.__name__))
+        logger.debug(f"Reducing data for {module.__class__.__name__}...")
         model = module.reduce_data(ctx)
         logger.debug("... done reducing data")
 
         if hasattr(module, "store"):
-            logger.debug("Storing blobs for {}...".format(module.__class__.__name__))
+            logger.debug(f"Storing blobs for {module.__class__.__name__}...")
             module.store(model, ctx.getData())
             logger.debug("... done storing blobs.")
 
-        logger.debug("Computing Likelihood for {}...".format(module.__class__.__name__))
+        logger.debug(f"Computing Likelihood for {module.__class__.__name__}...")
         lnl = module.computeLikelihood(model)
-        logger.debug("... done computing likelihood (lnl = {lnl:.3e}".format(lnl=lnl))
+        logger.debug(f"... done computing likelihood (lnl = {lnl:.3e}")
         return lnl
 
     def __call__(self, p):
@@ -732,13 +728,12 @@ class LikelihoodComputationChain(_Chain):
             if thisc != thatc:
                 return False
 
-        for thisc, thatc in zip(
-            self.getLikelihoodModules(), other.getLikelihoodModules()
-        ):
-            if thisc != thatc:
-                return False
-
-        return True
+        return all(
+            thisc == thatc
+            for thisc, thatc in zip(
+                self.getLikelihoodModules(), other.getLikelihoodModules()
+            )
+        )
 
 
 class CosmoHammerSampler(_CosmoHammerSampler):
