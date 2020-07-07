@@ -404,7 +404,7 @@ class CoreCoevalModule(CoreBase):
             )
 
             # update the seed
-            self.initial_conditions_seed = coeval.random_seed
+            self.initial_conditions_seed = coeval[0].random_seed
 
             logger.info("Initialization done.")
 
