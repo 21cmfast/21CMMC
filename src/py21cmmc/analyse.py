@@ -2,15 +2,13 @@
 
 Also enables more transparent input/output of chains.
 """
-from os.path import join
-
-import matplotlib.pyplot as plt
 import numpy as np
-
+from matplotlib import pyplot as plt
+from os.path import join
+from pathlib import Path
 from py21cmfast import yaml
 
-from .cosmoHammer import CosmoHammerSampler
-from .cosmoHammer import HDFStorage
+from .cosmoHammer import CosmoHammerSampler, HDFStorage
 
 
 def get_samples(chain, indx=0, burnin=False):
@@ -23,11 +21,9 @@ def get_samples(chain, indx=0, burnin=False):
         Either a :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler`, which is the output
         of the :func:`~py21cmmc.mcmc.run_mcmc` function,
         or a path to an output HDF5 file containing the chain.
-
     indx : int, optional
         This is used only if `chain` is a string. It gives the index of the samples in
         the HDF file. Usually this is zero.
-
     burnin : bool
         Whether to return the burnin samples, rather than the actual run samples.
 
@@ -41,16 +37,18 @@ def get_samples(chain, indx=0, burnin=False):
             if not burnin
             else chain.storageUtil.burnin_storage
         )
+    elif isinstance(chain, str):
+        if not chain.endswith(".h5"):
+            chain += ".h5"
+    elif isinstance(chain, Path):
+        if chain.suffix != ".h5":
+            chain = chain.with_suffix(".h5")
     else:
-        try:
-            if not chain.endswith(".h5"):
-                chain += ".h5"
-        except AttributeError:
-            raise AttributeError(
-                "chain must either be a CosmoHammerSampler instance, or str"
-            )
+        raise AttributeError(
+            "chain must either be a CosmoHammerSampler instance, str or Path"
+        )
 
-        return HDFStorage(chain, name="burnin" if burnin else "sample_%s" % indx)
+    return HDFStorage(chain, name="burnin" if burnin else "sample_%s" % indx)
 
 
 def load_primitive_chain(modelname, direc="."):
