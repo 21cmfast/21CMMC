@@ -1,13 +1,19 @@
-import os
-
 import pytest
 
+from pathlib import Path
 from py21cmfast import global_params
 
 
 @pytest.fixture(scope="session")
-def tmpdirec(tmpdir_factory):
-    return tmpdir_factory.mktemp("data")
+def tmpdirec(tmp_path_factory) -> Path:
+    return tmp_path_factory.mktemp("data")
+
+
+@pytest.fixture(scope="session")
+def cache(tmpdirec) -> Path:
+    pth = tmpdirec / "cache"
+    pth.mkdir()
+    return pth
 
 
 @pytest.fixture(scope="function", autouse=True)

@@ -7,12 +7,10 @@ TODO: Add description of the API of cores (and how to define new ones).
 import copy
 import inspect
 import logging
-import warnings
 from os import path
-
 import numpy as np
-
 import py21cmfast as p21
+import warnings
 
 from . import _utils as ut
 
@@ -382,102 +380,62 @@ class CoreCoevalModule(CoreBase):
             self.chain.createChainContext().getParams()
         )
 
-        # Here we initialize the init and perturb boxes.
+        # Here we save to disk the full default realization.
+        # The init and perturb boxes here can usually be re-used, and the box serves
+        # as a nice thing to compare to after MCMC.
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
         if (
-            not any(p in self.cosmo_params.self.keys() for p in self.parameter_names)
+            all(p not in self.cosmo_params.self.keys() for p in self.parameter_names)
             and not self.change_seed_every_iter
         ):
-            logger.info("Initializing init and perturb boxes for the entire chain.")
-            initial_conditions = p21.initial_conditions(
+            logger.info("Initializing default boxes for the entire chain.")
+            coeval = p21.run_coeval(
+                redshift=self.redshift,
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
-                direc=self.io_options["cache_dir"],
+                astro_params=self.astro_params,
+                flag_options=self.flag_options,
+                write=True,
                 regenerate=self.regenerate,
+                direc=self.io_options["cache_dir"],
                 random_seed=self.initial_conditions_seed,
                 **self.global_params,
             )
 
             # update the seed
-            self.initial_conditions_seed = initial_conditions.random_seed
+            self.initial_conditions_seed = coeval[0].random_seed
 
-            perturb_field = []
-            for z in self.redshift:
-                perturb_field += [
-                    p21.perturb_field(
-                        redshift=z,
-                        init_boxes=initial_conditions,
-                        direc=self.io_options["cache_dir"],
-                        regenerate=self.regenerate,
-                        **self.global_params,
-                    )
-                ]
             logger.info("Initialization done.")
-
-    def get_current_init_and_perturb(self, cosmo_params):
-        """Return the init and perturb field structures for given cosmo parameters."""
-        initial_conditions = p21.initial_conditions(
-            user_params=self.user_params,
-            cosmo_params=cosmo_params,
-            direc=self.io_options["cache_dir"],
-            regenerate=False,
-            random_seed=self.initial_conditions_seed,
-            write=self.io_options["cache_mcmc"],
-            **self.global_params,
-        )
-
-        perturb_field = []
-        for z in self.redshift:
-            perturb_field += [
-                p21.perturb_field(
-                    redshift=z,
-                    init_boxes=initial_conditions,
-                    direc=self.io_options["cache_dir"],
-                    regenerate=False,
-                    write=self.io_options["cache_mcmc"],
-                    **self.global_params,
-                )
-            ]
-
-        return initial_conditions, perturb_field
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
-        logger.debug("Updating parameters: {}".format(ctx.getParams()))
+        logger.debug(f"Updating parameters: {ctx.getParams()}")
         astro_params, cosmo_params = self._update_params(ctx.getParams())
-        logger.debug("AstroParams: {}".format(astro_params))
-
-        # Explicitly get the init and perturb boxes, because we don't want to
-        # regenerate them (they will be read in *unless* we are changing
-        # cosmo or seed)
-        initial_conditions, perturb_field = self.get_current_init_and_perturb(
-            cosmo_params
-        )
+        logger.debug(f"AstroParams: {astro_params}")
+        logger.debug(f"CosmoParams: {cosmo_params}")
 
         # Call C-code
         coeval = p21.run_coeval(
             redshift=self.redshift,
             astro_params=astro_params,
+            cosmo_params=cosmo_params,
             flag_options=self.flag_options,
-            init_box=initial_conditions,
-            perturb=perturb_field,
-            regenerate=self.regenerate,
+            user_params=self.user_params,
+            regenerate=False,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
             **self.global_params,
         )
 
-        logger.debug("Adding {} to context data".format(self.ctx_variables))
+        logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
             try:
                 ctx.add(key, [getattr(c, key) for c in coeval])
             except AttributeError:
-                raise ValueError(
-                    "ctx_variable {} not an attribute of Coeval".format(key)
-                )
+                raise ValueError(f"ctx_variable {key} not an attribute of Coeval")
 
     def _update_params(self, params):
         """
@@ -531,6 +489,42 @@ class CoreLightConeModule(CoreCoevalModule):
         super().__init__(**kwargs)
         self.max_redshift = max_redshift
 
+    def setup(self):
+        """Setup the chain."""
+        # If the chain has different parameter truths, we want to use those for our defaults.
+        self.astro_params, self.cosmo_params = self._update_params(
+            self.chain.createChainContext().getParams()
+        )
+
+        # Here we save to disk the full default realization.
+        # The init and perturb boxes here can usually be re-used, and the box serves
+        # as a nice thing to compare to after MCMC.
+        # If modifying cosmo, we don't want to do this, because we'll create them
+        # on the fly on every iteration.
+        if (
+            all(p not in self.cosmo_params.self.keys() for p in self.parameter_names)
+            and not self.change_seed_every_iter
+        ):
+            logger.info("Initializing default boxes for the entire chain.")
+            lightcone = p21.run_lightcone(
+                redshift=self.redshift[0],
+                max_redshift=self.max_redshift,
+                user_params=self.user_params,
+                cosmo_params=self.cosmo_params,
+                astro_params=self.astro_params,
+                flag_options=self.flag_options,
+                write=True,
+                regenerate=self.regenerate,
+                direc=self.io_options["cache_dir"],
+                random_seed=self.initial_conditions_seed,
+                **self.global_params,
+            )
+
+            # update the seed
+            self.initial_conditions_seed = lightcone.random_seed
+
+            logger.info("Initialization done.")
+
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
@@ -553,7 +547,7 @@ class CoreLightConeModule(CoreCoevalModule):
             flag_options=self.flag_options,
             cosmo_params=cosmo_params,
             user_params=self.user_params,
-            regenerate=self.regenerate,
+            regenerate=False,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
@@ -621,9 +615,9 @@ class CoreLuminosityFunction(CoreCoevalModule):
         # Call C-code
         Muv, mhalo, lfunc = self.run(astro_params, cosmo_params)
 
-        Muv = [m[~np.isnan(l)] for l, m in zip(lfunc, Muv)]
-        mhalo = [m[~np.isnan(l)] for l, m in zip(lfunc, mhalo)]
-        lfunc = [m[~np.isnan(l)] for l, m in zip(lfunc, lfunc)]
+        Muv = [m[~np.isnan(lf)] for lf, m in zip(lfunc, Muv)]
+        mhalo = [m[~np.isnan(lf)] for lf, m in zip(lfunc, mhalo)]
+        lfunc = [m[~np.isnan(lf)] for lf, m in zip(lfunc, lfunc)]
 
         ctx.add(
             "luminosity_function" + self.name,

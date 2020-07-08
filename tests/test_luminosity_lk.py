@@ -1,13 +1,14 @@
-import os
-import shutil
-
 import pytest
 
 import numpy as np
+import os
+import shutil
 
-from py21cmmc import CoreLuminosityFunction
-from py21cmmc import LikelihoodLuminosityFunction
-from py21cmmc import build_computation_chain
+from py21cmmc import (
+    CoreLuminosityFunction,
+    LikelihoodLuminosityFunction,
+    build_computation_chain,
+)
 
 
 def test_single_datafile(tmpdir):
