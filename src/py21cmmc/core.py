@@ -672,11 +672,12 @@ class CoreForest(CoreLightConeModule):
     """
 
     def __init__(
-        self, name="", observation="bosman_optimistic", N_realization=150, **kwargs,
+        self, name="", observation="bosman_optimistic", N_realization=150,mean_F=None, **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
         self.N_realization = N_realization
+        self.mean_F = mean_F
         super().__init__(**kwargs)
 
         if (
@@ -691,7 +692,7 @@ class CoreForest(CoreLightConeModule):
                 data["zs"] <= self.redshift[0] + 0.1
             )
             self.Nlos = sum(targets)
-            self.bin_size = 50
+            self.bin_size = 50 / self.cosmo_params.hlittle
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
 
@@ -816,22 +817,21 @@ class CoreForest(CoreLightConeModule):
         # select a few number of the los according to the observation
         tau_eff = np.zeros([self.N_realization, self.Nlos])
 
-        if not hasattr(ctx.getParams(), "log10_f_rescale"):
-            logger.warning(
-                f"missing input hyper parameter, log10_f_rescale, assigning 0!"
-            )
-            f_rescale = 1
-        else:
-            f_rescale = 10 ** ctx.getParams().log10_f_rescale
+        if not mean_F:
+            if not hasattr(ctx.getParams(), "log10_f_rescale"):
+                logger.warning(
+                    f"missing input hyper parameter, log10_f_rescale, assigning 0!"
+                )
+                f_rescale = 1
+            else:
+                f_rescale = 10 ** ctx.getParams().log10_f_rescale
 
-        if not hasattr(ctx.getParams(), "f_rescale_slope"):
-            logger.warning(
-                f"missing input hyper parameter, f_rescale_slope, assigning 0!"
-            )
-        else:
-            f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
-
-        print(f_rescale)
+            if not hasattr(ctx.getParams(), "f_rescale_slope"):
+                logger.warning(
+                    f"missing input hyper parameter, f_rescale_slope, assigning 0!"
+                )
+            else:
+                f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
 
         for jj in range(self.N_realization):
             Gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
@@ -852,6 +852,8 @@ class CoreForest(CoreLightConeModule):
             tau_lyman_alpha = self.tau_GP(
                 Gamma_bg, Delta, Temp, lightcone_redshifts[index_left:index_right]
             )
+            if mean_F:
+                f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_F)
 
             tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
         ctx.add("tau_eff_%s" % self.name, tau_eff)
