@@ -817,7 +817,7 @@ class CoreForest(CoreLightConeModule):
         # select a few number of the los according to the observation
         tau_eff = np.zeros([self.N_realization, self.Nlos])
 
-        if not mean_F:
+        if not self.mean_F:
             if not hasattr(ctx.getParams(), "log10_f_rescale"):
                 logger.warning(
                     f"missing input hyper parameter, log10_f_rescale, assigning 0!"
@@ -852,7 +852,7 @@ class CoreForest(CoreLightConeModule):
             tau_lyman_alpha = self.tau_GP(
                 Gamma_bg, Delta, Temp, lightcone_redshifts[index_left:index_right]
             )
-            if mean_F:
+            if self.mean_F:
                 f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_F)
 
             tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
