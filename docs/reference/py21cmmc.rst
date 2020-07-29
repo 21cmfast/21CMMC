@@ -9,7 +9,8 @@ py21cmmc
     :toctree: _autosummary
     :template: module.rst
 
-    py21cmmc.mcmc.mcmc
-    py21cmmc.mcmc.core
-    py21cmmc.mcmc.likelihood
-    py21cmmc.mcmc.analyse
+    py21cmmc.mcmc
+    py21cmmc.core
+    py21cmmc.likelihood
+    py21cmmc.analyse
+    py21cmmc.cosmoHammer

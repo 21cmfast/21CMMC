@@ -1,11 +1,10 @@
-21cmFAST>=3.0.0dev
-21cmFAST>=3.0.0dev
+21cmFAST >= 3.0.0dev6
 astropy
 cffi
 click
 corner
-git+git://github.com/21cmFAST/21cmFAST
 numpy
+powerbox
 pre-commit
 pytest
 pytest-cov

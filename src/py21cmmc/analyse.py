@@ -1,14 +1,14 @@
-"""
-Module containing functions to analyse the results of MCMC chains,a nd enable more transparent input/output of chains.
-"""
-from os.path import join
+"""Functions to analyse the results of MCMC chains.
 
-import matplotlib.pyplot as plt
+Also enables more transparent input/output of chains.
+"""
 import numpy as np
-
+from matplotlib import pyplot as plt
+from os.path import join
+from pathlib import Path
 from py21cmfast import yaml
-from .cosmoHammer import CosmoHammerSampler
-from .cosmoHammer.storage import HDFStorage
+
+from .cosmoHammer import CosmoHammerSampler, HDFStorage
 
 
 def get_samples(chain, indx=0, burnin=False):
@@ -17,20 +17,19 @@ def get_samples(chain, indx=0, burnin=False):
 
     Parameters
     ----------
-    chain : :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler` or str
-        Either a `LikelihoodComputationChain`, which is the output of the :func:`~mcmc.run_mcmc` function,
-        or a path to an output HDF file containing the chain.
-
+    chain : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` or str
+        Either a :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler`, which is the output
+        of the :func:`~py21cmmc.mcmc.run_mcmc` function,
+        or a path to an output HDF5 file containing the chain.
     indx : int, optional
-        This is used only if `chain` is a string. It gives the index of the samples in the HDF file. Usually this is
-        zero.
-
+        This is used only if `chain` is a string. It gives the index of the samples in
+        the HDF file. Usually this is zero.
     burnin : bool
         Whether to return the burnin samples, rather than the actual run samples.
 
     Returns
     -------
-    store : a `HDFStore` object.
+    store : a :class:`~py21cmmc.cosmoHammer.HDFStore` object.
     """
     if isinstance(chain, CosmoHammerSampler):
         return (
@@ -38,30 +37,34 @@ def get_samples(chain, indx=0, burnin=False):
             if not burnin
             else chain.storageUtil.burnin_storage
         )
+    elif isinstance(chain, str):
+        if not chain.endswith(".h5"):
+            chain += ".h5"
+    elif isinstance(chain, Path):
+        if chain.suffix != ".h5":
+            chain = chain.with_suffix(".h5")
     else:
-        try:
-            if not chain.endswith(".h5"):
-                chain += ".h5"
-        except AttributeError:
-            raise AttributeError(
-                "chain must either be a CosmoHammerSampler instance, or str"
-            )
+        raise AttributeError(
+            "chain must either be a CosmoHammerSampler instance, str or Path"
+        )
 
-        return HDFStorage(chain, name="burnin" if burnin else "sample_%s" % indx)
+    return HDFStorage(chain, name="burnin" if burnin else "sample_%s" % indx)
 
 
 def load_primitive_chain(modelname, direc="."):
     """
-    Load a chain produced by ``run_mcmc`` to be interactively useable.
+    Load a chain file produced by :func:`~py21cmmc.mcmc.run_mcmc` to be interactively useable.
 
     Parameters
     ----------
-    modelname : model name of the MCMC run.
-    direc : directory in which data was stored.
+    modelname : str
+        Model name of the MCMC run.
+    direc : str
+        Directory in which data was stored.
 
     Returns
     -------
-    chain : :class:`~py21cmmc.mcmc.cosmoHammer.LikelihoodComputationChain.LikelihoodComputationChain`
+    chain : :class:`~py21cmmc.cosmoHammer.LikelihoodComputationChain`
         The fully set-up chain, with no computed samples.
     """
     with open(join(direc, modelname + ".LCC.yml")) as f:
@@ -79,9 +82,9 @@ def corner_plot(
 
     Parameters
     ----------
-    samples: :class:`py21cmmc.mcmc.cosmoHammer.storage.HDFStorage`
-        The ``samples`` attribute of a sampler (i.e. the return value of :func:`~.mcmc.run_mcmc`), or equivalently,
-        the return value of :func:`~get_samples`.
+    samples: :class:`py21cmmc.cosmoHammer.HDFStorage` instance
+        The ``samples`` attribute of a sampler (i.e. the return value of
+        :func:`~.mcmc.run_mcmc`), or equivalently, the return value of :func:`~get_samples`.
     include_lnl: bool, optional
         Whether to plot the log-likelihood as if it were a parameter.
     show_guess: bool, optional
@@ -145,8 +148,9 @@ def trace_plot(
 
     Parameters
     ----------
-    samples: :class:`py21cmmc.mcmc.cosmoHammer.storage.HDFStorage`
-        The ``samples`` attribute of a sampler (i.e. the return value of :func:`~.mcmc.run_mcmc`), or equivalently,
+    samples: :class:`py21cmmc.cosmoHammer.HDFStorage`
+        The ``samples`` attribute of a sampler (i.e. the return value of
+        :func:`~py21cmmc.mcmc.run_mcmc`), or equivalently,
         the return value of :func:`~get_samples`.
     include_lnl: bool, optional
         Whether to plot the log-likelihood as if it were a parameter.

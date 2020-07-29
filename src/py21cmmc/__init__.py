@@ -1,5 +1,7 @@
-__version__ = "1.0.0dev"
+"""21CMMC: a package for running MCMC analyses using 21cmFAST."""
 
+__version__ = "1.0.0dev1"
+from .analyse import get_samples, load_primitive_chain
 from .core import (
     CoreCoevalModule,
     CoreLightConeModule,
@@ -7,16 +9,15 @@ from .core import (
     NotAChain,
     NotSetupError,
 )
+from .cosmoHammer import HDFStorageUtil
 from .likelihood import (
     Likelihood1DPowerCoeval,
-    LikelihoodGlobalSignal,
-    LikelihoodGreig,
-    LikelihoodNeutralFraction,
-    LikelihoodLuminosityFunction,
-    LikelihoodPlanck,
     Likelihood1DPowerLightcone,
     LikelihoodEDGES,
+    LikelihoodGlobalSignal,
+    LikelihoodGreig,
+    LikelihoodLuminosityFunction,
+    LikelihoodNeutralFraction,
+    LikelihoodPlanck,
 )
-from .cosmoHammer import HDFStorageUtil
 from .mcmc import build_computation_chain, run_mcmc
-from .analyse import load_primitive_chain, get_samples
