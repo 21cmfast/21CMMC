@@ -247,16 +247,16 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
             )
 
     else:
+        pool = mcmc_options.pop(
+            "pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1)),
+        )
         sampler = sampler_cls(
             continue_sampling=continue_sampling,
             likelihoodComputationChain=chain,
             storageUtil=HDFStorageUtil(file_prefix),
             filePrefix=file_prefix,
             reuseBurnin=reuse_burnin,
-            pool=mcmc_options.get(
-                "pool",
-                ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1)),
-            ),
+            pool=pool,
             **mcmc_options,
         )
 
