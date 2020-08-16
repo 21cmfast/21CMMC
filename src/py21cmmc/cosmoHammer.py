@@ -959,7 +959,7 @@ class CosmoHammerSampler(_CosmoHammerSampler):
                     random_state=rstate,
                     burnin=burnin,
                 )
-                if stg.iteration % 10 == 0:
+                if stg.iteration % 1 == 0:
                     self.log("Iteration finished:" + str(stg.iteration))
 
                 _lastprob = 1 * prob
