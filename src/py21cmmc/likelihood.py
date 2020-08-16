@@ -903,7 +903,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             else:
                 lnprob += self.lnprob(model_spline(z), data, sigma)
 
-        return -1  # lnprob
+        return lnprob
 
     def lnprob(self, model, data, sigma):
         """Compute the log prob given a model, data and error."""
@@ -1482,5 +1482,4 @@ class LikelihoodForest(LikelihoodBaseFile):
                 "Determinant (%f) is negative for this error covariance matrix, lnl=%f, return -inf for lnl"%(det, lnl)
             )
             return -np.inf
-        print(lnl)
         return lnl
