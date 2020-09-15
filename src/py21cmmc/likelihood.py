@@ -266,12 +266,13 @@ class LikelihoodIsocBispecCoeval(LikelihoodBaseFile):
 		Parameters
 		----------
 		datafile : str, optional
-			The file(s) from which to read the data. 'theta_over_pi' and 'B'. Alternatively, the file to which to write the data (see class docstring for how this works). See notes below for details.
+			The file(s) from which to read the data. 'theta_over_pi', 'k3' and 'B'.
+			Alternatively, the file to which to write the data (see class docstring for how this works). See notes below for details.
 		noisefile : str, optional
 			The file(s) from which to read the noise profile. If False, no thermal
 			noise or cosmic variance is used in the fit.
 			The noisefile should be an .npz file with a dictionary containing
-			"theta_over_pi", "k3", "B" and "B_err" in it.
+			"theta_over_pi", "k3" and "B_err" in it.
 			This is the default output format of calc_noise_err_BS_from_obs_coeval in PyObs21cm
 		min_k : float, optional
 			The minimum k value at which to compare model and data (units 1/Mpc).
@@ -298,8 +299,8 @@ class LikelihoodIsocBispecCoeval(LikelihoodBaseFile):
 		Notes
 		-----
 		The datafile and noisefile have specific formatting required. Both should be .npz files. The datafile should
-		have 'theta_over_pi' and 'B' arrays in it (theta/pi and bispectrum respectively) and the noisefile should
-		have 'theta_over_pi', 'k3', 'B' and 'B_err' arrays in it (k-modes and their standard deviations respectively). Note that the latter is *almost* the default output of 21cmSense, except that 21cmSense has k in units of h/Mpc, whereas 21cmFAST/21CMMC use units of 1/Mpc.
+		have 'theta_over_pi', 'k3' and 'B' arrays in it (theta/pi and bispectrum respectively) and the noisefile should
+		have 'theta_over_pi', 'k3' and 'B_err' arrays in it (k-modes and their standard deviations respectively).
 
 		.. warning:: Please ensure that the data/noise is in the correct units for 21CMMC, as this class
 					 does not automatically convert units!
@@ -393,6 +394,13 @@ class LikelihoodIsocBispecCoeval(LikelihoodBaseFile):
 		noise = 0
 		for i, (m, pd) in enumerate(zip(model, self.data_spline)):
 			mask = np.logical_and(m["k3"] <= self.max_k, m["k3"] >= self.min_k)
+			# For certain models the power spectra is zero, in such models our normalised statistic -> NaN. We set these to zero in the following
+			m["B"][np.where(np.isnan(m["B"]))] = 0.0
+
+			'''print( "In bispec computeLikelihood; z = ", self.redshift[i], "k1 = ", self.k1 )
+			print( "In bispec computeLikelihood; data_spline, 'k' from model -> ", m["theta_over_pi"][mask] )
+			print( "In bispec computeLikelihood; data_spline, data -> ", pd(m["theta_over_pi"][mask]) )
+			print( "In bispec computeLikelihood; noise_spline, noise -> ", self.noise_spline[i](m["theta_over_pi"][mask]) )'''
 
 			moduncert = (
 				self.model_uncertainty * pd(m["theta_over_pi"][mask])
@@ -402,8 +410,6 @@ class LikelihoodIsocBispecCoeval(LikelihoodBaseFile):
 
 			if self.noise_spline:
 				noise = self.noise_spline[i](m["theta_over_pi"][mask])
-
-			# TODO: Add in sam[ple variance calculation based on power spectrum from bispec calculation
 
 			# TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
 			lnl += ( -0.5 * np.sum((m["B"][mask] - pd(m["theta_over_pi"][mask])) ** 2 / (moduncert ** 2 + noise ** 2)) )
@@ -684,7 +690,12 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 		lnl = 0
 		noise = 0
 		for i, (m, pd) in enumerate(zip(model, self.data_spline)):
+
 			mask = np.logical_and(m["k"] <= self.max_k, m["k"] >= self.min_k)
+			'''print( "In power spec computeLikelihood; z = ", self.redshift[i] )
+			print( "In power spec computeLikelihood; data_spline, 'k' from model -> ", m["k"][mask] )
+			print( "In power spec computeLikelihood; data_spline, data -> ", pd(m["k"][mask]) )
+			print( "In power spec computeLikelihood; noise_spline, noise -> ", self.noise_spline[i](m["k"][mask]) )'''
 
 			moduncert = (
 				self.model_uncertainty * pd(m["k"][mask])
