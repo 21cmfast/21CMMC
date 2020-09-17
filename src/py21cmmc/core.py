@@ -13,6 +13,8 @@ import numpy as np
 
 import py21cmfast as p21
 
+import pyobs21 #cw added to simulate uv sampling and noise for coeval module
+
 from . import _utils as ut
 
 logger = logging.getLogger("21cmFAST")
@@ -329,10 +331,14 @@ class CoreCoevalModule(CoreBase):
         ctx_variables=("brightness_temp", "xH_box"),
         initial_conditions_seed=None,
         global_params=None,
+        sim_inst=None,
+        inst_files=None,
         **io_options,
     ):
         super().__init__(io_options.get("store", None))
 
+        self.sim_inst=sim_inst #cw addition to allow user to switch on or off inst effects; default=None
+        self.inst_files=inst_files
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
             self.redshift = [self.redshift]
@@ -477,6 +483,30 @@ class CoreCoevalModule(CoreBase):
                 raise ValueError(
                     "ctx_variable {} not an attribute of Coeval".format(key)
                 )
+                
+    def convert_model_to_mock(self, ctx):
+        """Update context entries for luminosity function to have randomness."""
+        if not(self.sim_inst is None):
+            #print("In coeval core -> not simulating instrumental effects")
+        #else:
+            #print("In coeval core -> We are simulating instrumental effects using PyObs21")
+            if (self.inst_files is None):
+                raise ValueError(
+                    "no instrumental files have been passed. Pass inst_files to core initialisation (one for each coeval)"
+                )
+            else:
+                inst_files = self.inst_files
+                dT = ctx.get("brightness_temp")
+
+                for i, dTbox in enumerate( ctx.get("brightness_temp") ):
+                    ctx.get("brightness_temp")[i] =  pyobs21.get_obs_coeval( Filepath=inst_files[i], z=self.redshift[i],
+                                                                            Dim=self.user_params.HII_DIM,
+                                                                            Len=self.user_params.BOX_LEN,
+                                                                            sim_noise=True,
+                                                                            Psv=None,
+                                                                            sim_coeval=dTbox,
+                                                                            omega_m = self.cosmo_params.OMm,
+                                                                            hlittle = self.cosmo_params.hlittle )
 
     def _update_params(self, params):
         """
