@@ -487,7 +487,7 @@ class CoreCoevalModule(CoreBase):
     #def convert_model_to_mock(self, ctx):
         """Update context entries for luminosity function to have randomness."""
         if (self.sim_inst is True):
-            print("In coeval core -> We are simulating instrumental effects using PyObs21")
+            #print("In coeval core -> We are simulating instrumental effects using PyObs21")
             if (self.inst_files is None):
                 raise ValueError(
                     "no instrumental files have been passed. Pass inst_files to core initialisation (one for each coeval)"
