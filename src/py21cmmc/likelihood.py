@@ -397,10 +397,10 @@ class LikelihoodIsocBispecCoeval(LikelihoodBaseFile):
 			# For certain models the power spectra is zero, in such models our normalised statistic -> NaN. We set these to zero in the following
 			m["B"][np.where(np.isnan(m["B"]))] = 0.0
 
-			print( "In bispec computeLikelihood; z = ", self.redshift[i], "k1 = ", self.k1 )
+			'''print( "In bispec computeLikelihood; z = ", self.redshift[i], "k1 = ", self.k1 )
 			print( "In bispec computeLikelihood; data_spline, 'k' from model -> ", m["theta_over_pi"][mask] )
 			print( "In bispec computeLikelihood; data_spline, data -> ", pd(m["theta_over_pi"][mask]) )
-			print( "In bispec computeLikelihood; noise_spline, noise -> ", self.noise_spline[i](m["theta_over_pi"][mask]) )
+			print( "In bispec computeLikelihood; noise_spline, noise -> ", self.noise_spline[i](m["theta_over_pi"][mask]) )'''
 
 			moduncert = (
 				self.model_uncertainty * pd(m["theta_over_pi"][mask])
