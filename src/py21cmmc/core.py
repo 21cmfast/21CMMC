@@ -483,20 +483,18 @@ class CoreCoevalModule(CoreBase):
                 raise ValueError(
                     "ctx_variable {} not an attribute of Coeval".format(key)
                 )
-                
-    def convert_model_to_mock(self, ctx):
+
+    #def convert_model_to_mock(self, ctx):
         """Update context entries for luminosity function to have randomness."""
-        if not(self.sim_inst is None):
-            #print("In coeval core -> not simulating instrumental effects")
-        #else:
-            #print("In coeval core -> We are simulating instrumental effects using PyObs21")
+        if (self.sim_inst is True):
+            print("In coeval core -> We are simulating instrumental effects using PyObs21")
             if (self.inst_files is None):
                 raise ValueError(
                     "no instrumental files have been passed. Pass inst_files to core initialisation (one for each coeval)"
                 )
             else:
                 inst_files = self.inst_files
-                dT = ctx.get("brightness_temp")
+                #dT = ctx.get("brightness_temp")
 
                 for i, dTbox in enumerate( ctx.get("brightness_temp") ):
                     ctx.get("brightness_temp")[i] =  pyobs21.get_obs_coeval( Filepath=inst_files[i], z=self.redshift[i],
