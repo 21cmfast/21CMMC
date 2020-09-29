@@ -410,9 +410,12 @@ class LikelihoodIsocBispecCoeval(LikelihoodBaseFile):
 
 			if self.noise_spline:
 				noise = self.noise_spline[i](m["theta_over_pi"][mask])
-
-			# TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
-			lnl += ( -0.5 * np.sum((m["B"][mask] - pd(m["theta_over_pi"][mask])) ** 2 / (moduncert ** 2 + noise ** 2)) )
+			if (self.core_primary.sim_inst is True):
+				# TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
+				lnl += ( -0.5 * np.sum((m["B"][mask] - pd(m["theta_over_pi"][mask])) ** 2 / 2.0*(moduncert ** 2 + noise ** 2)) )
+			else:
+				# TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
+				lnl += ( -0.5 * np.sum((m["B"][mask] - pd(m["theta_over_pi"][mask])) ** 2 / (moduncert ** 2 + noise ** 2)) )
 
 		return lnl
 
@@ -708,10 +711,17 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
 			# TODO: if moduncert depends on model, not data, then it should appear
 			#  as -0.5 log(sigma^2) term below.
-			lnl += -0.5 * np.sum(
-				(m["delta"][mask] - pd(m["k"][mask])) ** 2
-				/ (moduncert ** 2 + noise ** 2)
-			)
+			if (self.core_primary.sim_inst is True):
+				#print("doubling the error as simulating noise and SV on both data and model")
+				lnl += -0.5 * np.sum(
+					(m["delta"][mask] - pd(m["k"][mask])) ** 2
+					/ 2.0*(moduncert ** 2 + noise ** 2)
+					) # factor of 2 as we are simulating instrumentals on both data and model and so need to double the error bars
+			else:
+				lnl += -0.5 * np.sum(
+					(m["delta"][mask] - pd(m["k"][mask])) ** 2
+					/ (moduncert ** 2 + noise ** 2)
+					)
 		logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
 		return lnl
