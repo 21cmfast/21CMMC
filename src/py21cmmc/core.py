@@ -796,8 +796,8 @@ class CoreCMB(CoreBase):
             # Translate xHI into xe for CLASS.
             # The option -1, -2 ensure helium first and second reionization respectively at z_HeI and z_HeII.
             xe = 1 - xHI
-            xe = np.concatenate(([-2, -2, -1], xe, [0]))
-            redshift_class = np.concatenate(([0, z_HeII, z_HeI], redshifts, [z_xe_0]))
+            redshift_class = np.concatenate(([0, z_HeII, z_HeI], redshifts[xe>0], [z_xe_0]))
+            xe = np.concatenate(([-2, -2, -1], xe[xe>0], [0]))
 
             common_settings = {
                 "output": "tCl, pCl, lCl",
@@ -865,26 +865,41 @@ class CoreCMB(CoreBase):
         # call CLASS
         #
         ###############
+        print(redshift_class)
+        print(xe)
 
         cosmo.set(common_settings)
+        print(redshift_class)
+        print(xe)
         cosmo.compute()
+        print(redshift_class)
+        print(xe)
         if not self.use_21cmfast:
             thermo = cosmo.get_thermodynamics()
             # TODO: for some reason, truncating the output range is important for late use in the LH, e.g.LikelihoodNeutralFraction
             flag = (thermo["z"] > 4) & (thermo["z"] < 50)
             ctx.add("zs", thermo["z"][flag])
             ctx.add("xHI", 1.0 - thermo["x_e"][flag] / 1.0818709330934035)
+        print(redshift_class)
+        print(xe)
         cl = self.get_cl(cosmo)
+        print(redshift_class)
+        print(xe)
         cosmo.struct_cleanup()
         cosmo.empty()
         ctx.add("cl_cmb", cl)
+        print(redshift_class)
+        print(xe)
 
     def get_cl(self, cosmo, l_max=-1):
         r"""Return the :math:`C_{\\ell}` from the cosmological code in :math:`\\mu {\\rm K}^2`."""
         # get C_l^XX from the cosmological code
+        print("GET_CL")
         cl = cosmo.lensed_cl(int(l_max))
+        print("GET_CL")
         # convert dimensionless C_l's to C_l in muK**2
         T = cosmo.T_cmb()  # checked
+        print("GET_CL")
         for key in cl.keys():
             # All quantities need to be multiplied by this factor, except the
             # phi-phi term, that is already dimensionless
@@ -893,4 +908,5 @@ class CoreCMB(CoreBase):
                 cl[key] *= (T * 1.0e6) ** 2
             elif key in ["tp", "ep"]:
                 cl[key] *= T * 1.0e6
+        print("GET_CL")
         return cl
