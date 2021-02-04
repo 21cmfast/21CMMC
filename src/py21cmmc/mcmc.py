@@ -1,16 +1,15 @@
 """High-level functions for running MCMC chains."""
-
 import logging
 from concurrent.futures import ProcessPoolExecutor
-from os import mkdir
-from os import path
-
+from os import mkdir, path
 from py21cmfast import yaml
 
-from .cosmoHammer import CosmoHammerSampler
-from .cosmoHammer import HDFStorageUtil
-from .cosmoHammer import LikelihoodComputationChain
-from .cosmoHammer import Params
+from .cosmoHammer import (
+    CosmoHammerSampler,
+    HDFStorageUtil,
+    LikelihoodComputationChain,
+    Params,
+)
 
 logger = logging.getLogger("21cmFAST")
 
@@ -115,7 +114,7 @@ def run_mcmc(
     importance_nested_sampling : bool, optional
         If True, Multinest will use Importance Nested Sampling (INS).
     sampling_efficiency : float, optional
-        defines the sampling efficiency. 0.8 and 0.3 are recommended for parameter 
+        defines the sampling efficiency. 0.8 and 0.3 are recommended for parameter
         estimation & evidence evalutation
     evidence_tolerance : float, optional
         A value of 0.5 should give good enough accuracy.
@@ -130,17 +129,19 @@ def run_mcmc(
     -------
     sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
         The sampler object, from which the chain itself may be accessed (via the
-        ``samples`` attribute). If use_multinest, return multinest sampler 
+        ``samples`` attribute). If use_multinest, return multinest sampler
     """
     file_prefix = path.join(datadir, model_name)
     if use_multinest:
-        n_live_points = mcmc_options.get('n_live_points', 100)
-        importance_nested_sampling = mcmc_options.get('importance_nested_sampling', True)
-        sampling_efficiency = mcmc_options.get('sampling_efficiency', 0.8)
-        evidence_tolerance = mcmc_options.get('evidence_tolerance', 0.5)
-        max_iter = mcmc_options.get('max_iter', 50)
-        multimodal = mcmc_options.get('multimodal', True)
-        write_output = mcmc_options.get('write_output', True)
+        n_live_points = mcmc_options.get("n_live_points", 100)
+        importance_nested_sampling = mcmc_options.get(
+            "importance_nested_sampling", True
+        )
+        sampling_efficiency = mcmc_options.get("sampling_efficiency", 0.8)
+        evidence_tolerance = mcmc_options.get("evidence_tolerance", 0.5)
+        max_iter = mcmc_options.get("max_iter", 50)
+        multimodal = mcmc_options.get("multimodal", True)
+        write_output = mcmc_options.get("write_output", True)
         datadir = datadir + "/MultiNest/"
         try:
             from pymultinest import run
@@ -205,18 +206,21 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
         logging.getLogger("21CMMC").setLevel(log_level_21CMMC)
 
     if use_multinest:
+
         def likelihood(p, ndim, nparams):
-            input = [
+            inp = [
                 params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)
             ]
             return chain.computeLikelihoods(
                 chain.build_model_data(
-                    Params(*[(k, v) for k, v in zip(params.keys, input)])
+                    Params(*[(k, v) for k, v in zip(params.keys, inp)])
                 )
             )
 
         def prior(p, ndim, nparams):
-            p = [params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)]
+            p = [
+                params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)
+            ]
 
         try:
             sampler = run(
@@ -237,8 +241,10 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
             )
             return 1
 
-        except OSError:
-            raise ImportError("You also need to build MultiNest library. See https://johannesbuchner.github.io/PyMultiNest/install.html#id4 for more information.")
+        except OSError:  # pragma: nocover
+            raise ImportError(
+                "You also need to build MultiNest library. See https://johannesbuchner.github.io/PyMultiNest/install.html#id4 for more information."
+            )
 
     else:
         sampler = sampler_cls(
@@ -248,12 +254,13 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
             filePrefix=file_prefix,
             reuseBurnin=reuse_burnin,
             pool=mcmc_options.get(
-                "pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))
+                "pool",
+                ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1)),
             ),
             **mcmc_options,
         )
-    
+
         # The sampler writes to file, so no need to save anything ourselves.
         sampler.startSampling()
-    
+
         return sampler

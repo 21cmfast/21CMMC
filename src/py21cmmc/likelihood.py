@@ -1,17 +1,12 @@
 """Module containing 21CMMC likelihoods."""
-
 import logging
-from io import IOBase
-from os import path
-from os import rename
-
 import numpy as np
 from cached_property import cached_property
+from io import IOBase
+from os import path, rename
 from powerbox.tools import get_power
-from scipy.interpolate import InterpolatedUnivariateSpline
-from scipy.interpolate import interp1d
-
 from py21cmfast import wrapper as lib
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 from . import core
 

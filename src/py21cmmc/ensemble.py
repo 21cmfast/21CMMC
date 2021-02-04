@@ -1,9 +1,8 @@
 """Patch of `emcee.Ensemble` to allow for some new features required for 21CMMC."""
-import logging
-from concurrent.futures.process import BrokenProcessPool
-
 import emcee
+import logging
 import numpy as np
+from concurrent.futures.process import BrokenProcessPool
 
 logger = logging.getLogger("21cmFAST")
 
