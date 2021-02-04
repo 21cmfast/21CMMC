@@ -893,7 +893,6 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
             tarfile.open(
                 download_file(
                     "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz",
-                    "r:gz",
                 )
             ).extractall(path.expanduser("~/.ccode"))
 
