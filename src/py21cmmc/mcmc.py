@@ -241,7 +241,7 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
             )
             return 1
 
-        except OSError:
+        except OSError:  # pragma: nocover
             raise ImportError(
                 "You also need to build MultiNest library. See https://johannesbuchner.github.io/PyMultiNest/install.html#id4 for more information."
             )
