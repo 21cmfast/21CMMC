@@ -697,8 +697,8 @@ class LikelihoodPlanck(LikelihoodBase):
     required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
 
     # Mean and one sigma errors for the Planck constraints
-    # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012
-    # (https://arxiv.org/abs/1605.03507)
+    # The Planck prior is modelled as a Gaussian: tau = 0.0561 \pm 0.0071
+    # (https://arxiv.org/abs/1807.06209)
     tau_mean = 0.0561
     tau_sigma = 0.0071
 
