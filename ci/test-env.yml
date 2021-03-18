@@ -17,4 +17,4 @@ dependencies:
     - powerbox
     - cached_property
     - pre-commit
-    - py21cmfast==0.1.0
+    - git+git://github.com/21cmFAST/21cmFAST.git
