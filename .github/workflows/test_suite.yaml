@@ -58,23 +58,32 @@ jobs:
           conda install gsl
           conda install -c conda-forge fftw
           conda install -c conda-forge/label/cf201901 gcc
-      - name: Install Dependencies
+      - name: Install Dependencies Linux
+        if: matrix.os == 'ubuntu-latest'
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate ${ENV_NAME}
           conda env update -f ci/test-env.yml
+          pip install git+git://github.com/21cmFAST/21cmFAST.git
+      - name: Install Dependencies MacOSX
+        if: matrix.os == 'macos-latest'
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          source activate ${ENV_NAME}
+          conda env update -f ci/test-env.yml
+          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install git+git://github.com/21cmFAST/21cmFAST.git
       - name: Install 21CMMC Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          LOG_LEVEL=ULTRA_DEBUG pip install .
+          pip install .
       - name: Install 21CMMC MacOS
         if: matrix.os == 'macos-latest'
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
       - name: Run Tests
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"

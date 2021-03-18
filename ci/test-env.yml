@@ -20,4 +20,3 @@ dependencies:
     - powerbox
     - cached_property
     - pre-commit
-    - git+git://github.com/21cmFAST/21cmFAST.git
