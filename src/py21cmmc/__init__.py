@@ -14,14 +14,13 @@ from .cosmoHammer import HDFStorageUtil
 from .likelihood import (
     Likelihood1DPowerCoeval,
     Likelihood1DPowerLightcone,
+    LikelihoodBaseFile,
     LikelihoodEDGES,
+    LikelihoodForest,
     LikelihoodGlobalSignal,
     LikelihoodGreig,
     LikelihoodLuminosityFunction,
     LikelihoodNeutralFraction,
     LikelihoodPlanck,
-    LikelihoodForest,
-    LikelihoodBaseFile,
 )
 from .mcmc import build_computation_chain, run_mcmc
-

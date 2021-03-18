@@ -7,10 +7,10 @@ TODO: Add description of the API of cores (and how to define new ones).
 import copy
 import inspect
 import logging
-from os import path
 import numpy as np
 import py21cmfast as p21
 import warnings
+from os import path
 
 from . import _utils as ut
 
@@ -672,7 +672,12 @@ class CoreForest(CoreLightConeModule):
     """
 
     def __init__(
-        self, name="", observation="bosman_optimistic", N_realization=150,mean_F=None, **kwargs,
+        self,
+        name="",
+        observation="bosman_optimistic",
+        N_realization=150,
+        mean_F=None,
+        **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
@@ -820,7 +825,7 @@ class CoreForest(CoreLightConeModule):
         if not self.mean_F:
             if not hasattr(ctx.getParams(), "log10_f_rescale"):
                 logger.warning(
-                    f"missing input hyper parameter, log10_f_rescale, assigning 0!"
+                    "missing input hyper parameter, log10_f_rescale, assigning 0!"
                 )
                 f_rescale = 1
             else:
@@ -828,7 +833,7 @@ class CoreForest(CoreLightConeModule):
 
             if not hasattr(ctx.getParams(), "f_rescale_slope"):
                 logger.warning(
-                    f"missing input hyper parameter, f_rescale_slope, assigning 0!"
+                    "missing input hyper parameter, f_rescale_slope, assigning 0!"
                 )
             else:
                 f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope

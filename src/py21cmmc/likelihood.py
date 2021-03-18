@@ -1367,7 +1367,9 @@ class LikelihoodForest(LikelihoodBaseFile):
                 )
             self.tau_range = [0, 8]
             self.hist_bin_width = 0.1
-            self.hist_bin_size = int((self.tau_range[1] - self.tau_range[0])/self.hist_bin_width)
+            self.hist_bin_size = int(
+                (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
+            )
 
             self.datafile = [
                 path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npy")
@@ -1468,18 +1470,18 @@ class LikelihoodForest(LikelihoodBaseFile):
             return -np.inf
 
         diff = model - self.data[0]
-        for ii in np.where(self.data[0]!=self.data[1])[0]:
+        for ii in np.where(self.data[0] != self.data[1])[0]:
             if model[ii] < self.data[0][ii]:
                 diff[ii] = min(0, model[ii] - self.data[1][ii])
         diff = diff.reshape([1, -1])
 
         lnl = (
-            -0.5
-            * np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0, 0]
+            -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0, 0]
         )
         if det < 0:
             logger.warning(
-                "Determinant (%f) is negative for this error covariance matrix, lnl=%f, return -inf for lnl"%(det, lnl)
+                "Determinant (%f) is negative for this error covariance matrix, lnl=%f, return -inf for lnl"
+                % (det, lnl)
             )
             return -np.inf
         return lnl
