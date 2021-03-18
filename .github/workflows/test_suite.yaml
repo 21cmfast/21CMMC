@@ -45,11 +45,6 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           ./ci/install_conda.sh
-      - name: Install Dependencies
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate ${ENV_NAME}
-          conda env update -f ci/test-env.yml
       - name: Get C Libraries Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -63,6 +58,11 @@ jobs:
           conda install gsl
           conda install -c conda-forge fftw
           conda install -c conda-forge/label/cf201901 gcc
+      - name: Install Dependencies
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          source activate ${ENV_NAME}
+          conda env update -f ci/test-env.yml
       - name: Install 21CMMC Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
