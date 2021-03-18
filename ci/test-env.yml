@@ -1,4 +1,5 @@
 channels:
+  - conda-forge
   - defaults
 dependencies:
   - pytest>=5.0
@@ -12,6 +13,8 @@ dependencies:
   - astropy>=2.0
   - h5py>=2.8.0
   - matplotlib
+  - multinest
+  - pymultinest
   - pip
   - pip:
     - powerbox
