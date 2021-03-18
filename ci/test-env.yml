@@ -12,9 +12,9 @@ dependencies:
   - astropy>=2.0
   - h5py>=2.8.0
   - matplotlib
+  - 21cmFAST
   - pip
   - pip:
-    - 21cmFAST
     - powerbox
     - cached_property
     - pre-commit
