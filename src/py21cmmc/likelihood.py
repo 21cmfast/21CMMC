@@ -1427,8 +1427,17 @@ class LikelihoodForest(LikelihoodBaseFile):
         """Redshifts at which forest is defined."""
         return self.paired_core.redshift
 
+    @property
+    def _is_lightcone(self):
+        return isinstance(self.core_primary, core.CoreLightConeModule)
+
     def reduce_data(self, ctx):
         """Reduce data to model."""
+        if not self._is_lightcone:
+            raise NotImplementedError(
+                "The Forest can only work with lightcone at the moment"
+            )
+
         tau_eff = ctx.get("tau_eff_%s" % self.name)
         # use the same binning as the obs
 

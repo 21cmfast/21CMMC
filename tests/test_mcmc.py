@@ -85,15 +85,25 @@ def lc_core_ctx(lc_core):
 @pytest.fixture(scope="module")
 def lc_core_lowz():
     return mcmc.CoreLightConeModule(
-        redshift=5.0, max_redshift=8.0, user_params={"HII_DIM": 35, "DIM": 70}
+        redshift=5.0,
+        max_redshift=8.0,
+        user_params={"HII_DIM": 35, "DIM": 70},
+        flag_options={"INHOMO_RECO": True},
     )
 
 
 @pytest.fixture(scope="module")
 def lc_core_lowz_ctx(lc_core_lowz):
-    lk = mcmc.LikelihoodForest()
+    lk = mcmc.LikelihoodForest(name="z5pt4")
+    core = mcmc.CoreForest(
+        redshift=5.4,
+        name="z5pt4",
+        user_params=lc_core_lowz.user_params,
+        flag_options=lc_core_lowz.flag_options,
+        n_realization=10,
+    )
 
-    chain = mcmc.build_computation_chain(lc_core_lowz, lk)
+    chain = mcmc.build_computation_chain([lc_core_lowz, core], lk)
 
     assert lk._is_lightcone
 
@@ -522,15 +532,21 @@ def test_wrong_lf_redshift():
 
 def test_forest(lc_core_lowz, lc_core_lowz_ctx):
 
-    with pytest.raises(ValueError):
-        mcmc.build_computation_chain(mcmc.CoreForest(redshift=5.5, name="z5pt5"))
-
     lk = mcmc.LikelihoodForest(name="z5pt4")
-    mcmc.build_computation_chain(
-        mcmc.CoreForest(redshift=5.4, name="z5pt4"), lk, setup=False
+
+    with pytest.raises(mcmc.NotAChain):
+        assert lk._is_lightcone
+
+    core = mcmc.CoreForest(
+        redshift=5.4,
+        name="z5pt4",
+        user_params=lc_core_lowz.user_params,
+        flag_options=lc_core_lowz.flag_options,
+        n_realization=10,
     )
+
+    mcmc.build_computation_chain([lc_core_lowz, core], lk, setup=True)
     lk.setup()
 
     model = lk.reduce_data(lc_core_lowz_ctx)
-
     assert not np.all(model == 0)
