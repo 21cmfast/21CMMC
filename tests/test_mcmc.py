@@ -35,7 +35,6 @@ def core_lc(cache: Path):
         cache_dir=str(cache),
     )
 
-
 @pytest.fixture(scope="module")
 def likelihood_coeval(tmpdirec: Path):
     return mcmc.Likelihood1DPowerCoeval(
@@ -81,6 +80,24 @@ def lc_core_ctx(lc_core):
     lc_core.build_model_data(ctx)
     return ctx
 
+
+@pytest.fixture(scope="module")
+def lc_core_lowz():
+    return mcmc.CoreLightConeModule(
+        redshift=5.0, max_redshift=8.0, user_params={"HII_DIM": 35, "DIM": 70}
+    )
+
+@pytest.fixture(scope="module")
+def lc_core_lowz_ctx(lc_core_lowz):
+    lk = mcmc.LikelihoodForest()
+
+    chain = mcmc.build_computation_chain(lc_core_lowz, lk)
+
+    assert lk._is_lightcone
+
+    ctx = chain.createChainContext()
+    lc_core_lowz.build_model_data(ctx)
+    return ctx
 
 def test_core_coeval_setup(core, likelihood_coeval):
     with pytest.raises(ValueError):  # If simulate is not true, and no datafile given...
@@ -498,3 +515,17 @@ def test_wrong_lf_redshift():
             mcmc.LikelihoodLuminosityFunction(name="lf"),
         ]
         mcmc.build_computation_chain(cores, lks, setup=True)
+
+def test_forest(lc_core_lowz, lc_core_lowz_ctx):
+
+    with pytest.raises(ValueError):
+        mcmc.build_computation_chain(CoreForest(redshift=5.4, name='z5pt4'))
+
+    lk = mcmc.LikelihoodForest(name='z5pt4')
+
+    mcmc.build_computation_chain(lc_core_lowz, lk, setup=False)
+    lk.setup()
+
+    model = lk.reduce_data(lc_core_lowz_ctx)
+
+    assert not np.all(model == 0)
