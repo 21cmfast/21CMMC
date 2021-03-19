@@ -107,9 +107,7 @@ def lc_core_lowz_ctx(lc_core_lowz):
 
     assert lk._is_lightcone
 
-    ctx = chain.createChainContext()
-    lc_core_lowz.build_model_data(ctx)
-    return ctx
+    return chain.build_model_data()
 
 
 def test_core_coeval_setup(core, likelihood_coeval):
