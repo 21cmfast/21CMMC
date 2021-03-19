@@ -1352,7 +1352,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.observation = str(observation)
-        self.N_realization = 150
+        self.n_realization = 150
 
     def setup(self):
         """Setup instance."""
@@ -1393,16 +1393,16 @@ class LikelihoodForest(LikelihoodBaseFile):
             (data["zs"] > (self.redshifts[0] - 0.1))
             * (data["zs"] <= (self.redshifts[0] + 0.1))
         )[0]
-        PDFs = np.zeros([2, self.hist_bin_size])
+        pdfs = np.zeros([2, self.hist_bin_size])
 
-        PDFs[0] = np.histogram(
+        pdfs[0] = np.histogram(
             data["tau_lower"][targets], range=self.tau_range, bins=self.hist_bin_size
         )[0]
 
-        PDFs[1] = np.histogram(
+        pdfs[1] = np.histogram(
             data["tau_upper"][targets], range=self.tau_range, bins=self.hist_bin_size
         )[0]
-        return PDFs
+        return pdfs
 
     def _read_noise(self):
         # read the ECM due to the GP approximation
@@ -1432,21 +1432,21 @@ class LikelihoodForest(LikelihoodBaseFile):
         tau_eff = ctx.get("tau_eff_%s" % self.name)
         # use the same binning as the obs
 
-        N_realization = tau_eff.shape[0]
-        PDFs = np.zeros([N_realization, self.hist_bin_size])
-        for jj in range(N_realization):
-            PDFs[jj] = np.histogram(
+        n_realization = tau_eff.shape[0]
+        pdfs = np.zeros([n_realization, self.hist_bin_size])
+        for jj in range(n_realization):
+            pdfs[jj] = np.histogram(
                 tau_eff[jj], range=self.tau_range, bins=self.hist_bin_size
             )[0]
 
-        ErrorCovarianceMatrix_CosmicVariance = np.cov(PDFs.T)
+        ecm_cosmic = np.cov(pdfs.T)
         self.noise = (
             self.noise
-            + ErrorCovarianceMatrix_CosmicVariance
+            + ecm_cosmic
             + np.diag(np.ones(self.hist_bin_size) * 1e-5)
         )
 
-        return np.mean(PDFs, axis=0)
+        return np.mean(pdfs, axis=0)
 
     def computeLikelihood(self, model):
         """
