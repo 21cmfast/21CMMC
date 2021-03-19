@@ -523,11 +523,12 @@ def test_wrong_lf_redshift():
 def test_forest(lc_core_lowz, lc_core_lowz_ctx):
 
     with pytest.raises(ValueError):
-        mcmc.build_computation_chain(mcmc.CoreForest(redshift=5.4, name="z5pt4"))
+        mcmc.build_computation_chain(mcmc.CoreForest(redshift=5.5, name="z5pt5"))
 
     lk = mcmc.LikelihoodForest(name="z5pt4")
-
-    mcmc.build_computation_chain(lc_core_lowz, lk, setup=False)
+    mcmc.build_computation_chain(
+        mcmc.CoreForest(redshift=5.4, name="z5pt4"), lk, setup=False
+    )
     lk.setup()
 
     model = lk.reduce_data(lc_core_lowz_ctx)
