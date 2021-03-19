@@ -1441,9 +1441,7 @@ class LikelihoodForest(LikelihoodBaseFile):
 
         ecm_cosmic = np.cov(pdfs.T)
         self.noise = (
-            self.noise
-            + ecm_cosmic
-            + np.diag(np.ones(self.hist_bin_size) * 1e-5)
+            self.noise + ecm_cosmic + np.diag(np.ones(self.hist_bin_size) * 1e-5)
         )
 
         return np.mean(pdfs, axis=0)
