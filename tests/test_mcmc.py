@@ -543,6 +543,35 @@ def test_forest(lc_core_lowz, lc_core_lowz_ctx):
         n_realization=10,
     )
 
+    with pytest.raises(NotImplementedError):
+        coeval_core_lowz = mcmc.CoreCoevalModule(
+            redshift=5.4,
+            max_redshift=8.0,
+            user_params=lc_core_lowz.user_params,
+            flag_options=lc_core_lowz.flag_options,
+        )
+        chain = mcmc.build_computation_chain([coeval_core_lowz, core], lk, setup=True)
+        lk.setup()
+
+        model = lk.reduce_data(chain.build_model_data())
+
+    with pytest.raises(ValueError):
+        lk_wrongz = mcmc.LikelihoodForest(name="z5pt5")
+        core_wrongz = mcmc.CoreForest(
+            redshift=5.5,
+            name="z5pt5",
+            user_params=lc_core_lowz.user_params,
+            flag_options=lc_core_lowz.flag_options,
+            n_realization=10,
+        )
+
+        chain = mcmc.build_computation_chain(
+            [lc_core_lowz, core_wrongz], lk_wrongz, setup=True
+        )
+        lk_wrongz.setup()
+
+        model = lk_wrongz.reduce_data(chain.build_model_data())
+
     mcmc.build_computation_chain([lc_core_lowz, core], lk, setup=True)
     lk.setup()
 

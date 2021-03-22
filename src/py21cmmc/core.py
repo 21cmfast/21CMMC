@@ -696,9 +696,9 @@ class CoreForest(CoreLightConeModule):
             or self.observation == "bosman_pessimistic"
         ):
             data = np.load(
-                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npy"),
+                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz"),
                 allow_pickle=True,
-            ).item()
+            )
             targets = (data["zs"] > self.redshift[0] - 0.1) * (
                 data["zs"] <= self.redshift[0] + 0.1
             )
@@ -802,6 +802,8 @@ class CoreForest(CoreLightConeModule):
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
         lc = ctx.get("lightcone")
+        if not lc:
+            raise NotImplementedError("A lightcone core is required!")
         lightcone_redshifts = lc.lightcone_redshifts
         lightcone_distances = lc.lightcone_distances
         total_los = lc.user_params.HII_DIM ** 2

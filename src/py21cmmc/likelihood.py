@@ -185,11 +185,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
                 )
             else:
-                try:
-                    data.append(dict(np.load(fl, allow_pickle=True)))
-                except TypeError:
-                    # TODO: need to better handle this
-                    data.append(dict(np.load(fl, allow_pickle=True).item()))
+                data.append(dict(np.load(fl, allow_pickle=True)))
 
         return data
 
@@ -1372,7 +1368,7 @@ class LikelihoodForest(LikelihoodBaseFile):
             )
 
             self.datafile = [
-                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npy")
+                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz")
             ]
             self.noisefile = [
                 path.join(
