@@ -82,6 +82,34 @@ def lc_core_ctx(lc_core):
     return ctx
 
 
+@pytest.fixture(scope="module")
+def lc_core_lowz():
+    return mcmc.CoreLightConeModule(
+        redshift=5.0,
+        max_redshift=8.0,
+        user_params={"HII_DIM": 35, "DIM": 70},
+        flag_options={"INHOMO_RECO": True},
+    )
+
+
+@pytest.fixture(scope="module")
+def lc_core_lowz_ctx(lc_core_lowz):
+    lk = mcmc.LikelihoodForest(name="z5pt4")
+    core = mcmc.CoreForest(
+        redshift=5.4,
+        name="z5pt4",
+        user_params=lc_core_lowz.user_params,
+        flag_options=lc_core_lowz.flag_options,
+        n_realization=10,
+    )
+
+    chain = mcmc.build_computation_chain([lc_core_lowz, core], lk)
+
+    assert lk._is_lightcone
+
+    return chain.build_model_data()
+
+
 def test_core_coeval_setup(core, likelihood_coeval):
     with pytest.raises(ValueError):  # If simulate is not true, and no datafile given...
         lk = mcmc.Likelihood1DPowerCoeval()
@@ -498,3 +526,54 @@ def test_wrong_lf_redshift():
             mcmc.LikelihoodLuminosityFunction(name="lf"),
         ]
         mcmc.build_computation_chain(cores, lks, setup=True)
+
+
+def test_forest(lc_core_lowz, lc_core_lowz_ctx):
+
+    lk = mcmc.LikelihoodForest(name="z5pt4")
+
+    with pytest.raises(mcmc.NotAChain):
+        assert lk._is_lightcone
+
+    core = mcmc.CoreForest(
+        redshift=5.4,
+        name="z5pt4",
+        user_params=lc_core_lowz.user_params,
+        flag_options=lc_core_lowz.flag_options,
+        n_realization=10,
+    )
+
+    with pytest.raises(NotImplementedError):
+        coeval_core_lowz = mcmc.CoreCoevalModule(
+            redshift=5.4,
+            max_redshift=8.0,
+            user_params=lc_core_lowz.user_params,
+            flag_options=lc_core_lowz.flag_options,
+        )
+        chain = mcmc.build_computation_chain([coeval_core_lowz, core], lk, setup=True)
+        lk.setup()
+
+        model = lk.reduce_data(chain.build_model_data())
+
+    with pytest.raises(ValueError):
+        lk_wrongz = mcmc.LikelihoodForest(name="z5pt5")
+        core_wrongz = mcmc.CoreForest(
+            redshift=5.5,
+            name="z5pt5",
+            user_params=lc_core_lowz.user_params,
+            flag_options=lc_core_lowz.flag_options,
+            n_realization=10,
+        )
+
+        chain = mcmc.build_computation_chain(
+            [lc_core_lowz, core_wrongz], lk_wrongz, setup=True
+        )
+        lk_wrongz.setup()
+
+        model = lk_wrongz.reduce_data(chain.build_model_data())
+
+    mcmc.build_computation_chain([lc_core_lowz, core], lk, setup=True)
+    lk.setup()
+
+    model = lk.reduce_data(lc_core_lowz_ctx)
+    assert not np.all(model == 0)
