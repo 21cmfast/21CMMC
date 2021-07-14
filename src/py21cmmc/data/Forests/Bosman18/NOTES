@@ -1,0 +1,9 @@
+# data.npy stores Bosman+18 data, i.e. effective optical depth binned by 50 cMpc.
+# This file can be read by np.load("data.npy", allow_pickle=True).
+# There are 5 fields: "zs", "flux", "flux_err", "tau_lower","tau_upper", correpsonding to
+# zs: the redshift of the 50cMpc pixel
+# flux: its flux with continum removed
+# flux_err: flux error
+# tau_lower: the effective optical depth (=-ln(flux)) with non detections = -ln(2 * flux_err)
+# tau_upper: the effective optical depth (=-ln(flux)) with non detections = inf
+# Note that flux and flux_err has been rescaled to accomondate Bosman2020 results (PCA-nominal in Table 2)

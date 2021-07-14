@@ -10,6 +10,7 @@ import logging
 import numpy as np
 import py21cmfast as p21
 import warnings
+from os import path
 
 from . import _utils as ut
 
@@ -529,6 +530,15 @@ class CoreLightConeModule(CoreCoevalModule):
         # Update parameters
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
+        # TODO: make it a option that users can decide
+        lightcone_quantities = (
+            "brightness_temp",
+            "xH_box",
+            "temp_kinetic_all_gas",
+            "Gamma12_box",
+            "density",
+        )
+
         # Call C-code
         lightcone = p21.run_lightcone(
             redshift=self.redshift[0],
@@ -541,6 +551,8 @@ class CoreLightConeModule(CoreCoevalModule):
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
+            lightcone_quantities=lightcone_quantities,
+            global_quantities=lightcone_quantities,
             **self.global_params,
         )
 
@@ -639,3 +651,227 @@ class CoreLuminosityFunction(CoreCoevalModule):
             except TypeError:
 
                 lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
+
+
+class CoreForest(CoreLightConeModule):
+    r"""A Core Module that produces model effective optical depth at a range of redshifts.
+
+    name : str
+        The name used to match the likelihood
+
+    observation : str
+        The observation that is used to construct the tau_eff statisctic.
+        Currently, only bosman_optimistic and bosman_pessimistic are provided.
+
+    n_realization : int
+        The number of realizations to evaluate the error covariance matrix, default is 150.
+
+    mean_flux : float
+        The mean flux (usually from observation) used to rescale the modelling results.
+        If not provided, the modelled mean flux will be rescaled according to input parameters
+        log10_f_rescale and f_rescale_slope.
+
+    Other Parameters
+    ----------------
+    \*\*kwargs :
+        All other parameters are the same as :class:`CoreCoevalModule`.
+    """
+
+    def __init__(
+        self,
+        name="",
+        observation="bosman_optimistic",
+        n_realization=150,
+        mean_flux=None,
+        **kwargs,
+    ):
+        self.name = str(name)
+        self.observation = str(observation)
+        self.n_realization = n_realization
+        self.mean_flux = mean_flux
+        super().__init__(**kwargs)
+
+        if (
+            self.observation == "bosman_optimistic"
+            or self.observation == "bosman_pessimistic"
+        ):
+            data = np.load(
+                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz"),
+                allow_pickle=True,
+            )
+            targets = (data["zs"] > self.redshift[0] - 0.1) * (
+                data["zs"] <= self.redshift[0] + 0.1
+            )
+            self.nlos = sum(targets)
+            self.bin_size = 50 / self.cosmo_params.hlittle
+        else:
+            raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
+
+        if self.nlos * self.n_realization > self.user_params.HII_DIM ** 2:
+            raise ValueError(
+                "You asked for %d realizations, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
+                % (self.n_realization, self.user_params.HII_DIM ** 2, self.nlos)
+            )
+
+    def setup(self):
+        """Run post-init setup."""
+        CoreBase.setup(self)
+
+    def tau_GP(self, gamma_bg, delta, temp, redshifts):
+        r"""Calculating the lyman-alpha optical depth in each pixel using the fluctuating GP approximation.
+
+        Parameters
+        ----------
+        gamma_bg : float or array_like
+            The background photonionization rate in units of 1e-12 s**-1
+
+        delta : float or array_like
+            The underlying overdensity
+
+        temp : float or array_like
+            The kinectic temperature of the gas in 1e4 K
+
+        redshifts : float or array_like
+            Correspoding redshifts along the los
+        """
+        gamma_local = np.zeros_like(gamma_bg)
+        residual_xHI = np.zeros_like(gamma_bg, dtype=np.float64)
+
+        flag_neutral = gamma_bg == 0
+        flag_zerodelta = delta == 0
+
+        if gamma_bg.shape != redshifts.shape:
+            redshifts = np.tile(redshifts, (*gamma_bg.shape[:-1], 1))
+
+        delta_ss = (
+            2.67e4 * temp ** 0.17 * (1.0 + redshifts) ** -3 * gamma_bg ** (2.0 / 3.0)
+        )
+        gamma_local[~flag_neutral] = gamma_bg[~flag_neutral] * (
+            0.98
+            * (
+                (1.0 + (delta[~flag_neutral] / delta_ss[~flag_neutral]) ** 1.64)
+                ** -2.28
+            )
+            + 0.02 * (1.0 + (delta[~flag_neutral] / delta_ss[~flag_neutral])) ** -0.84
+        )
+
+        Y_He = 0.245
+        # TODO: use global_params
+        residual_xHI[~flag_zerodelta] = 1 + gamma_local[~flag_zerodelta] * 1.0155e7 / (
+            1.0 + 1.0 / (4.0 / Y_He - 3)
+        ) * temp[~flag_zerodelta] ** 0.75 / (
+            delta[~flag_zerodelta] * (1.0 + redshifts[~flag_zerodelta]) ** 3
+        )
+        residual_xHI[~flag_zerodelta] = residual_xHI[~flag_zerodelta] - np.sqrt(
+            residual_xHI[~flag_zerodelta] ** 2 - 1.0
+        )
+
+        return (
+            7875.053145028655
+            / (
+                self.cosmo_params.hlittle
+                * np.sqrt(
+                    self.cosmo_params.OMm * (1.0 + redshifts) ** 3
+                    + self.cosmo_params.OMl
+                )
+            )
+            * delta
+            * (1.0 + redshifts) ** 3
+            * residual_xHI
+        )
+
+    def find_n_rescale(self, tau, mean_fluxave_target):
+        """Find the rescaling factor so that the mean transmission equal to observations."""
+        # Newton-Raphson method
+        x = 1
+        Ntry = 0
+        while np.abs(np.mean(np.exp(-tau * x)) / mean_fluxave_target - 1) > 1e-2:
+            f_x = np.mean(np.exp(-tau * x)) - mean_fluxave_target
+            f_prime_x = np.min([-1e-10, np.mean(-tau * np.exp(-tau * x))])
+            x -= f_x / f_prime_x
+            if x < 0:
+                x = 0
+            Ntry += 1
+            if Ntry > 1e3:
+                break
+                raise RuntimeError("I've tried too many times...", x, f_x, f_prime_x)
+        return x
+
+    def build_model_data(self, ctx):
+        """Compute all data defined by this core and add it to the context."""
+        astro_params, cosmo_params = self._update_params(ctx.getParams())
+
+        lc = ctx.get("lightcone")
+        if not lc:
+            raise NotImplementedError("A lightcone core is required!")
+        lightcone_redshifts = lc.lightcone_redshifts
+        lightcone_distances = lc.lightcone_distances
+        total_los = lc.user_params.HII_DIM ** 2
+
+        index_right = np.where(
+            lightcone_distances
+            > (
+                lightcone_distances[
+                    np.where(lightcone_redshifts > self.redshift[0])[0][0]
+                ]
+                + self.bin_size / 2
+            )
+        )[0][0]
+        index_left = np.where(
+            lightcone_distances
+            > (
+                lightcone_distances[
+                    np.where(lightcone_redshifts > self.redshift[0])[0][0]
+                ]
+                - self.bin_size / 2
+            )
+        )[0][0]
+        if index_left == 0:
+            # TODO here should give a warning!
+            index_right = np.where(
+                lightcone_distances > (lightcone_distances[0] + self.bin_size)
+            )[0][0]
+
+        # select a few number of the los according to the observation
+        tau_eff = np.zeros([self.n_realization, self.nlos])
+
+        if not self.mean_flux:
+            if not hasattr(ctx.getParams(), "log10_f_rescale"):
+                logger.warning(
+                    "missing input hyper parameter, log10_f_rescale, assigning 0!"
+                )
+                f_rescale = 1
+            else:
+                f_rescale = 10 ** ctx.getParams().log10_f_rescale
+
+            if not hasattr(ctx.getParams(), "f_rescale_slope"):
+                logger.warning(
+                    "missing input hyper parameter, f_rescale_slope, assigning 0!"
+                )
+            else:
+                f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
+
+        for jj in range(self.n_realization):
+            gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
+                [total_los, index_right - index_left]
+            )[jj :: int(total_los / self.nlos)][: self.nlos]
+            delta = (
+                lc.density[:, :, index_left:index_right].reshape(
+                    [total_los, index_right - index_left]
+                )[jj :: int(total_los / self.nlos)][: self.nlos]
+                + 1.0
+            )
+            temp = (
+                lc.temp_kinetic_all_gas[:, :, index_left:index_right].reshape(
+                    [total_los, index_right - index_left]
+                )[jj :: int(total_los / self.nlos)][: self.nlos]
+                / 1e4
+            )
+            tau_lyman_alpha = self.tau_GP(
+                gamma_bg, delta, temp, lightcone_redshifts[index_left:index_right]
+            )
+            if self.mean_flux:
+                f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
+
+            tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
+        ctx.add("tau_eff_%s" % self.name, tau_eff)
