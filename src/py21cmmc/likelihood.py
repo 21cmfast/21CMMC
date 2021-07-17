@@ -1361,12 +1361,6 @@ class LikelihoodForest(LikelihoodBaseFile):
                 raise ValueError(
                     "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman!"
                 )
-            self.tau_range = [0, 8]
-            self.hist_bin_width = 0.1
-            self.hist_bin_size = int(
-                (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
-            )
-
             self.datafile = [
                 path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz")
             ]
@@ -1378,8 +1372,46 @@ class LikelihoodForest(LikelihoodBaseFile):
                 )
             ]
 
+        elif "xqr30" in self.observation:
+            if self.redshifts[0] not in [
+                5.0,
+                5.1,
+                5.2,
+                5.3,
+                5.4,
+                5.5,
+                5.6,
+                5.7,
+                5.8,
+                5.9,
+                6.0,
+                6.1,
+                6.2,
+            ]:
+                raise ValueError(
+                    "only forests at z=5.0, 5.1, 5.2,... 6.1, and 6.2 are provided for bosman!"
+                )
+            self.datafile = [
+                path.join(path.dirname(__file__), "data/Forests/Bosman21/data.npz")
+            ]
+            self.noisefile = [
+                path.join(
+                    path.dirname(__file__),
+                    "data/Forests/Bosman21/PDF_ErrorCovarianceMatrix_GP/z%s.npy"
+                    % str(self.redshifts[0]).replace(".", "pt"),
+                )
+            ]
+
         else:
-            raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
+            raise NotImplementedError(
+                "Use bosman_optimistic or bosman_pessimistic or xqr30!"
+            )
+
+        self.tau_range = [0, 8]
+        self.hist_bin_width = 0.1
+        self.hist_bin_size = int(
+            (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
+        )
 
         super().setup()
 
@@ -1445,6 +1477,17 @@ class LikelihoodForest(LikelihoodBaseFile):
             )[0]
 
         ecm_cosmic = np.cov(pdfs.T)
+        if "xqr30" in self.oservation:
+            # intepolate between different filling factors
+            filling_factor = ctx.get("filling_factor_%s" % self.name)
+            if filling_factor > 0.7:
+                self.noise = self.noise[7]
+            else:
+                index_left = int(filling_factor * 10)
+                index_right = index_left + 1
+                self.noise = self.noise[index_left] * (
+                    0.1 * index_right - filling_factor
+                ) + self.noise[index_right] * (filling_factor - 0.1 * index_left)
         self.noise = (
             self.noise + ecm_cosmic + np.diag(np.ones(self.hist_bin_size) * 1e-5)
         )
