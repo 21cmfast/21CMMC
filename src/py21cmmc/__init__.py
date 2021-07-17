@@ -5,6 +5,7 @@ from .analyse import get_samples, load_primitive_chain
 from .core import (
     CoreCMB,
     CoreCoevalModule,
+    CoreForest,
     CoreLightConeModule,
     CoreLuminosityFunction,
     NotAChain,
@@ -14,7 +15,9 @@ from .cosmoHammer import HDFStorageUtil
 from .likelihood import (
     Likelihood1DPowerCoeval,
     Likelihood1DPowerLightcone,
+    LikelihoodBaseFile,
     LikelihoodEDGES,
+    LikelihoodForest,
     LikelihoodGlobalSignal,
     LikelihoodGreig,
     LikelihoodLuminosityFunction,

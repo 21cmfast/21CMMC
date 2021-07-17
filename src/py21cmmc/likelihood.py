@@ -204,7 +204,11 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
 
                 else:
-                    noise.append(dict(np.load(fl, allow_pickle=True)))
+                    try:
+                        noise.append(dict(np.load(fl, allow_pickle=True)))
+                    except ValueError:
+                        # TODO: this one is for reading the error covariance matrix, need to better deal with it
+                        noise.append(np.load(fl, allow_pickle=True))
 
             return noise
 
@@ -950,7 +954,11 @@ class LikelihoodPlanck(LikelihoodBase):
     required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
 
     def __init__(
-        self, *args, tau_mean=0.0544, tau_sigma=0.0073, **kwargs,
+        self,
+        *args,
+        tau_mean=0.0544,
+        tau_sigma=0.0073,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
@@ -1596,3 +1604,169 @@ class LikelihoodEDGES(LikelihoodBaseFile):
             return -0.5 * np.square(
                 (model["freq_tb_min"] - self.freq_edges) / self.freq_err_edges
             )
+
+
+class LikelihoodForest(LikelihoodBaseFile):
+    """
+    A likelihood based on chi^2 comparison to measured CDF of Lyman-alpha forest effective optical depth.
+
+    This is the likelihood arising from Bosman et al. (2018), which reports new constraints on Lyman-alpha
+    opacity with a sample of 62 quasars at z>5.7, or D'Odorico et al. in prep., which includes new samples
+    from the XQR-30 survey.
+
+    Parameters
+    ----------
+    name : str
+        The name used to match the core
+
+    observation : str
+        The observation that is used to construct the tau_eff statisctic.
+
+    """
+
+    required_cores = (core.CoreForest,)
+
+    def __init__(self, name="", observation="bosman_optimistic", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = str(name)
+        self.observation = str(observation)
+        self.n_realization = 150
+
+    def setup(self):
+        """Setup instance."""
+        if len(self.redshifts) != 1:
+            raise ValueError(
+                "to use the provided forests, a separate core/likelihood instance pair for each redshift is required!"
+            )
+        if "bosman" in self.observation:
+            if self.redshifts[0] not in [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]:
+                raise ValueError(
+                    "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman!"
+                )
+            self.tau_range = [0, 8]
+            self.hist_bin_width = 0.1
+            self.hist_bin_size = int(
+                (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
+            )
+
+            self.datafile = [
+                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz")
+            ]
+            self.noisefile = [
+                path.join(
+                    path.dirname(__file__),
+                    "data/Forests/Bosman18/PDF_ErrorCovarianceMatrix_GP/z%s.npy"
+                    % str(self.redshifts[0]).replace(".", "pt"),
+                )
+            ]
+
+        else:
+            raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
+
+        super().setup()
+
+    def _read_data(self):
+        data = super()._read_data()[0]
+        targets = np.where(
+            (data["zs"] > (self.redshifts[0] - 0.1))
+            * (data["zs"] <= (self.redshifts[0] + 0.1))
+        )[0]
+        pdfs = np.zeros([2, self.hist_bin_size])
+
+        pdfs[0] = np.histogram(
+            data["tau_lower"][targets], range=self.tau_range, bins=self.hist_bin_size
+        )[0]
+
+        pdfs[1] = np.histogram(
+            data["tau_upper"][targets], range=self.tau_range, bins=self.hist_bin_size
+        )[0]
+        return pdfs
+
+    def _read_noise(self):
+        # read the ECM due to the GP approximation
+        ErrorCovarianceMatrix_GP = super()._read_noise()[0]
+        return ErrorCovarianceMatrix_GP
+
+    @cached_property
+    def paired_core(self):
+        """The forest core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if isinstance(c, core.CoreForest) and c.name == self.name:
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreForest with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
+
+    @property
+    def redshifts(self):
+        """Redshifts at which forest is defined."""
+        return self.paired_core.redshift
+
+    @property
+    def _is_lightcone(self):
+        return isinstance(self.core_primary, core.CoreLightConeModule)
+
+    def reduce_data(self, ctx):
+        """Reduce data to model."""
+        if not self._is_lightcone:
+            raise NotImplementedError(
+                "The Forest can only work with lightcone at the moment"
+            )
+
+        tau_eff = ctx.get("tau_eff_%s" % self.name)
+        # use the same binning as the obs
+
+        n_realization = tau_eff.shape[0]
+        pdfs = np.zeros([n_realization, self.hist_bin_size])
+        for jj in range(n_realization):
+            pdfs[jj] = np.histogram(
+                tau_eff[jj], range=self.tau_range, bins=self.hist_bin_size
+            )[0]
+
+        ecm_cosmic = np.cov(pdfs.T)
+        self.noise = (
+            self.noise + ecm_cosmic + np.diag(np.ones(self.hist_bin_size) * 1e-5)
+        )
+
+        return np.mean(pdfs, axis=0)
+
+    def computeLikelihood(self, model):
+        """
+        Compute the likelihood, given the lightcone output from 21cmFAST.
+
+        Parameters
+        ----------
+        model : list of pdfs
+            Exactly the output of :meth:`simulate`.
+
+        Returns
+        -------
+        lnl : float
+            The log-likelihood for the given model.
+        """
+        det = np.linalg.det(self.noise)
+        if det == 0:
+            logger.warning(
+                "Determinant is zero for this error covariance matrix, return -inf for lnl"
+            )
+            return -np.inf
+
+        diff = model - self.data[0]
+        for ii in np.where(self.data[0] != self.data[1])[0]:
+            if model[ii] < self.data[0][ii]:
+                diff[ii] = min(0, model[ii] - self.data[1][ii])
+        diff = diff.reshape([1, -1])
+
+        lnl = (
+            -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0, 0]
+        )
+        if det < 0:
+            logger.warning(
+                "Determinant (%f) is negative for this error covariance matrix, lnl=%f, return -inf for lnl"
+                % (det, lnl)
+            )
+            return -np.inf
+        return lnl

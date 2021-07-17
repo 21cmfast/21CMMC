@@ -31,7 +31,9 @@ def trace_print():
 
 
 class LCC:
-    def __init__(self,):
+    def __init__(
+        self,
+    ):
         self.a = 2
 
         self.big_array = np.zeros(1000000)
