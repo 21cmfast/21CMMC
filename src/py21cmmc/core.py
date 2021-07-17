@@ -722,6 +722,12 @@ class CoreForest(CoreLightConeModule):
                 path.join(path.dirname(__file__), "data/Forests/Bosman21/data.npz"),
                 allow_pickle=True,
             )
+            self.fbias_FGPA = np.load(
+                path.join(
+                    path.dirname(__file__), "data/Forests/Bosman21/fbias_FGPA/z%s.npy"
+                ),
+                allow_pickle=True,
+            )
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
         targets = (data["zs"] > self.redshift[0] - 0.1) * (
@@ -869,6 +875,34 @@ class CoreForest(CoreLightConeModule):
         # select a few number of the los according to the observation
         tau_eff = np.zeros([self.n_realization, self.nlos])
 
+        fbias = 1
+        if self.observation == "xqr30":
+            index = np.argmin(lc.node_redshifts - self.redshift[0])
+            if lc.node_redshifts[index] < self.redshift[0]:
+                filling_factor = lc.lobal_xH[index] * (
+                    lc.node_redshifts[index + 1] - self.redshift[0]
+                ) + lc.lobal_xH[index + 1] * (
+                    self.redshift[0] - lc.node_redshifts[index]
+                )
+            else:
+                filling_factor = lc.lobal_xH[index - 1] * (
+                    lc.node_redshifts[index] - self.redshift[0]
+                ) + lc.lobal_xH[index] * (
+                    self.redshift[0] - lc.node_redshifts[index - 1]
+                )
+            ctx.add("filling_factor_%s" % self.name, filling_factor)
+            if not self.mean_flux:
+                if filling_factor > 0.7:
+                    fbias = self.fbias_FGPA[7]
+                else:
+                    index_left = int(filling_factor * 10)
+                    index_right = index_left + 1
+                    fbias = self.fbias_FGPA[index_left] * (
+                        0.1 * index_right - filling_factor
+                    ) + self.fbias_FGPA[index_right] * (
+                        filling_factor - 0.1 * index_left
+                    )
+
         if not self.mean_flux:
             if not hasattr(ctx.getParams(), "log10_f_rescale"):
                 logger.warning(
@@ -925,20 +959,7 @@ class CoreForest(CoreLightConeModule):
             if self.mean_flux:
                 f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
 
-            tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
+            tau_eff[jj] = -np.log(
+                np.mean(np.exp(-tau_lyman_alpha * f_rescale * fbias), axis=1)
+            )
         ctx.add("tau_eff_%s" % self.name, tau_eff)
-        if self.observation == "xqr30":
-            index = np.argmin(lc.node_redshifts - self.redshift[0])
-            if lc.node_redshifts[index] < self.redshift[0]:
-                filling_factor = lc.lobal_xH[index] * (
-                    lc.node_redshifts[index + 1] - self.redshift[0]
-                ) + lc.lobal_xH[index + 1] * (
-                    self.redshift[0] - lc.node_redshifts[index]
-                )
-            else:
-                filling_factor = lc.lobal_xH[index - 1] * (
-                    lc.node_redshifts[index] - self.redshift[0]
-                ) + lc.lobal_xH[index] * (
-                    self.redshift[0] - lc.node_redshifts[index - 1]
-                )
-            ctx.add("filling_factor_%s" % self.name, filling_factor)
