@@ -661,15 +661,25 @@ class CoreForest(CoreLightConeModule):
 
     observation : str
         The observation that is used to construct the tau_eff statisctic.
-        Currently, only bosman_optimistic and bosman_pessimistic are provided.
+        Currently, only bosman_optimistic and bosman_pessimistic are provided for Bosman+18,
+        and xqr30 for Bosman+21.
 
     n_realization : int
         The number of realizations to evaluate the error covariance matrix, default is 150.
+
+    bin_size : float
+        The bin size for calculating effective optical depth, default is 50 / hlittle
 
     mean_flux : float
         The mean flux (usually from observation) used to rescale the modelling results.
         If not provided, the modelled mean flux will be rescaled according to input parameters
         log10_f_rescale and f_rescale_slope.
+
+    even_spacing : bool
+        Whether or not to do different realizations by having even space, default is True.
+
+    seed : int
+        The randome seed for doing realizations, default if 1993. This is only needed when even_spacing is False.
 
     Other Parameters
     ----------------
@@ -682,14 +692,22 @@ class CoreForest(CoreLightConeModule):
         name="",
         observation="bosman_optimistic",
         n_realization=150,
+        bin_size=None,
         mean_flux=None,
+        even_spacing=True,
+        seed=1993,
         **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
         self.n_realization = n_realization
         self.mean_flux = mean_flux
+        self.even_spacing = even_spacing
+        self.seed = seed
         super().__init__(**kwargs)
+
+        if self.bin_size is None:
+            self.bin_size = 50 / self.cosmo_params.hlittle
 
         if (
             self.observation == "bosman_optimistic"
@@ -699,19 +717,35 @@ class CoreForest(CoreLightConeModule):
                 path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz"),
                 allow_pickle=True,
             )
-            targets = (data["zs"] > self.redshift[0] - 0.1) * (
-                data["zs"] <= self.redshift[0] + 0.1
+        elif self.observation == "xqr30":
+            data = np.load(
+                path.join(path.dirname(__file__), "data/Forests/Bosman21/data.npz"),
+                allow_pickle=True,
             )
-            self.nlos = sum(targets)
-            self.bin_size = 50 / self.cosmo_params.hlittle
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
+        targets = (data["zs"] > self.redshift[0] - 0.1) * (
+            data["zs"] <= self.redshift[0] + 0.1
+        )
+        self.nlos = sum(targets)
 
-        if self.nlos * self.n_realization > self.user_params.HII_DIM ** 2:
-            raise ValueError(
-                "You asked for %d realizations, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
-                % (self.n_realization, self.user_params.HII_DIM ** 2, self.nlos)
-            )
+        if self.even_spacing:
+            if self.nlos * self.n_realization > self.user_params.HII_DIM ** 2:
+                raise ValueError(
+                    "You asked for %d realizations with even_spacing, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
+                    % (self.n_realization, self.user_params.HII_DIM ** 2, self.nlos)
+                )
+        else:
+            if self.nlos * self.n_realization > self.user_params.HII_DIM ** 2:
+                logger.warning(
+                    "You asked for %d realizations with even_spacing, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM otherwise Cosmic Variance can be underestiamted!"
+                    % (self.nlos, self.user_params.HII_DIM ** 2, self.nlos)
+                )
+            if self.nlos > self.user_params.HII_DIM ** 2:
+                raise ValueError(
+                    "You asked for %d los without even_spacing, larger than what the box has (%d)! Increase HII_DIM!"
+                    % (self.nlos, self.user_params.HII_DIM ** 2)
+                )
 
     def setup(self):
         """Run post-init setup."""
@@ -852,24 +886,42 @@ class CoreForest(CoreLightConeModule):
                 f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
 
         for jj in range(self.n_realization):
-            gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
-                [total_los, index_right - index_left]
-            )[jj :: int(total_los / self.nlos)][: self.nlos]
-            delta = (
-                lc.density[:, :, index_left:index_right].reshape(
+            if self.even_spacing:
+                gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
                     [total_los, index_right - index_left]
                 )[jj :: int(total_los / self.nlos)][: self.nlos]
-                + 1.0
-            )
-            temp = (
-                lc.temp_kinetic_all_gas[:, :, index_left:index_right].reshape(
-                    [total_los, index_right - index_left]
-                )[jj :: int(total_los / self.nlos)][: self.nlos]
-                / 1e4
-            )
+                delta = (
+                    lc.density[:, :, index_left:index_right].reshape(
+                        [total_los, index_right - index_left]
+                    )[jj :: int(total_los / self.nlos)][: self.nlos]
+                    + 1.0
+                )
+                temp = (
+                    lc.temp_kinetic_all_gas[:, :, index_left:index_right].reshape(
+                        [total_los, index_right - index_left]
+                    )[jj :: int(total_los / self.nlos)][: self.nlos]
+                    / 1e4
+                )
+            else:
+                rng = np.random.default_rng(self.seed + jj)
+                random_index = rng.choice(
+                    self.user_params.HII_DIM ** 2, size=self.nlos, replace=False
+                )
+                random_ii = (random_index / self.user_params.HII_DIM).astype(int)
+                random_jj = random_index % self.user_params.HII_DIM
+                gamma_bg = lc.Gamma12_box[random_ii, random_jj, index_left:index_right]
+                delta = lc.density[random_ii, random_jj, index_left:index_right] + 1.0
+                temp = (
+                    lc.temp_kinetic_all_gas[
+                        random_ii, random_jj, index_left:index_right
+                    ]
+                    / 1e4
+                )
+
             tau_lyman_alpha = self.tau_GP(
                 gamma_bg, delta, temp, lightcone_redshifts[index_left:index_right]
             )
+
             if self.mean_flux:
                 f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
 
