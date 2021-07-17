@@ -945,10 +945,13 @@ class LikelihoodPlanck(LikelihoodBase):
     ----------
     tau_mean : float
         Mean for the optical depth constraint.
-        By default, it is 0.0544 from Planck 2018
-    tau_sigma : float
+        By default, it is 0.0569 from Planck 2018 (2006.16828)
+    tau_sigma_u : float
         One sigma errors for the optical depth constraint.
-        By default, it is 0.0073 from Planck 2018
+        By default, it is 0.0081 from Planck 2018 (2006.16828)
+    tau_sigma_l : float
+        One sigma errors for the optical depth constraint.
+        By default, it is 0.0066 from Planck 2018 (2006.16828)
     """
 
     required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
@@ -956,16 +959,18 @@ class LikelihoodPlanck(LikelihoodBase):
     def __init__(
         self,
         *args,
-        tau_mean=0.0544,
-        tau_sigma=0.0073,
+        tau_mean=0.0569,
+        tau_sigma_u=0.0073,
+        tau_sigma_l=0.0066,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
         # Mean and one sigma errors for the Planck constraints
-        # Cosmology from Planck 2018(https://arxiv.org/pdf/1807.06209.pdf)
+        # Cosmology from Planck 2018(https://arxiv.org/abs/2006.16828)
         self.tau_mean = tau_mean
-        self.tau_sigma = tau_sigma
+        self.tau_sigma_u = tau_sigma_u
+        self.tau_sigma_l = tau_sigma_l
 
         # Simple linear extrapolation of the redshift range provided by the user, to be
         # able to estimate the optical depth
@@ -989,7 +994,14 @@ class LikelihoodPlanck(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
-        return -0.5 * ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
+        return (
+            -0.5
+            * np.square(self.tau_mean - model["tau"])
+            / (
+                self.tau_sigma_u * self.tau_sigma_l
+                + (self.tau_sigma_u - self.tau_sigma_l) * (model["tau"] - self.tau_mean)
+            )
+        )
 
     @property
     def _is_lightcone(self):
