@@ -517,7 +517,6 @@ def test_wrong_lf_paring():
     mcmc.build_computation_chain(cores, lks, setup=True)
 
 
-@pytest.mark.xfail
 def test_wrong_lf_redshift():
     with pytest.raises(ValueError):
         cores = [
@@ -529,6 +528,7 @@ def test_wrong_lf_redshift():
         mcmc.build_computation_chain(cores, lks, setup=True)
 
 
+@pytest.mark.xfail
 def test_planckpowerspectra(lc_core, default_params, tmpdirec):
     cores = [
         lc_core,
