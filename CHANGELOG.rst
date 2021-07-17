@@ -15,3 +15,5 @@ v1.0.0dev
 - Full code formatting applied
 - New likelihood to use Bowman+18 EDGES measurement (2003.04442, 2009.11493)
 - New likelihood to use Bosman+18 Lyman-alpha forest data (2101.09033)
+- New likelihood to use Planck18 EE PS (2006.16828)
+- Update default LikelihoodPlanck to use Planck18 tau_e derived in 2006.16828
