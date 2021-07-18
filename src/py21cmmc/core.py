@@ -701,6 +701,7 @@ class CoreForest(CoreLightConeModule):
         self.name = str(name)
         self.observation = str(observation)
         self.n_realization = n_realization
+        self.bin_size = bin_size
         self.mean_flux = mean_flux
         self.even_spacing = even_spacing
         self.seed = seed
