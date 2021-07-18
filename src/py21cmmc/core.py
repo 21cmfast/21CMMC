@@ -734,6 +734,9 @@ class CoreForest(CoreLightConeModule):
                 path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz"),
                 allow_pickle=True,
             )
+            targets = (data["zs"] > self.redshift[0] - 0.1) * (
+                data["zs"] <= self.redshift[0] + 0.1
+            )
         elif self.observation == "xqr30":
             data = np.load(
                 path.join(path.dirname(__file__), "data/Forests/Bosman21/data.npz"),
@@ -747,11 +750,11 @@ class CoreForest(CoreLightConeModule):
                 ),
                 allow_pickle=True,
             )
+            targets = (data["zs"] > self.redshift[0] - 0.05) * (
+                data["zs"] <= self.redshift[0] + 0.05
+            )
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
-        targets = (data["zs"] > self.redshift[0] - 0.1) * (
-            data["zs"] <= self.redshift[0] + 0.1
-        )
         self.nlos = sum(targets)
 
         if self.even_spacing:
