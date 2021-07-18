@@ -538,6 +538,9 @@ class CoreLightConeModule(CoreCoevalModule):
             "temp_kinetic_all_gas",
             "Gamma12_box",
             "density",
+            "MFP_box",
+            "temp_kinetic_all_gas",
+            "dNion_box",
         )
 
         # Call C-code
