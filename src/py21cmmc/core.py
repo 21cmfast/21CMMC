@@ -725,7 +725,9 @@ class CoreForest(CoreLightConeModule):
             )
             self.fbias_FGPA = np.load(
                 path.join(
-                    path.dirname(__file__), "data/Forests/Bosman21/fbias_FGPA/z%s.npy"
+                    path.dirname(__file__),
+                    "data/Forests/Bosman21/fbias_FGPA/z%s.npy"
+                    % str(self.redshift[0]).replace(".", "pt"),
                 ),
                 allow_pickle=True,
             )
