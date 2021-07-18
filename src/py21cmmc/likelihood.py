@@ -688,25 +688,43 @@ class LikelihoodPlanck(LikelihoodBase):
 
     In practice, any optical depth measurement (or mock measurement) may be used, by
     defining the class variables ``tau_mean`` and ``tau_sigma``.
+
+    Parameters
+    ----------
+    tau_mean : float
+        Mean for the optical depth constraint.
+        By default, it is 0.0569 from Planck 2018 (2006.16828)
+    tau_sigma_u : float
+        One sigma errors for the optical depth constraint.
+        By default, it is 0.0081 from Planck 2018 (2006.16828)
+    tau_sigma_l : float
+        One sigma errors for the optical depth constraint.
+        By default, it is 0.0066 from Planck 2018 (2006.16828)
     """
 
     required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
 
-    # Mean and one sigma errors for the Planck constraints
-    # The Planck prior is modelled as a Gaussian: tau = 0.0561 \pm 0.0071
-    # (https://arxiv.org/abs/1807.06209)
-    tau_mean = 0.0561
-    tau_sigma = 0.0071
+    def __init__(
+        self,
+        *args,
+        tau_mean=0.0569,
+        tau_sigma_u=0.0073,
+        tau_sigma_l=0.0066,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
 
-    # Simple linear extrapolation of the redshift range provided by the user, to be
-    # able to estimate the optical depth
-    n_z_interp = 15
+        # Mean and one sigma errors for the Planck constraints
+        # Cosmology from Planck 2018(https://arxiv.org/abs/2006.16828)
+        self.tau_mean = tau_mean
+        self.tau_sigma_u = tau_sigma_u
+        self.tau_sigma_l = tau_sigma_l
 
-    # Minimum of extrapolation is chosen to 5.9, to correspond to the McGreer et al.
-    # prior on the IGM neutral fraction.
-    # The maximum is chosen to be z = 18., which is arbitrary.
-    z_extrap_min = 5.9
-    z_extrap_max = 20.0
+        # Simple linear extrapolation of the redshift range provided by the user, to be
+        # able to estimate the optical depth
+        self.n_z_interp = 25
+        self.z_extrap_min = 5.0
+        self.z_extrap_max = 30.0
 
     def computeLikelihood(self, model):
         """
@@ -724,7 +742,14 @@ class LikelihoodPlanck(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
-        return -0.5 * ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
+        return (
+            -0.5
+            * np.square(self.tau_mean - model["tau"])
+            / (
+                self.tau_sigma_u * self.tau_sigma_l
+                + (self.tau_sigma_u - self.tau_sigma_l) * (model["tau"] - self.tau_mean)
+            )
+        )
 
     @property
     def _is_lightcone(self):
