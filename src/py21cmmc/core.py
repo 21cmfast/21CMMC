@@ -900,7 +900,7 @@ class CoreForest(CoreLightConeModule):
         fbias = 1
         if self.observation == "xqr30":
             index = np.where(np.asarray(lc.node_redshifts) < self.redshift[0])[0][0]
-            filling_factor = lc.lobal_xH[index] * (
+            filling_factor = lc.global_xH[index] * (
                 lc.node_redshifts[index + 1] - self.redshift[0]
             ) + lc.lobal_xH[index + 1] * (self.redshift[0] - lc.node_redshifts[index])
             ctx.add("filling_factor_%s" % self.name, filling_factor)
