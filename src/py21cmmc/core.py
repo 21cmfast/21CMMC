@@ -507,6 +507,16 @@ class CoreLightConeModule(CoreCoevalModule):
             and not self.change_seed_every_iter
         ):
             logger.info("Initializing default boxes for the entire chain.")
+            lightcone_quantities = (
+                "brightness_temp",
+                "xH_box",
+                "temp_kinetic_all_gas",
+                "Gamma12_box",
+                "density",
+                "MFP_box",
+                "temp_kinetic_all_gas",
+                "dNion_box",
+            )
             lightcone = p21.run_lightcone(
                 redshift=self.redshift[0],
                 max_redshift=self.max_redshift,
@@ -518,6 +528,8 @@ class CoreLightConeModule(CoreCoevalModule):
                 regenerate=self.regenerate,
                 direc=self.io_options["cache_dir"],
                 random_seed=self.initial_conditions_seed,
+                lightcone_quantities=lightcone_quantities,
+                global_quantities=lightcone_quantities,
                 **self.global_params,
             )
 
