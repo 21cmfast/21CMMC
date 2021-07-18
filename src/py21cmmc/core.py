@@ -920,9 +920,9 @@ class CoreForest(CoreLightConeModule):
                     index_left = int(filling_factor * 10)
                     index_right = index_left + 1
                     fbias = self.fbias_FGPA[index_left] * (
-                        0.1 * index_right - filling_factor
+                        index_right - filling_factor * 10
                     ) + self.fbias_FGPA[index_right] * (
-                        filling_factor - 0.1 * index_left
+                        filling_factor * 10 - index_left
                     )
 
         if not self.mean_flux:

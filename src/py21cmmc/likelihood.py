@@ -1511,8 +1511,8 @@ class LikelihoodForest(LikelihoodBaseFile):
                 index_left = int(filling_factor * 10)
                 index_right = index_left + 1
                 self.noise = self.noise[index_left] * (
-                    0.1 * index_right - filling_factor
-                ) + self.noise[index_right] * (filling_factor - 0.1 * index_left)
+                    index_right - filling_factor * 10
+                ) + self.noise[index_right] * (filling_factor * 10 - index_left)
         self.noise = (
             self.noise + ecm_cosmic + np.diag(np.ones(self.hist_bin_size) * 1e-5)
         )
