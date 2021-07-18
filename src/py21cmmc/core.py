@@ -5,6 +5,7 @@ This is the basis of the plugin system for :mod:`py21cmmc`.
 TODO: Add description of the API of cores (and how to define new ones).
 """
 import copy
+import h5py
 import inspect
 import logging
 import numpy as np
@@ -966,3 +967,56 @@ class CoreForest(CoreLightConeModule):
                 np.mean(np.exp(-tau_lyman_alpha * f_rescale * fbias), axis=1)
             )
         ctx.add("tau_eff_%s" % self.name, tau_eff)
+        self.save(ctx)
+
+    def save(self, ctx):
+        """Save outputs and astro_params details."""
+        lc = ctx.get("lightcone")
+
+        with h5py.File(
+            "output/run_" + str(int(np.random.random() * 10 ** 20)) + ".hdf5", "w"
+        ) as f:
+            f.create_dataset(
+                "tau_eff_%s" % self.name,
+                data=ctx.get("tau_eff_%s" % self.name),
+                shape=(self.n_realization, self.nlos),
+                dtype="float",
+            )
+            f.create_dataset(
+                "node_redshifts",
+                data=lc.node_redshifts,
+                dtype="float",
+            )
+            f.create_dataset(
+                "global_xH",
+                data=lc.global_xH,
+                dtype="float",
+            )
+            f.create_dataset(
+                "global_Gamma12",
+                data=lc.global_Gamma12,
+                dtype="float",
+            )
+            f.create_dataset(
+                "global_MFP",
+                data=lc.global_MFP,
+                dtype="float",
+            )
+            f.create_dataset(
+                "global_temp_kinetic_all_gas",
+                data=lc.global_temp_kinetic_all_gas,
+                dtype="float",
+            )
+            f.create_dataset(
+                "global_dNion",
+                data=lc.global_dNion,
+                dtype="float",
+            )
+            grp = f.create_group("astro_params")
+            for kk, v in getattr(lc, "astro_params").__dict__.items():
+                if v is None:
+                    continue
+                else:
+                    grp.attrs[kk] = v
+
+            f.attrs["random_seed"] = ctx.get("lightcone").random_seed
