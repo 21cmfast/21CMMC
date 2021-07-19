@@ -992,6 +992,7 @@ class CoreForest(CoreLightConeModule):
         lc = ctx.get("lightcone")
         params = ctx.getParams()
         filename = md5(str(params).replace("\n", "").encode()).hexdigest()
+        logger.debug(f"parameters: {params}, filename: {filename}")
 
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
@@ -1032,7 +1033,7 @@ class CoreForest(CoreLightConeModule):
                     dtype="float",
                 )
                 grp = f.create_group("params")
-                for kk, v in getattr(lc, "params").__dict__.items():
+                for kk, v in getattr(lc, "astro_params").__dict__.items():
                     if v is None:
                         continue
                     else:
