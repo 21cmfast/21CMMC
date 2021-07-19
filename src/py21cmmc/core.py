@@ -11,6 +11,7 @@ import logging
 import numpy as np
 import py21cmfast as p21
 import warnings
+from hashlib import md5
 from os import path
 
 from . import _utils as ut
@@ -989,51 +990,51 @@ class CoreForest(CoreLightConeModule):
     def save(self, ctx):
         """Save outputs and astro_params details."""
         lc = ctx.get("lightcone")
+        filename = md5(str(lc.astro_params).replace("\n", "").encode()).hexdigest()
 
-        with h5py.File(
-            "output/run_" + str(int(np.random.random() * 10 ** 20)) + ".hdf5", "w"
-        ) as f:
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
                 "tau_eff_%s" % self.name,
                 data=ctx.get("tau_eff_%s" % self.name),
                 shape=(self.n_realization, self.nlos),
                 dtype="float",
             )
-            f.create_dataset(
-                "node_redshifts",
-                data=lc.node_redshifts,
-                dtype="float",
-            )
-            f.create_dataset(
-                "global_xH",
-                data=lc.global_xH,
-                dtype="float",
-            )
-            f.create_dataset(
-                "global_Gamma12",
-                data=lc.global_Gamma12,
-                dtype="float",
-            )
-            f.create_dataset(
-                "global_MFP",
-                data=lc.global_MFP,
-                dtype="float",
-            )
-            f.create_dataset(
-                "global_temp_kinetic_all_gas",
-                data=lc.global_temp_kinetic_all_gas,
-                dtype="float",
-            )
-            f.create_dataset(
-                "global_dNion",
-                data=lc.global_dNion,
-                dtype="float",
-            )
-            grp = f.create_group("astro_params")
-            for kk, v in getattr(lc, "astro_params").__dict__.items():
-                if v is None:
-                    continue
-                else:
-                    grp.attrs[kk] = v
+            if f.get("node_redshifts") is None:
+                f.create_dataset(
+                    "node_redshifts",
+                    data=lc.node_redshifts,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_xH",
+                    data=lc.global_xH,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_Gamma12",
+                    data=lc.global_Gamma12,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_MFP",
+                    data=lc.global_MFP,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_temp_kinetic_all_gas",
+                    data=lc.global_temp_kinetic_all_gas,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_dNion",
+                    data=lc.global_dNion,
+                    dtype="float",
+                )
+                grp = f.create_group("astro_params")
+                for kk, v in getattr(lc, "astro_params").__dict__.items():
+                    if v is None:
+                        continue
+                    else:
+                        grp.attrs[kk] = v
 
-            f.attrs["random_seed"] = ctx.get("lightcone").random_seed
+                f.attrs["random_seed"] = ctx.get("lightcone").random_seed

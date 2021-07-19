@@ -1,7 +1,9 @@
 """Module containing 21CMMC likelihoods."""
+import h5py
 import logging
 import numpy as np
 from cached_property import cached_property
+from hashlib import md5
 from io import IOBase
 from os import path, rename
 from powerbox.tools import get_power
@@ -805,6 +807,10 @@ class LikelihoodPlanck(LikelihoodBase):
             redshifts=z_extrap,
             global_xHI=xHI,
         )
+        if self._is_lightcone:
+            filename = md5(str(lc.astro_params).replace("\n", "").encode()).hexdigest()
+            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset("tau_e", data=tau_value, dtype="float")
 
         return {"tau": tau_value}
 
