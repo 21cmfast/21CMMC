@@ -990,7 +990,8 @@ class CoreForest(CoreLightConeModule):
     def save(self, ctx):
         """Save outputs and astro_params details."""
         lc = ctx.get("lightcone")
-        filename = md5(str(lc.astro_params).replace("\n", "").encode()).hexdigest()
+        params = ctx.getParams()
+        filename = md5(str(params).replace("\n", "").encode()).hexdigest()
 
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
@@ -1030,11 +1031,13 @@ class CoreForest(CoreLightConeModule):
                     data=lc.global_dNion,
                     dtype="float",
                 )
-                grp = f.create_group("astro_params")
-                for kk, v in getattr(lc, "astro_params").__dict__.items():
+                grp = f.create_group("params")
+                for kk, v in getattr(lc, "params").__dict__.items():
                     if v is None:
                         continue
                     else:
                         grp.attrs[kk] = v
+                    grp.attrs["log10_f_rescale"] = params.log10_f_rescale
+                    grp.attrs["f_rescale_slope"] = params.f_rescale_slope
 
                 f.attrs["random_seed"] = ctx.get("lightcone").random_seed
