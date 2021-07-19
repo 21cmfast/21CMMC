@@ -756,6 +756,10 @@ class CoreForest(CoreLightConeModule):
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
         self.nlos = sum(targets)
+        logger.info(
+            "doing %s at z=%.1f, %d los"
+            % (self.observation, self.redshift[0], sum(targets))
+        )
 
         if self.even_spacing:
             if self.nlos * self.n_realization > self.user_params.HII_DIM ** 2:
@@ -915,6 +919,10 @@ class CoreForest(CoreLightConeModule):
                     ) + self.fbias_FGPA[index_right] * (
                         filling_factor * 10 - index_left
                     )
+            logger.info(
+                "doing xqr30 at z=%.1f with filling factor of %.2f and fbias of %.2f"
+                % (self.redshift[0], filling_factor, fbias)
+            )
 
         if not self.mean_flux:
             if not hasattr(ctx.getParams(), "log10_f_rescale"):

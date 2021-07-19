@@ -1426,6 +1426,7 @@ class LikelihoodForest(LikelihoodBaseFile):
                     % str(self.redshifts[0]).replace(".", "pt"),
                 )
             ]
+            logger.info("doing xqr30 at z=%.1f" % self.redshifts[0])
 
         else:
             raise NotImplementedError(
@@ -1502,9 +1503,13 @@ class LikelihoodForest(LikelihoodBaseFile):
             )[0]
 
         ecm_cosmic = np.cov(pdfs.T)
-        if "xqr30" in self.oservation:
+        if "xqr30" in self.observation:
             # intepolate between different filling factors
             filling_factor = ctx.get("filling_factor_%s" % self.name)
+            logger.info(
+                "doing xqr30 at %.2f with filling factor being %.2f"
+                % (self.redshifts[0], filling_factor)
+            )
             if filling_factor > 0.7:
                 self.noise = self.noise[7]
             else:
