@@ -756,7 +756,7 @@ class CoreForest(CoreLightConeModule):
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
         self.nlos = sum(targets)
-        logger.info(
+        logger.debug(
             "doing %s at z=%.1f, %d los"
             % (self.observation, self.redshift[0], sum(targets))
         )
@@ -919,7 +919,7 @@ class CoreForest(CoreLightConeModule):
                     ) + self.fbias_FGPA[index_right] * (
                         filling_factor * 10 - index_left
                     )
-            logger.info(
+            logger.debug(
                 "doing xqr30 at z=%.1f with filling factor of %.2f and fbias of %.2f"
                 % (self.redshift[0], filling_factor, fbias)
             )

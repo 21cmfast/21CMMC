@@ -1426,7 +1426,7 @@ class LikelihoodForest(LikelihoodBaseFile):
                     % str(self.redshifts[0]).replace(".", "pt"),
                 )
             ]
-            logger.info("doing xqr30 at z=%.1f" % self.redshifts[0])
+            logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
 
         else:
             raise NotImplementedError(
@@ -1506,7 +1506,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         if "xqr30" in self.observation:
             # intepolate between different filling factors
             filling_factor = ctx.get("filling_factor_%s" % self.name)
-            logger.info(
+            logger.debug(
                 "doing xqr30 at %.2f with filling factor being %.2f"
                 % (self.redshifts[0], filling_factor)
             )
