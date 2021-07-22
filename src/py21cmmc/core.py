@@ -516,7 +516,8 @@ class CoreLightConeModule(CoreCoevalModule):
                 "density",
                 "MFP_box",
                 "temp_kinetic_all_gas",
-                "dNion_box",
+                "Nion_box",
+                "Nrec_box",
             )
             lightcone = p21.run_lightcone(
                 redshift=self.redshift[0],
@@ -553,7 +554,8 @@ class CoreLightConeModule(CoreCoevalModule):
             "density",
             "MFP_box",
             "temp_kinetic_all_gas",
-            "dNion_box",
+            "Nion_box",
+            "Nrec_box",
         )
 
         # Call C-code

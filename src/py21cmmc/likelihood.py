@@ -1544,26 +1544,30 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        det = np.linalg.det(self.noise)
-        if det == 0:
-            logger.warning(
-                "Determinant is zero for this error covariance matrix, return -inf for lnl"
-            )
-            return -np.inf
 
         diff = model - self.data[0]
+        #flat likelihood between upper and lower PDF
         for ii in np.where(self.data[0] != self.data[1])[0]:
             if model[ii] < self.data[0][ii]:
                 diff[ii] = min(0, model[ii] - self.data[1][ii])
+
+        # L=0 for models where diff!=0 and covariance=0
+        index_zeroEC = np.where(np.diagonal(self.noise)==0)[0]
+        if len(index_zeroEC) > 0:
+            if np.max(np.abs(diff[index_zeroEC])) > 0:
+                return -np.inf
+
+        index_validEC = np.where(np.diagonal(self.noise)>0)[0]
+        noise = self.noise[index_validEC][:,index_validEC]
+        if np.linalg.det(noise) < 0:
+            logger.warning(
+                "Determinant is negative for this error covariance matrix, return -inf for lnl"
+            )
+            return -np.inf
+        diff = diff[index_validEC]
         diff = diff.reshape([1, -1])
 
         lnl = (
-            -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0, 0]
+            -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(noise), diff.T])[0, 0]
         )
-        if det < 0:
-            logger.warning(
-                "Determinant (%f) is negative for this error covariance matrix, lnl=%f, return -inf for lnl"
-                % (det, lnl)
-            )
-            return -np.inf
         return lnl
