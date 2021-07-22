@@ -1028,10 +1028,21 @@ class CoreForest(CoreLightConeModule):
                     dtype="float",
                 )
                 f.create_dataset(
-                    "global_dNion",
-                    data=lc.global_dNion,
+                    "global_Nion",
+                    data=lc.global_Nion,
                     dtype="float",
                 )
+                f.create_dataset(
+                    "global_Nrec",
+                    data=lc.global_Nrec,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "Nion",
+                    data=lc.Nion,
+                    dtype="float",
+                )
+                grp = f.create_group("params")
                 grp = f.create_group("params")
                 for kk, v in getattr(lc, "astro_params").__dict__.items():
                     if v is None:
