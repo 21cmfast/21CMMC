@@ -1041,7 +1041,7 @@ class CoreForest(CoreLightConeModule):
                 )
                 f.create_dataset(
                     "Nion",
-                    data=lc.Nion,
+                    data=lc.Nioni_acg,
                     dtype="float",
                 )
                 grp = f.create_group("params")
