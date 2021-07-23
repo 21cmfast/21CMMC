@@ -1422,14 +1422,17 @@ class LikelihoodForest(LikelihoodBaseFile):
                 raise ValueError(
                     "only forests at z=5.0, 5.1, 5.2,... 6.1, and 6.2 are provided for bosman!"
                 )
+            filename = "z%s.npy" % str(self.redshifts[0]).replace(".", "pt")
             self.datafile = [
-                path.join(path.dirname(__file__), "data/Forests/Bosman21/data.npz")
+                path.join(
+                    path.dirname(__file__),
+                    "data/Forests/Bosman21/tau_eff/%s" % filename,
+                )
             ]
             self.noisefile = [
                 path.join(
                     path.dirname(__file__),
-                    "data/Forests/Bosman21/PDF_ErrorCovarianceMatrix_GP/z%s.npy"
-                    % str(self.redshifts[0]).replace(".", "pt"),
+                    "data/Forests/Bosman21/PDF_ErrorCovarianceMatrix_GP/%s" % filename,
                 )
             ]
             logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
@@ -1544,21 +1547,20 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-
         diff = model - self.data[0]
-        #flat likelihood between upper and lower PDF
+        # flat likelihood between upper and lower PDF
         for ii in np.where(self.data[0] != self.data[1])[0]:
             if model[ii] < self.data[0][ii]:
                 diff[ii] = min(0, model[ii] - self.data[1][ii])
 
         # L=0 for models where diff!=0 and covariance=0
-        index_zeroEC = np.where(np.diagonal(self.noise)==0)[0]
+        index_zeroEC = np.where(np.diagonal(self.noise) == 0)[0]
         if len(index_zeroEC) > 0:
             if np.max(np.abs(diff[index_zeroEC])) > 0:
                 return -np.inf
 
-        index_validEC = np.where(np.diagonal(self.noise)>0)[0]
-        noise = self.noise[index_validEC][:,index_validEC]
+        index_validEC = np.where(np.diagonal(self.noise) > 0)[0]
+        noise = self.noise[index_validEC][:, index_validEC]
         if np.linalg.det(noise) < 0:
             logger.warning(
                 "Determinant is negative for this error covariance matrix, return -inf for lnl"
@@ -1567,7 +1569,5 @@ class LikelihoodForest(LikelihoodBaseFile):
         diff = diff[index_validEC]
         diff = diff.reshape([1, -1])
 
-        lnl = (
-            -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(noise), diff.T])[0, 0]
-        )
+        lnl = -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(noise), diff.T])[0, 0]
         return lnl

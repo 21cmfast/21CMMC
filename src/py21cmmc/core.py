@@ -740,28 +740,29 @@ class CoreForest(CoreLightConeModule):
             targets = (data["zs"] > self.redshift[0] - 0.1) * (
                 data["zs"] <= self.redshift[0] + 0.1
             )
+            self.nlos = sum(targets)
         elif self.observation == "xqr30":
+            filename = "z%s.npy" % (str(self.redshift[0]).replace(".", "pt"))
             data = np.load(
-                path.join(path.dirname(__file__), "data/Forests/Bosman21/data.npz"),
+                path.join(
+                    path.dirname(__file__),
+                    "data/Forests/Bosman21/tau_eff/%s" % filename,
+                ),
                 allow_pickle=True,
             )
             self.fbias_FGPA = np.load(
                 path.join(
                     path.dirname(__file__),
-                    "data/Forests/Bosman21/fbias_FGPA/z%s.npy"
-                    % str(self.redshift[0]).replace(".", "pt"),
+                    "data/Forests/Bosman21/fbias_FGPA/%s" % filename,
                 ),
                 allow_pickle=True,
             )
-            targets = (data["zs"] > self.redshift[0] - 0.05) * (
-                data["zs"] <= self.redshift[0] + 0.05
-            )
+            self.nlos = len(data["zs"])
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
-        self.nlos = sum(targets)
         logger.debug(
             "doing %s at z=%.1f, %d los"
-            % (self.observation, self.redshift[0], sum(targets))
+            % (self.observation, self.redshift[0], self.nlos)
         )
 
         if self.even_spacing:
