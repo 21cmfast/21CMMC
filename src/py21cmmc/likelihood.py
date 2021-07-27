@@ -744,6 +744,8 @@ class LikelihoodPlanck(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
+        if model["tau"] is None:
+            return -np.inf
         return (
             -0.5
             * np.square(self.tau_mean - model["tau"])
@@ -770,6 +772,9 @@ class LikelihoodPlanck(LikelihoodBase):
         if self._is_lightcone:
 
             lc = ctx.get("lightcone")
+            if lc is None:
+                logger.warning("LikelihoodPlanck: no lightcone!")
+                return {"tau": None}
 
             redshifts = lc.node_redshifts
             xHI = lc.global_xHI
@@ -1503,6 +1508,8 @@ class LikelihoodForest(LikelihoodBaseFile):
 
         tau_eff = ctx.get("tau_eff_%s" % self.name)
         # use the same binning as the obs
+        if tau_eff is None:
+            return None
 
         n_realization = tau_eff.shape[0]
         pdfs = np.zeros([n_realization, self.hist_bin_size])
@@ -1547,6 +1554,8 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
+        if self.data is None:
+            return -np.inf
         diff = model - self.data[0]
         # flat likelihood between upper and lower PDF
         for ii in np.where(self.data[0] != self.data[1])[0]:

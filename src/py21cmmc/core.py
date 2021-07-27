@@ -559,7 +559,8 @@ class CoreLightConeModule(CoreCoevalModule):
         )
 
         # Call C-code
-        lightcone = p21.run_lightcone(
+        try:
+            lightcone = p21.run_lightcone(
             redshift=self.redshift[0],
             max_redshift=self.max_redshift,
             astro_params=astro_params,
@@ -574,6 +575,8 @@ class CoreLightConeModule(CoreCoevalModule):
             global_quantities=lightcone_quantities,
             **self.global_params,
         )
+        except:
+            lightcone = None
 
         ctx.add("lightcone", lightcone)
 
@@ -872,123 +875,125 @@ class CoreForest(CoreLightConeModule):
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
         lc = ctx.get("lightcone")
-        if not lc:
-            raise NotImplementedError("A lightcone core is required!")
-        lightcone_redshifts = lc.lightcone_redshifts
-        lightcone_distances = lc.lightcone_distances
-        total_los = lc.user_params.HII_DIM ** 2
-
-        index_right = np.where(
-            lightcone_distances
-            > (
-                lightcone_distances[
-                    np.where(lightcone_redshifts > self.redshift[0])[0][0]
-                ]
-                + self.bin_size / 2
-            )
-        )[0][0]
-        index_left = np.where(
-            lightcone_distances
-            > (
-                lightcone_distances[
-                    np.where(lightcone_redshifts > self.redshift[0])[0][0]
-                ]
-                - self.bin_size / 2
-            )
-        )[0][0]
-        if index_left == 0:
-            # TODO here should give a warning!
+        if lc is None:
+            logger.warning("CoreForest: no lightcone!")
+            tau_eff = None
+        else:
+            lightcone_redshifts = lc.lightcone_redshifts
+            lightcone_distances = lc.lightcone_distances
+            total_los = lc.user_params.HII_DIM ** 2
+    
             index_right = np.where(
-                lightcone_distances > (lightcone_distances[0] + self.bin_size)
-            )[0][0]
-
-        # select a few number of the los according to the observation
-        tau_eff = np.zeros([self.n_realization, self.nlos])
-
-        fbias = 1
-        if self.observation == "xqr30":
-            index = np.where(np.asarray(lc.node_redshifts) < self.redshift[0])[0][0]
-            filling_factor = lc.global_xH[index] * (
-                lc.node_redshifts[index - 1] - self.redshift[0]
-            ) + lc.global_xH[index - 1] * (self.redshift[0] - lc.node_redshifts[index])
-            ctx.add("filling_factor_%s" % self.name, filling_factor)
-            if not self.mean_flux:
-                if filling_factor > 0.7:
-                    fbias = self.fbias_FGPA[7]
-                else:
-                    index_left = int(filling_factor * 10)
-                    index_right = index_left + 1
-                    fbias = self.fbias_FGPA[index_left] * (
-                        index_right - filling_factor * 10
-                    ) + self.fbias_FGPA[index_right] * (
-                        filling_factor * 10 - index_left
-                    )
-            logger.debug(
-                "doing xqr30 at z=%.1f with filling factor of %.2f and fbias of %.2f"
-                % (self.redshift[0], filling_factor, fbias)
-            )
-
-        if not self.mean_flux:
-            if not hasattr(ctx.getParams(), "log10_f_rescale"):
-                logger.warning(
-                    "missing input hyper parameter, log10_f_rescale, assigning 0!"
-                )
-                f_rescale = 1
-            else:
-                f_rescale = 10 ** ctx.getParams().log10_f_rescale
-
-            if not hasattr(ctx.getParams(), "f_rescale_slope"):
-                logger.warning(
-                    "missing input hyper parameter, f_rescale_slope, assigning 0!"
-                )
-            else:
-                f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
-
-        for jj in range(self.n_realization):
-            if self.even_spacing:
-                gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
-                    [total_los, index_right - index_left]
-                )[jj :: int(total_los / self.nlos)][: self.nlos]
-                delta = (
-                    lc.density[:, :, index_left:index_right].reshape(
-                        [total_los, index_right - index_left]
-                    )[jj :: int(total_los / self.nlos)][: self.nlos]
-                    + 1.0
-                )
-                temp = (
-                    lc.temp_kinetic_all_gas[:, :, index_left:index_right].reshape(
-                        [total_los, index_right - index_left]
-                    )[jj :: int(total_los / self.nlos)][: self.nlos]
-                    / 1e4
-                )
-            else:
-                rng = np.random.default_rng(self.seed + jj)
-                random_index = rng.choice(
-                    self.user_params.HII_DIM ** 2, size=self.nlos, replace=False
-                )
-                random_ii = (random_index / self.user_params.HII_DIM).astype(int)
-                random_jj = random_index % self.user_params.HII_DIM
-                gamma_bg = lc.Gamma12_box[random_ii, random_jj, index_left:index_right]
-                delta = lc.density[random_ii, random_jj, index_left:index_right] + 1.0
-                temp = (
-                    lc.temp_kinetic_all_gas[
-                        random_ii, random_jj, index_left:index_right
+                lightcone_distances
+                > (
+                    lightcone_distances[
+                        np.where(lightcone_redshifts > self.redshift[0])[0][0]
                     ]
-                    / 1e4
+                    + self.bin_size / 2
                 )
-
-            tau_lyman_alpha = self.tau_GP(
-                gamma_bg, delta, temp, lightcone_redshifts[index_left:index_right]
-            )
-
-            if self.mean_flux:
-                f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
-
-            tau_eff[jj] = -np.log(
-                np.mean(np.exp(-tau_lyman_alpha * f_rescale * fbias), axis=1)
-            )
+            )[0][0]
+            index_left = np.where(
+                lightcone_distances
+                > (
+                    lightcone_distances[
+                        np.where(lightcone_redshifts > self.redshift[0])[0][0]
+                    ]
+                    - self.bin_size / 2
+                )
+            )[0][0]
+            if index_left == 0:
+                # TODO here should give a warning!
+                index_right = np.where(
+                    lightcone_distances > (lightcone_distances[0] + self.bin_size)
+                )[0][0]
+    
+            # select a few number of the los according to the observation
+            tau_eff = np.zeros([self.n_realization, self.nlos])
+    
+            fbias = 1
+            if self.observation == "xqr30":
+                index = np.where(np.asarray(lc.node_redshifts) < self.redshift[0])[0][0]
+                filling_factor = lc.global_xH[index] * (
+                    lc.node_redshifts[index - 1] - self.redshift[0]
+                ) + lc.global_xH[index - 1] * (self.redshift[0] - lc.node_redshifts[index])
+                ctx.add("filling_factor_%s" % self.name, filling_factor)
+                if not self.mean_flux:
+                    if filling_factor > 0.7:
+                        fbias = self.fbias_FGPA[7]
+                    else:
+                        index_left = int(filling_factor * 10)
+                        index_right = index_left + 1
+                        fbias = self.fbias_FGPA[index_left] * (
+                            index_right - filling_factor * 10
+                        ) + self.fbias_FGPA[index_right] * (
+                            filling_factor * 10 - index_left
+                        )
+                logger.debug(
+                    "doing xqr30 at z=%.1f with filling factor of %.2f and fbias of %.2f"
+                    % (self.redshift[0], filling_factor, fbias)
+                )
+    
+            if not self.mean_flux:
+                if not hasattr(ctx.getParams(), "log10_f_rescale"):
+                    logger.warning(
+                        "missing input hyper parameter, log10_f_rescale, assigning 0!"
+                    )
+                    f_rescale = 1
+                else:
+                    f_rescale = 10 ** ctx.getParams().log10_f_rescale
+    
+                if not hasattr(ctx.getParams(), "f_rescale_slope"):
+                    logger.warning(
+                        "missing input hyper parameter, f_rescale_slope, assigning 0!"
+                    )
+                else:
+                    f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
+    
+            for jj in range(self.n_realization):
+                if self.even_spacing:
+                    gamma_bg = lc.Gamma12_box[:, :, index_left:index_right].reshape(
+                        [total_los, index_right - index_left]
+                    )[jj :: int(total_los / self.nlos)][: self.nlos]
+                    delta = (
+                        lc.density[:, :, index_left:index_right].reshape(
+                            [total_los, index_right - index_left]
+                        )[jj :: int(total_los / self.nlos)][: self.nlos]
+                        + 1.0
+                    )
+                    temp = (
+                        lc.temp_kinetic_all_gas[:, :, index_left:index_right].reshape(
+                            [total_los, index_right - index_left]
+                        )[jj :: int(total_los / self.nlos)][: self.nlos]
+                        / 1e4
+                    )
+                else:
+                    rng = np.random.default_rng(self.seed + jj)
+                    random_index = rng.choice(
+                        self.user_params.HII_DIM ** 2, size=self.nlos, replace=False
+                    )
+                    random_ii = (random_index / self.user_params.HII_DIM).astype(int)
+                    random_jj = random_index % self.user_params.HII_DIM
+                    gamma_bg = lc.Gamma12_box[random_ii, random_jj, index_left:index_right]
+                    delta = lc.density[random_ii, random_jj, index_left:index_right] + 1.0
+                    temp = (
+                        lc.temp_kinetic_all_gas[
+                            random_ii, random_jj, index_left:index_right
+                        ]
+                        / 1e4
+                    )
+    
+                tau_lyman_alpha = self.tau_GP(
+                    gamma_bg, delta, temp, lightcone_redshifts[index_left:index_right]
+                )
+    
+                if self.mean_flux:
+                    f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
+    
+                tau_eff[jj] = -np.log(
+                    np.mean(np.exp(-tau_lyman_alpha * f_rescale * fbias), axis=1)
+                )
+            self.save(ctx)
         ctx.add("tau_eff_%s" % self.name, tau_eff)
-        self.save(ctx)
 
     def save(self, ctx):
         """Save outputs and astro_params details."""
@@ -1042,10 +1047,9 @@ class CoreForest(CoreLightConeModule):
                 )
                 f.create_dataset(
                     "Nion",
-                    data=lc.Nioni_acg,
+                    data=lc.Nion_acg,
                     dtype="float",
                 )
-                grp = f.create_group("params")
                 grp = f.create_group("params")
                 for kk, v in getattr(lc, "astro_params").__dict__.items():
                     if v is None:
