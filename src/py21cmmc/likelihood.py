@@ -813,7 +813,8 @@ class LikelihoodPlanck(LikelihoodBase):
             global_xHI=xHI,
         )
         if self._is_lightcone:
-            filename = md5(str(lc.astro_params).replace("\n", "").encode()).hexdigest()
+            params = ctx.getParams()
+            filename = md5(str(params).replace("\n", "").encode()).hexdigest()
             with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                 f.create_dataset("tau_e", data=tau_value, dtype="float")
 
