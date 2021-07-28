@@ -898,7 +898,7 @@ class CoreForest(CoreLightConeModule):
             lightcone_distances = lc.lightcone_distances
             total_los = lc.user_params.HII_DIM ** 2
 
-            if self.redshift_bin:
+            if not self.redshift_bin:
                 index_right_lc = np.where(
                     lightcone_distances
                     > (
