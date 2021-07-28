@@ -692,6 +692,9 @@ class CoreForest(CoreLightConeModule):
     bin_size : float
         The bin size for calculating effective optical depth, default is 50 / hlittle
 
+    redshift_bin : bool
+        Whether or not the bin size is in redshift, default is False.
+
     mean_flux : float
         The mean flux (usually from observation) used to rescale the modelling results.
         If not provided, the modelled mean flux will be rescaled according to input parameters
@@ -715,6 +718,7 @@ class CoreForest(CoreLightConeModule):
         observation="bosman_optimistic",
         n_realization=150,
         bin_size=None,
+        redshift_bin=False,
         mean_flux=None,
         even_spacing=True,
         seed=1993,
@@ -724,6 +728,7 @@ class CoreForest(CoreLightConeModule):
         self.observation = str(observation)
         self.n_realization = n_realization
         self.bin_size = bin_size
+        self.redshift_bin = redshift_bin
         self.mean_flux = mean_flux
         self.even_spacing = even_spacing
         self.seed = seed
@@ -731,6 +736,16 @@ class CoreForest(CoreLightConeModule):
 
         if self.bin_size is None:
             self.bin_size = 50 / self.cosmo_params.hlittle
+
+        if self.redshift_bin and self.bin_size > 2:
+            logger.warning(
+                "You asked for a bin size of %f in redshift, for real?" % self.bin_size
+            )
+
+        if not self.redshift_bin and self.bin_size < 10:
+            logger.warning(
+                "You asked for a bin size of %f in comoving, for real?" % self.bin_size
+            )
 
         if (
             self.observation == "bosman_optimistic"
@@ -883,29 +898,48 @@ class CoreForest(CoreLightConeModule):
             lightcone_distances = lc.lightcone_distances
             total_los = lc.user_params.HII_DIM ** 2
 
-            index_right_lc = np.where(
-                lightcone_distances
-                > (
-                    lightcone_distances[
-                        np.where(lightcone_redshifts > self.redshift[0])[0][0]
-                    ]
-                    + self.bin_size / 2
-                )
-            )[0][0]
-            index_left_lc = np.where(
-                lightcone_distances
-                > (
-                    lightcone_distances[
-                        np.where(lightcone_redshifts > self.redshift[0])[0][0]
-                    ]
-                    - self.bin_size / 2
-                )
-            )[0][0]
-            if index_left_lc == 0:
-                # TODO here should give a warning!
+            if self.redshift_bin:
                 index_right_lc = np.where(
-                    lightcone_distances > (lightcone_distances[0] + self.bin_size)
+                    lightcone_distances
+                    > (
+                        lightcone_distances[
+                            np.where(lightcone_redshifts > self.redshift[0])[0][0]
+                        ]
+                        + self.bin_size / 2
+                    )
                 )[0][0]
+                index_left_lc = np.where(
+                    lightcone_distances
+                    > (
+                        lightcone_distances[
+                            np.where(lightcone_redshifts > self.redshift[0])[0][0]
+                        ]
+                        - self.bin_size / 2
+                    )
+                )[0][0]
+                if index_left_lc == 0:
+                    logger.warning(
+                        "stepping out of the lightcone redshift range, go lower!"
+                    )
+                    # TODO here should give a warning!
+                    index_right_lc = np.where(
+                        lightcone_distances > (lightcone_distances[0] + self.bin_size)
+                    )[0][0]
+            else:
+                index_right_lc = np.where(
+                    lightcone_redshifts > self.redshift[0] + self.bin_size / 2
+                )[0][0]
+                index_left_lc = np.where(
+                    lightcone_redshifts > self.redshift[0] - self.bin_size / 2
+                )[0][0]
+                if index_left_lc == 0:
+                    logger.warning(
+                        "stepping out of the lightcone redshift range, go lower!"
+                    )
+                    # TODO here should give a warning!
+                    index_right_lc = np.where(
+                        lightcone_redshifts > lightcone_redshifts[0] + self.bin_size
+                    )
 
             # select a few number of the los according to the observation
             tau_eff = np.zeros([self.n_realization, self.nlos])
