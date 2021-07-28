@@ -893,6 +893,7 @@ class CoreForest(CoreLightConeModule):
         if lc is None:
             logger.warning("CoreForest: no lightcone!")
             tau_eff = None
+            ctx.add("tau_eff_%s" % self.name, tau_eff)
         else:
             lightcone_redshifts = lc.lightcone_redshifts
             lightcone_distances = lc.lightcone_distances
@@ -1046,8 +1047,8 @@ class CoreForest(CoreLightConeModule):
                 tau_eff[jj] = -np.log(
                     np.mean(np.exp(-tau_lyman_alpha * f_rescale * fbias), axis=1)
                 )
+            ctx.add("tau_eff_%s" % self.name, tau_eff)
             self.save(ctx)
-        ctx.add("tau_eff_%s" % self.name, tau_eff)
 
     def save(self, ctx):
         """Save outputs and astro_params details."""
