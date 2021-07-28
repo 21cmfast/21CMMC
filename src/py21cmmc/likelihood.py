@@ -1555,7 +1555,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-        if self.data is None:
+        if model is None:
             return -np.inf
         diff = model - self.data[0]
         # flat likelihood between upper and lower PDF
