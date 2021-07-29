@@ -528,6 +528,26 @@ def test_wrong_lf_redshift():
         mcmc.build_computation_chain(cores, lks, setup=True)
 
 
+@pytest.mark.xfail
+def test_planckpowerspectra(lc_core, default_params, tmpdirec):
+    cores = [
+        lc_core,
+        mcmc.CoreCMB(z_extrap_max=30),
+    ]
+    mcmc.run_mcmc(
+        cores,
+        mcmc.LikelihoodPlanckPowerSpectra(name_lkl="Planck_lowl_EE"),
+        model_name="TESTPLANCK",
+        continue_sampling=False,
+        datadir=tmpdirec.strpath,
+        params=default_params,
+        walkersRatio=2,
+        burninIterations=0,
+        sampleIterations=2,
+        threadCount=1,
+    )
+
+
 def test_forest(lc_core_lowz, lc_core_lowz_ctx):
 
     lk = mcmc.LikelihoodForest(name="z5pt4")

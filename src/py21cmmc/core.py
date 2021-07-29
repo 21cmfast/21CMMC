@@ -1115,3 +1115,276 @@ class CoreForest(CoreLightConeModule):
                     grp.attrs["f_rescale_slope"] = params.f_rescale_slope
 
                 f.attrs["random_seed"] = ctx.get("lightcone").random_seed
+
+
+class CoreCMB(CoreBase):
+    r"""A Core Module that computes Cl^TT,TE,EE and phiphi (the lensing potentials).
+
+    Notes
+    -----
+    This core calls the CLASS CMB code and takes as an input the reionization history from 21cmFAST and a few cosmological parameters.
+
+    Parameters
+    ----------
+    z_extrap_min : float
+        Minimal z for reionization in CLASS. It should basically always be set to 0.
+
+    z_extrap_max : float
+        Maximal z for reionization in CLASS. It depends on the reionization model.
+
+    z_HeI : float
+        Redshift of the first helium reionization. CLASS models helium reionzation with a tanh centered around zHeI.
+
+    z_HeII : float
+        Redshift of the second helium reionization. CLASS models helium reionzation with a tanh centered around zHeII.
+
+    use_21cmfast : float
+        Whether or not using EoR history from 21cmfast.
+    """
+
+    def __init__(
+        self,
+        verbose=0,
+        z_extrap_min=0,
+        z_extrap_max=20,
+        z_HeI=4,
+        z_HeII=3,
+        use_21cmfast=True,
+        user_params=None,
+        flag_options=None,
+        astro_params=None,
+        cosmo_params=None,
+        regenerate=True,
+        change_seed_every_iter=False,
+        ctx_variables=("brightness_temp", "xH_box"),
+        initial_conditions_seed=None,
+        global_params=None,
+        **io_options,
+    ):
+
+        super().__init__(io_options.get("store", None))
+
+        if not use_21cmfast:
+            self.user_params = p21.UserParams(user_params)
+            self.flag_options = p21.FlagOptions(flag_options)
+            self.astro_params = p21.AstroParams(astro_params)
+            self.cosmo_params = p21.CosmoParams(cosmo_params)
+            self.change_seed_every_iter = change_seed_every_iter
+            self.initial_conditions_seed = initial_conditions_seed
+
+            self.regenerate = regenerate
+            self.ctx_variables = ctx_variables
+
+            self.global_params = global_params or {}
+
+            self.io_options = {
+                "store": {},  # (derived) quantities to store in the MCMC chain.
+                "cache_dir": None,  # where full data sets will be written/read from.
+                "cache_mcmc": False,  # whether to cache ionization data sets
+                # (done before parameter retention step)
+            }
+
+            self.io_options.update(io_options)
+
+        try:
+            from classy import Class
+
+            if verbose > 0:
+                print("import CLASS")
+            global cosmo
+            cosmo = Class()
+            self.verbose = verbose
+            self.z_extrap_min = z_extrap_min
+            self.z_extrap_max = z_extrap_max
+            self.z_HeI = z_HeI
+            self.z_HeII = z_HeII
+            self.use_21cmfast = use_21cmfast
+        except ImportError:
+            raise ImportError(
+                "You must have compiled the classy.pyx file. Please go to "
+                + "/path/to/class/python and run the command\n "
+                + "python setup.py build"
+            )
+
+    def setup(self):
+        """Perform any post-init setup of the object."""
+        super().setup()
+
+    def _update_params(self, params):
+        """
+        Update all the parameter structures which get passed to the driver, for one iteration.
+
+        Parameters
+        ----------
+        params :
+            Parameter object from cosmoHammer
+        """
+        ap_dict = copy.copy(self.astro_params.self)
+        cp_dict = copy.copy(self.cosmo_params.self)
+
+        ap_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.astro_params.defining_dict
+            }
+        )
+        cp_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.cosmo_params.defining_dict
+            }
+        )
+
+        return p21.AstroParams(**ap_dict), p21.CosmoParams(**cp_dict)
+
+    def build_model_data(self, ctx):
+        """Compute the CMB power spectra from a ionization history."""
+        # option for class z_class_min = self.z_extrap_min
+        z_HeI = self.z_HeI  # 4
+        z_HeII = self.z_HeII  # 3
+        z_class_max = self.z_extrap_max
+        z_xe_0 = (
+            z_class_max + 1
+        )  # xe is set to 0 at z=z_xe_0. placeholder: will be overwritten by recombination table in class.
+
+        # Extract relevant info from the context.
+        if self.use_21cmfast:
+            lightcone = ctx.get("lightcone")
+            h = lightcone.cosmo_params.hlittle
+            omega_b = lightcone.cosmo_params.OMb * h * h
+            omega_cdm = lightcone.cosmo_params.OMm * h * h - omega_b
+            sigma8 = lightcone.cosmo_params.SIGMA_8
+            n_s = lightcone.cosmo_params.POWER_INDEX
+
+            xHI = lightcone.global_xH
+            redshifts = lightcone.node_redshifts
+
+            if len(redshifts) < 3:
+                raise ValueError(
+                    "You cannot use the Planck prior likelihood with less than 3 redshifts"
+                )
+
+            # Order the redshifts in increasing order
+            redshifts, xHI = np.sort(np.array([redshifts, xHI]))
+
+            # Translate xHI into xe for CLASS.
+            # The option -1, -2 ensure helium first and second reionization respectively at z_HeI and z_HeII.
+            xe = 1 - xHI
+            redshift_class = np.concatenate(
+                ([0, z_HeII, z_HeI], redshifts[xe > 0], [z_xe_0])
+            )
+            xe = np.concatenate(([-2, -2, -1], xe[xe > 0], [0]))
+
+            common_settings = {
+                "output": "tCl, pCl, lCl",
+                "lensing": "yes",
+                "l_max_scalars": 3000,
+                # LambdaCDM parameters
+                "h": h,
+                "omega_b": omega_b,
+                "omega_cdm": omega_cdm,
+                "sigma8": sigma8,
+                "n_s": n_s,
+                # Take fixed value for primordial Helium (instead of automatic BBN adjustment)
+                "reio_parametrization": "reio_inter",
+                "reio_inter_num": len(xe),
+                "reio_inter_z": ",".join(
+                    ["%.5f" % x for x in redshift_class]
+                ),  # str(redshift_class),
+                "reio_inter_xe": ",".join(["%.5e" % x for x in xe]),
+                "input_verbose": self.verbose,
+                "background_verbose": self.verbose,
+                "thermodynamics_verbose": self.verbose,
+                "perturbations_verbose": self.verbose,
+                "transfer_verbose": self.verbose,
+                "primordial_verbose": self.verbose,
+                "spectra_verbose": self.verbose,
+                "nonlinear_verbose": self.verbose,
+                "lensing_verbose": self.verbose,
+            }
+        else:
+            # Update parameters
+            astro_params, cosmo_params = self._update_params(ctx.getParams())
+            h = self.cosmo_params.hlittle
+            omega_b = self.cosmo_params.OMb * h * h
+            omega_cdm = self.cosmo_params.OMm * h * h - omega_b
+            sigma8 = self.cosmo_params.SIGMA_8
+            n_s = self.cosmo_params.POWER_INDEX
+
+            common_settings = {
+                "output": "tCl, pCl, lCl",
+                "lensing": "yes",
+                "l_max_scalars": 3000,
+                # LambdaCDM parameters
+                "h": h,
+                "omega_b": omega_b,
+                "omega_cdm": omega_cdm,
+                "sigma8": sigma8,
+                "n_s": n_s,
+                "reionization_z_start_max": 70,
+                "z_reio": astro_params.F_STAR10,
+                "reionization_width": astro_params.ALPHA_STAR,
+                "helium_fullreio_redshift": z_HeII,
+                "input_verbose": self.verbose,
+                "background_verbose": self.verbose,
+                "thermodynamics_verbose": self.verbose,
+                "perturbations_verbose": self.verbose,
+                "transfer_verbose": self.verbose,
+                "primordial_verbose": self.verbose,
+                "spectra_verbose": self.verbose,
+                "nonlinear_verbose": self.verbose,
+                "lensing_verbose": self.verbose,
+            }
+
+        ##############
+        #
+        # call CLASS
+        #
+        ###############
+        print(redshift_class)
+        print(xe)
+
+        cosmo.set(common_settings)
+        print(redshift_class)
+        print(xe)
+        cosmo.compute()
+        print(redshift_class)
+        print(xe)
+        if not self.use_21cmfast:
+            thermo = cosmo.get_thermodynamics()
+            # TODO: for some reason, truncating the output range is important for late use in the LH, e.g.LikelihoodNeutralFraction
+            flag = (thermo["z"] > 4) & (thermo["z"] < 50)
+            ctx.add("zs", thermo["z"][flag])
+            ctx.add("xHI", 1.0 - thermo["x_e"][flag] / 1.0818709330934035)
+        print(redshift_class)
+        print(xe)
+        cl = self.get_cl(cosmo)
+        print(redshift_class)
+        print(xe)
+        cosmo.struct_cleanup()
+        cosmo.empty()
+        ctx.add("cl_cmb", cl)
+        print(redshift_class)
+        print(xe)
+
+    def get_cl(self, cosmo, l_max=-1):
+        r"""Return the :math:`C_{\\ell}` from the cosmological code in :math:`\\mu {\\rm K}^2`."""
+        # get C_l^XX from the cosmological code
+        print("GET_CL")
+        cl = cosmo.lensed_cl(int(l_max))
+        print("GET_CL")
+        # convert dimensionless C_l's to C_l in muK**2
+        T = cosmo.T_cmb()  # checked
+        print("GET_CL")
+        for key in cl.keys():
+            # All quantities need to be multiplied by this factor, except the
+            # phi-phi term, that is already dimensionless
+            # phi cross-terms should only be multiplied with this factor once
+            if key not in ["pp", "ell", "tp", "ep"]:
+                cl[key] *= (T * 1.0e6) ** 2
+            elif key in ["tp", "ep"]:
+                cl[key] *= T * 1.0e6
+        print("GET_CL")
+        return cl

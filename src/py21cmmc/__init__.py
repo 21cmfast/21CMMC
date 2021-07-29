@@ -3,6 +3,7 @@
 __version__ = "1.0.0dev3"
 from .analyse import get_samples, load_primitive_chain
 from .core import (
+    CoreCMB,
     CoreCoevalModule,
     CoreForest,
     CoreLightConeModule,
@@ -22,5 +23,6 @@ from .likelihood import (
     LikelihoodLuminosityFunction,
     LikelihoodNeutralFraction,
     LikelihoodPlanck,
+    LikelihoodPlanckPowerSpectra,
 )
 from .mcmc import build_computation_chain, run_mcmc

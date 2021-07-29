@@ -1,6 +1,8 @@
 [flake8]
 select = A,B,C,E,F,W,T4,B9,RST,D,N,I
 ignore =
+	C901
+	E722
     E203
     E266
     E501
