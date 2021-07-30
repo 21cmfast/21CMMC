@@ -1025,7 +1025,7 @@ class LikelihoodPlanck(LikelihoodBase):
 
             lc = ctx.get("lightcone")
             if lc is None:
-                logger.warning("LikelihoodPlanck: no lightcone!")
+                logger.debug("LikelihoodPlanck: no lightcone!")
                 return {"tau": None}
 
             redshifts = lc.node_redshifts
