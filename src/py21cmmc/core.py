@@ -891,7 +891,7 @@ class CoreForest(CoreLightConeModule):
 
         lc = ctx.get("lightcone")
         if lc is None:
-            logger.warning("CoreForest: no lightcone!")
+            logger.debug("CoreForest: no lightcone!")
             tau_eff = None
             ctx.add("tau_eff_%s" % self.name, tau_eff)
         else:
