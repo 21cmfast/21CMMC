@@ -8,7 +8,7 @@ from io import IOBase
 from os import path, rename
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, interp1d
 
 from . import core
 
@@ -1710,6 +1710,13 @@ class LikelihoodForest(LikelihoodBaseFile):
                     "data/Forests/Bosman21/PDF_ErrorCovarianceMatrix_GP/%s" % filename,
                 )
             ]
+            self.fbias_FGPA = np.load(
+                path.join(
+                    path.dirname(__file__),
+                    "data/Forests/Bosman21/fbias_FGPA/%s" % filename,
+                ),
+                allow_pickle=True,
+            )
             logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
 
         else:
@@ -1783,27 +1790,61 @@ class LikelihoodForest(LikelihoodBaseFile):
 
         n_realization = tau_eff.shape[0]
         pdfs = np.zeros([n_realization, self.hist_bin_size])
-        for jj in range(n_realization):
-            pdfs[jj] = np.histogram(
-                tau_eff[jj], range=self.tau_range, bins=self.hist_bin_size
-            )[0]
 
-        ecm_cosmic = np.cov(pdfs.T)
         if "xqr30" in self.observation:
-            # intepolate between different filling factors
             filling_factor = ctx.get("filling_factor_%s" % self.name)
-            logger.debug(
-                "doing xqr30 at %.2f with filling factor being %.2f"
-                % (self.redshifts[0], filling_factor)
-            )
+            # intepolate between different filling factors for the GP noise and fbias factor
+
             if filling_factor > 0.7:
+                fbias = self.fbias_FGPA[7]
                 self.noise = self.noise[7]
             else:
                 index_left = int(filling_factor * 10)
                 index_right = index_left + 1
-                self.noise = self.noise[index_left] * (
-                    index_right - filling_factor * 10
-                ) + self.noise[index_right] * (filling_factor * 10 - index_left)
+                weight_left = index_right - filling_factor * 10
+                weight_right = filling_factor * 10 - index_left
+                fbias = (
+                    self.fbias_FGPA[index_left] * weight_left
+                    + self.fbias_FGPA[index_right] * weight_right
+                )
+                self.noise = (
+                    self.noise[index_left] * weight_left
+                    + self.noise[index_right] * weight_right
+                )
+                logger.debug(
+                    "doing xqr30 at z=%.1f with filling factor of %.2f"
+                    % (self.redshift[0], filling_factor)
+                )
+            bins = np.linspace(
+                self.tau_range[0] + self.hist_bin_width * 0.5,
+                self.tau_range[1] - self.hist_bin_width * 0.5,
+                self.hist_bin_size,
+            )
+
+            for jj in range(n_realization):
+                cdf = np.cumsum(
+                    np.histogram(tau_eff[jj], range=[0, 20], bins=200)[0]
+                ) / len(
+                    tau_eff[jj]
+                )  # range and bins are hard coded
+                cdf_rescaled = interp1d(
+                    fbias, cdf, fill_value=(0, 1), bounds_error=False
+                )(bins)
+                pdfs[jj] = (
+                    np.ediff1d(cdf_rescaled, to_begin=cdf_rescaled[0])
+                    / self.hist_bin_size
+                )
+
+        else:
+            for jj in range(n_realization):
+                pdfs[jj] = np.histogram(
+                    tau_eff[jj],
+                    range=self.tau_range,
+                    bins=self.hist_bin_size,
+                    density=True,
+                )[0]
+
+        ecm_cosmic = np.cov(pdfs.T)
         self.noise = (
             self.noise + ecm_cosmic + np.diag(np.ones(self.hist_bin_size) * 1e-4)
         )

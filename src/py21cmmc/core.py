@@ -768,13 +768,6 @@ class CoreForest(CoreLightConeModule):
                 ),
                 allow_pickle=True,
             )
-            self.fbias_FGPA = np.load(
-                path.join(
-                    path.dirname(__file__),
-                    "data/Forests/Bosman21/fbias_FGPA/%s" % filename,
-                ),
-                allow_pickle=True,
-            )
             self.nlos = len(data["zs"])
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
@@ -945,7 +938,6 @@ class CoreForest(CoreLightConeModule):
             # select a few number of the los according to the observation
             tau_eff = np.zeros([self.n_realization, self.nlos])
 
-            fbias = 1
             if self.observation == "xqr30":
                 index = np.where(np.asarray(lc.node_redshifts) < self.redshift[0])[0][0]
                 filling_factor = lc.global_xH[index] * (
@@ -954,21 +946,6 @@ class CoreForest(CoreLightConeModule):
                     self.redshift[0] - lc.node_redshifts[index]
                 )
                 ctx.add("filling_factor_%s" % self.name, filling_factor)
-                if not self.mean_flux:
-                    if filling_factor > 0.7:
-                        fbias = self.fbias_FGPA[7]
-                    else:
-                        index_left = int(filling_factor * 10)
-                        index_right = index_left + 1
-                        fbias = self.fbias_FGPA[index_left] * (
-                            index_right - filling_factor * 10
-                        ) + self.fbias_FGPA[index_right] * (
-                            filling_factor * 10 - index_left
-                        )
-                logger.debug(
-                    "doing xqr30 at z=%.1f with filling factor of %.2f and fbias of %.2f"
-                    % (self.redshift[0], filling_factor, fbias)
-                )
 
             if not self.mean_flux:
                 if not hasattr(ctx.getParams(), "log10_f_rescale"):
@@ -1045,7 +1022,7 @@ class CoreForest(CoreLightConeModule):
                     f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
 
                 tau_eff[jj] = -np.log(
-                    np.mean(np.exp(-tau_lyman_alpha * f_rescale * fbias), axis=1)
+                    np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1)
                 )
             ctx.add("tau_eff_%s" % self.name, tau_eff)
             self.save(ctx)
