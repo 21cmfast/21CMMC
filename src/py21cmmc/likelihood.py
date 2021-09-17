@@ -1724,7 +1724,7 @@ class LikelihoodForest(LikelihoodBaseFile):
                 "Use bosman_optimistic or bosman_pessimistic or xqr30!"
             )
 
-        self.tau_range = [0, 8]
+        self.tau_range = [0, 8]  # hard coded because of pre-calculated ECM structure
         self.hist_bin_width = 0.1
         self.hist_bin_size = int(
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
@@ -1813,7 +1813,7 @@ class LikelihoodForest(LikelihoodBaseFile):
                 )
                 logger.debug(
                     "doing xqr30 at z=%.1f with filling factor of %.2f"
-                    % (self.redshift[0], filling_factor)
+                    % (self.redshifts[0], filling_factor)
                 )
             bins = np.linspace(
                 self.tau_range[0] + self.hist_bin_width * 0.5,
@@ -1826,7 +1826,7 @@ class LikelihoodForest(LikelihoodBaseFile):
                     np.histogram(tau_eff[jj], range=[0, 20], bins=200)[0]
                 ) / len(
                     tau_eff[jj]
-                )  # range and bins are hard coded
+                )  # range and bins are hard coded because of pre-calculated fbias structure
                 cdf_rescaled = interp1d(
                     fbias, cdf, fill_value=(0, 1), bounds_error=False
                 )(bins)

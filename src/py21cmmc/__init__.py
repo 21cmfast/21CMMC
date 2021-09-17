@@ -15,6 +15,7 @@ from .cosmoHammer import HDFStorageUtil
 from .likelihood import (
     Likelihood1DPowerCoeval,
     Likelihood1DPowerLightcone,
+    LikelihoodBase,
     LikelihoodBaseFile,
     LikelihoodEDGES,
     LikelihoodForest,
