@@ -1467,12 +1467,20 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             model_spline = InterpolatedUnivariateSpline(
                 model["Muv"][i][::-1], model["lfunc"][i][::-1]
             )
-            lnl += -0.5 * np.sum(
-                (
-                    (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
-                    ** 2
-                    / self.noise["sigma"][i] ** 2
-                )[self.data["Muv"][i] > self.mag_brightest]
+            flag = self.data["Muv"][i] > self.mag_brightest
+            lnl += (
+                -0.5
+                * np.sum(
+                    (
+                        (
+                            self.data["lfunc"][i]
+                            - 10 ** model_spline(self.data["Muv"][i])
+                        )
+                        ** 2
+                        / self.noise["sigma"][i] ** 2
+                    )[flag]
+                )
+                / len(self.data["Muv"][i][flag])
             )
         return lnl
 
@@ -1889,5 +1897,9 @@ class LikelihoodForest(LikelihoodBaseFile):
         diff = diff[index_validEC]
         diff = diff.reshape([1, -1])
 
-        lnl = -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(noise), diff.T])[0, 0]
+        lnl = (
+            -0.5
+            * np.linalg.multi_dot([diff, np.linalg.inv(noise), diff.T])[0, 0]
+            / self.hist_bin_size
+        )
         return lnl
