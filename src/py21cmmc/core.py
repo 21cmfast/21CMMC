@@ -968,7 +968,7 @@ class CoreForest(CoreLightConeModule):
                     )
                     logger.debug(
                         "doing xqr30 at z=%.1f with filling factor of %.2f"
-                        % (self.redshifts[0], filling_factor)
+                        % (self.redshift[0], filling_factor)
                     )
 
                 # intepolate between different filling factors for the GP noise and fbias factor
