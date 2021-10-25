@@ -13,6 +13,7 @@ import py21cmfast as p21
 import warnings
 from hashlib import md5
 from os import path
+from scipy.interpolate import interp1d
 
 from . import _utils as ut
 
@@ -883,10 +884,11 @@ class CoreForest(CoreLightConeModule):
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
         lc = ctx.get("lightcone")
+
         if lc is None:
             logger.debug("CoreForest: no lightcone!")
-            tau_eff = None
-            ctx.add("tau_eff_%s" % self.name, tau_eff)
+            ctx.add(self.name + "mean_pdf", np.zeros(self.hist_bin_size) + np.nan)
+            ctx.add(self.name + "ecm_cosmic", None)
         else:
             lightcone_redshifts = lc.lightcone_redshifts
             lightcone_distances = lc.lightcone_distances
@@ -935,10 +937,8 @@ class CoreForest(CoreLightConeModule):
                         lightcone_redshifts > lightcone_redshifts[0] + self.bin_size
                     )
 
-            # select a few number of the los according to the observation
-            tau_eff = np.zeros([self.n_realization, self.nlos])
-
             if self.observation == "xqr30":
+
                 index = np.where(np.asarray(lc.node_redshifts) < self.redshift[0])[0][0]
                 filling_factor = lc.global_xH[index] * (
                     lc.node_redshifts[index - 1] - self.redshift[0]
@@ -946,6 +946,37 @@ class CoreForest(CoreLightConeModule):
                     self.redshift[0] - lc.node_redshifts[index]
                 )
                 ctx.add("filling_factor_%s" % self.name, filling_factor)
+
+                fbias_FGPA = np.load(
+                    path.join(
+                        path.dirname(__file__),
+                        "data/Forests/Bosman21/fbias_FGPA/z%s.npy"
+                        % str(self.redshift[0]).replace(".", "pt"),
+                    ),
+                    allow_pickle=True,
+                )
+                if filling_factor > 0.7:
+                    fbias = fbias_FGPA[7]
+                else:
+                    index_left = int(filling_factor * 10)
+                    index_right = index_left + 1
+                    weight_left = index_right - filling_factor * 10
+                    weight_right = filling_factor * 10 - index_left
+                    fbias = (
+                        fbias_FGPA[index_left] * weight_left
+                        + fbias_FGPA[index_right] * weight_right
+                    )
+                    logger.debug(
+                        "doing xqr30 at z=%.1f with filling factor of %.2f"
+                        % (self.redshifts[0], filling_factor)
+                    )
+
+                # intepolate between different filling factors for the GP noise and fbias factor
+                bins = np.linspace(
+                    self.tau_range[0] + self.hist_bin_width * 0.5,
+                    self.tau_range[1] - self.hist_bin_width * 0.5,
+                    self.hist_bin_size,
+                )
 
             if not self.mean_flux:
                 if not hasattr(ctx.getParams(), "log10_f_rescale"):
@@ -965,6 +996,8 @@ class CoreForest(CoreLightConeModule):
                         self.redshift[0] - 5.7
                     ) * ctx.getParams().f_rescale_slope
 
+            pdfs = np.zeros([self.n_realization, self.hist_bin_size]) + np.nan
+            # select a few number of the los according to the observation
             for jj in range(self.n_realization):
                 if self.even_spacing:
                     gamma_bg = lc.Gamma12_box[
@@ -1021,11 +1054,31 @@ class CoreForest(CoreLightConeModule):
                 if self.mean_flux:
                     f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
 
-                tau_eff[jj] = -np.log(
-                    np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1)
-                )
-            ctx.add("tau_eff_%s" % self.name, tau_eff)
-            self.save(ctx)
+                tau_eff = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
+
+                if "xqr30" in self.observation:
+                    cdf = (
+                        np.cumsum(np.histogram(tau_eff, range=[0, 20], bins=200)[0])
+                        / self.nlos
+                    )  # range and bins are hard coded because of pre-calculated fbias structure
+                    cdf_rescaled = interp1d(
+                        fbias, cdf, fill_value=(0, 1), bounds_error=False
+                    )(bins)
+                    pdfs[jj] = (
+                        np.ediff1d(cdf_rescaled, to_begin=cdf_rescaled[0])
+                        / self.hist_bin_size
+                    )
+                else:
+                    for jj in range(self.n_realization):
+                        pdfs[jj] = np.histogram(
+                            tau_eff,
+                            range=self.tau_range,
+                            bins=self.hist_bin_size,
+                            density=True,
+                        )[0]
+
+            ctx.add(self.name + "ecm_cosmic", np.cov(pdfs.T))
+            ctx.add(self.name + "mean_pdf", np.mean(pdfs, axis=0))
 
     def save(self, ctx):
         """Save outputs and astro_params details."""
@@ -1036,8 +1089,8 @@ class CoreForest(CoreLightConeModule):
 
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
-                "tau_eff_%s" % self.name,
-                data=ctx.get("tau_eff_%s" % self.name),
+                self.name,
+                data=ctx.get(self.name),
                 shape=(self.n_realization, self.nlos),
                 dtype="float",
             )
