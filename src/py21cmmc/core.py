@@ -733,6 +733,12 @@ class CoreForest(CoreLightConeModule):
         self.mean_flux = mean_flux
         self.even_spacing = even_spacing
         self.seed = seed
+        self.tau_range = [0, 8]  # hard coded because of pre-calculated ECM structure
+        self.hist_bin_width = 0.1
+        self.hist_bin_size = int(
+            (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
+        )
+
         super().__init__(**kwargs)
 
         if self.bin_size is None:
