@@ -1065,8 +1065,7 @@ class CoreForest(CoreLightConeModule):
                         fbias, cdf, fill_value=(0, 1), bounds_error=False
                     )(bins)
                     pdfs[jj] = (
-                        np.ediff1d(cdf_rescaled, to_begin=cdf_rescaled[0])
-                        / self.hist_bin_size
+                        np.ediff1d(cdf_rescaled, to_begin=cdf_rescaled[0]) * self.nlos
                     )
                 else:
                     for jj in range(self.n_realization):
@@ -1089,9 +1088,8 @@ class CoreForest(CoreLightConeModule):
 
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
-                self.name,
-                data=ctx.get(self.name),
-                shape=(self.n_realization, self.nlos),
+                self.name + "mean_pdf",
+                data=ctx.get(self.name + "mean_pdf"),
                 dtype="float",
             )
             if f.get("node_redshifts") is None:
