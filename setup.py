@@ -70,8 +70,19 @@ setup(
         "emcee<3",
         "powerbox>=0.5.7",
         "cached_property",
-        "21cmFAST>=3.0.0dev1",
+        "21cmFAST>=3.0.0dev6",
         "pymultinest",
     ],
-    extras_require={"samplers": ["pymultinest"]},
+    extras_require={
+        "samplers": ["pymultinest"],
+        "dev": [
+            "powerbox",
+            "pre-commit",
+            "pytest",
+            "pytest-cov",
+            "pyyaml",
+            "tox",
+            "Cython",
+        ],
+    },
 )

@@ -10,6 +10,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 
 from . import core
 
+loaded_cliks = {}
 logger = logging.getLogger("21cmFAST")
 
 np.seterr(invalid="ignore", divide="ignore")
@@ -203,7 +204,11 @@ class LikelihoodBaseFile(LikelihoodBase):
                     )
 
                 else:
-                    noise.append(dict(np.load(fl, allow_pickle=True)))
+                    try:
+                        noise.append(dict(np.load(fl, allow_pickle=True)))
+                    except ValueError:
+                        # TODO: this one is for reading the error covariance matrix, need to better deal with it
+                        noise.append(np.load(fl, allow_pickle=True))
 
             return noise
 
@@ -678,31 +683,300 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             storage.update({k + "_%s" % i: v for k, v in m.items()})
 
 
+class LikelihoodPlanckPowerSpectra(LikelihoodBase):
+    r"""A likelihood template to use Planck power spectrum.
+
+    It makes use of the clik code developed by the planck collaboration.
+    Go to the planck legacy archive website to download the code and data and get information: https://pla.esac.esa.int
+    You should download the "baseline" data package.
+    This likelihood currently supports Planck_lensing, Planck_highl_TTTEEE and Planck_lowl_EE data. Could easily be extended if required.
+
+    Parameters
+    ----------
+    name_lkl : str
+        the planck likelihood to compute. choice: Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE
+    """
+
+    required_cores = ((core.CoreLightConeModule, core.CoreCMB),)
+
+    def __init__(
+        self,
+        *args,
+        name_lkl=None,
+        A_planck_prior_center=1,
+        A_planck_prior_variance=0.1,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.name = name_lkl
+        self.A_planck_prior_center = A_planck_prior_center
+        self.A_planck_prior_variance = A_planck_prior_variance
+
+        if "Planck_lensing" in self.name:
+            self.lensing = True
+        else:
+            self.lensing = False
+        if "Planck_highl_TTTEEE" in self.name:
+            self.TTTEEE = True
+        else:
+            self.TTTEEE = False
+        if "Planck_lowl_EE" in self.name:
+            self.EE = True
+        else:
+            self.EE = False
+        if not self.TTTEEE and not self.EE and not self.lensing:
+            raise AttributeError(
+                "I did not understand name %s" % (self.name)
+                + " please choose between "
+                + "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE"
+            )
+
+        self.initialize = True
+        if self.initialize:
+            self.initialize_clik_and_class(self.name)
+
+    def reduce_data(self, ctx):
+        """Get the CMB power spectra and the nuisance parameter A_planck from the coreCMB."""
+        cl = ctx.get("cl_cmb")
+        A_planck = ctx.get("A_planck", 1)
+        data = {"cl_cmb": cl, "A_planck_cmb": A_planck}
+
+        return data
+
+    def computeLikelihood(self, model):
+        """
+        Compute the likelihood.
+
+        This is the likelihood arising from Planck Lite (2018).
+
+        Parameters
+        ----------
+        cosmo : contains cosmological observables computed with CLASS
+            Exactly the output of CLASS
+
+        Returns
+        -------
+        lnl : float
+            The log-likelihood for the given model.
+        """
+        cl = model["cl_cmb"]
+
+        if self.lensing:
+            # these my_clik * are global variables defined in initialize_clik_and_class.
+            my_clik = my_clik_lensing
+            my_l_max = my_l_max_lensing
+        if self.TTTEEE:
+            my_clik = my_clik_TTTEEE
+            my_l_max = my_l_max_TTTEEE
+        if self.EE:
+            my_clik = my_clik_EE
+            my_l_max = my_l_max_EE
+        if self.lensing:
+            try:
+                length = len(my_clik.get_lmax())
+                tot = np.zeros(
+                    np.sum(my_clik.get_lmax())
+                    + length
+                    + len(my_clik.get_extra_parameter_names())
+                )
+            # following 3 lines for compatibility with lensing likelihoods of 2013 and before
+            # (then, clik.get_lmax() just returns an integer for lensing likelihoods,
+            # and the length is always 2 for cl['pp'], cl['tt'])
+            except:
+                length = 2
+                tot = np.zeros(
+                    2 * my_l_max + length + len(my_clik.get_extra_parameter_names())
+                )
+        else:
+            length = len(my_clik.get_has_cl())
+            tot = np.zeros(
+                np.sum(my_clik.get_lmax())
+                + length
+                + len(my_clik.get_extra_parameter_names())
+            )
+        #
+        # fill with Cl's
+        index = 0
+        if not self.lensing:
+            for i in range(length):
+                if my_clik.get_lmax()[i] > -1:
+                    for j in range(my_clik.get_lmax()[i] + 1):
+                        if i == 0:
+                            tot[index + j] = cl["tt"][j]
+                        elif i == 1:
+                            tot[index + j] = cl["ee"][j]
+                        elif i == 2:
+                            tot[index + j] = cl["bb"][j]
+                        elif i == 3:
+                            tot[index + j] = cl["te"][j]
+                        elif i == 4:
+                            tot[index + j] = 0  # cl['tb'][j] class does not compute tb
+                        elif i == 5:
+                            tot[index + j] = 0  # cl['eb'][j] class does not compute eb
+
+                    index += my_clik.get_lmax()[i] + 1
+
+        else:
+            try:
+                for i in range(length):
+                    if my_clik.get_lmax()[i] > -1:
+                        for j in range(my_clik.get_lmax()[i] + 1):
+                            if i == 0:
+                                tot[index + j] = cl["pp"][j]
+                            elif i == 1:
+                                tot[index + j] = cl["tt"][j]
+                            elif i == 2:
+                                tot[index + j] = cl["ee"][j]
+                            elif i == 3:
+                                tot[index + j] = cl["bb"][j]
+                            elif i == 4:
+                                tot[index + j] = cl["te"][j]
+                            elif i == 5:
+                                tot[
+                                    index + j
+                                ] = 0  # cl['tb'][j] class does not compute tb
+                            elif i == 6:
+                                tot[
+                                    index + j
+                                ] = 0  # cl['eb'][j] class does not compute eb
+
+                        index += my_clik.get_lmax()[i] + 1
+
+            # following 8 lines for compatibility with lensing likelihoods of 2013 and before
+            # (then, clik.get_lmax() just returns an integer for lensing likelihoods,
+            # and the length is always 2 for cl['pp'], cl['tt'])
+            except:
+                for i in range(length):
+                    for j in range(my_l_max):
+                        if i == 0:
+                            tot[index + j] = cl["pp"][j]
+                        if i == 1:
+                            tot[index + j] = cl["tt"][j]
+                    index += my_l_max + 1
+        # fill with nuisance parameters
+        A_planck = model["A_planck_cmb"]
+        tot[index] = A_planck
+        index += 1
+
+        lkl = my_clik(tot)[0]  # -loglike
+
+        # add nuisance parameter A_planck
+        lkl += (
+            -0.5
+            * ((A_planck - self.A_planck_prior_center) / self.A_planck_prior_variance)
+            ** 2
+        )
+
+        return lkl
+
+    def initialize_clik_and_class(self, name=None):
+        """Initialize clik and class."""
+        global my_clik_TTTEEE, my_clik_lensing, my_clik_EE, my_l_max_lensing, my_l_max_EE, my_l_max_TTTEEE
+        self.initialize = False
+
+        try:
+            import clik
+
+        except ModuleNotFoundError:
+            raise ImportError(
+                "You must first activate the binaries from the Clik "
+                + "distribution. Please run : \n "
+                + "]$ source /path/to/clik/bin/clik_profile.sh \n "
+                + "and try again."
+            )
+
+        my_path = path.join(
+            "%s/.ccode/baseline/plc_3.0/low_l/simall/simall_100x143_offlike5_EE_Aplanck_B.clik"
+            % path.expanduser("~")
+        )
+        print(my_path)
+        if not path.isdir(my_path):
+            import tarfile
+            from astropy.utils.data import download_file
+
+            tarfile.open(
+                download_file(
+                    "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz",
+                )
+            ).extractall(path.expanduser("~/.ccode"))
+
+        try:
+            if self.lensing:
+                my_clik_lensing = clik.clik_lensing(my_path)
+                try:
+                    my_l_max_lensing = max(my_clik_lensing.get_lmax())
+                # following 2 lines for compatibility with lensing likelihoods of 2013 and before
+                # (then, clik.get_lmax() just returns an integer for lensing likelihoods;
+                # this behavior was for clik versions < 10)
+                except:
+                    my_l_max_lensing = my_clik_lensing.get_lmax()
+            elif self.TTTEEE:
+                my_clik_TTTEEE = clik.clik(my_path)
+                my_l_max_TTTEEE = max(my_clik_TTTEEE.get_lmax())
+            elif self.EE:
+                my_clik_EE = clik.clik(my_path)
+                my_l_max_EE = max(my_clik_EE.get_lmax())
+            else:
+                raise AttributeError(
+                    "I did not understand name %s"(name)
+                    + "please choose between"
+                    + "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE"
+                )
+        except AttributeError:
+            raise AttributeError(
+                "The path to the .clik file for the likelihood "
+                "%s was not found where indicated:\n%s\n" % (name, my_path)
+                + " Note that the default path to search for it is"
+                " one directory above the path['clik'] field. You"
+                " can change this behaviour in all the "
+                "Planck_something.data, to reflect your local configuration, "
+                "or alternatively, move your .clik files to this place."
+            )
+
+
 class LikelihoodPlanck(LikelihoodBase):
     """
     A likelihood which utilises Planck optical depth data.
 
     In practice, any optical depth measurement (or mock measurement) may be used, by
     defining the class variables ``tau_mean`` and ``tau_sigma``.
+
+    Parameters
+    ----------
+    tau_mean : float
+        Mean for the optical depth constraint.
+        By default, it is 0.0569 from Planck 2018 (2006.16828)
+    tau_sigma_u : float
+        One sigma errors for the optical depth constraint.
+        By default, it is 0.0081 from Planck 2018 (2006.16828)
+    tau_sigma_l : float
+        One sigma errors for the optical depth constraint.
+        By default, it is 0.0066 from Planck 2018 (2006.16828)
     """
 
     required_cores = ((core.CoreCoevalModule, core.CoreLightConeModule),)
 
-    # Mean and one sigma errors for the Planck constraints
-    # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012
-    # (https://arxiv.org/abs/1605.03507)
-    tau_mean = 0.058
-    tau_sigma = 0.012
+    def __init__(
+        self,
+        *args,
+        tau_mean=0.0569,
+        tau_sigma_u=0.0073,
+        tau_sigma_l=0.0066,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
 
-    # Simple linear extrapolation of the redshift range provided by the user, to be
-    # able to estimate the optical depth
-    n_z_interp = 15
+        # Mean and one sigma errors for the Planck constraints
+        # Cosmology from Planck 2018(https://arxiv.org/abs/2006.16828)
+        self.tau_mean = tau_mean
+        self.tau_sigma_u = tau_sigma_u
+        self.tau_sigma_l = tau_sigma_l
 
-    # Minimum of extrapolation is chosen to 5.9, to correspond to the McGreer et al.
-    # prior on the IGM neutral fraction.
-    # The maximum is chosen to be z = 18., which is arbitrary.
-    z_extrap_min = 5.9
-    z_extrap_max = 20.0
+        # Simple linear extrapolation of the redshift range provided by the user, to be
+        # able to estimate the optical depth
+        self.n_z_interp = 25
+        self.z_extrap_min = 5.0
+        self.z_extrap_max = 30.0
 
     def computeLikelihood(self, model):
         """
@@ -720,7 +994,14 @@ class LikelihoodPlanck(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
-        return -0.5 * ((self.tau_mean - model["tau"]) / self.tau_sigma) ** 2
+        return (
+            -0.5
+            * np.square(self.tau_mean - model["tau"])
+            / (
+                self.tau_sigma_u * self.tau_sigma_l
+                + (self.tau_sigma_u - self.tau_sigma_l) * (model["tau"] - self.tau_mean)
+            )
+        )
 
     @property
     def _is_lightcone(self):
@@ -788,7 +1069,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     and 0 otherwise.
     """
 
-    required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule),)
+    required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule, core.CoreCMB),)
     threshold = 0.06
 
     def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
@@ -821,6 +1102,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         )  # these will become the redshifts of all coeval boxes, if that exists.
         self._use_coeval = True
         self._require_spline = False
+        self._use_tanh = False
 
     @property
     def lightcone_modules(self):
@@ -837,31 +1119,40 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             and not isinstance(m, core.CoreLightConeModule)
         ]
 
+    @property
+    def cmb_modules(self):
+        """All CMB core modules that are loaded."""
+        return [m for m in self._cores if (isinstance(m, core.CoreCMB))]
+
     def setup(self):
         """Perform post-init setup."""
-        if not self.lightcone_modules + self.coeval_modules:
+        if not self.lightcone_modules + self.coeval_modules + self.cmb_modules:
             raise ValueError(
                 "LikelihoodNeutralFraction needs the CoreLightConeModule *or* "
-                "CoreCoevalModule to be loaded."
+                "CoreCoevalModule *or* CoreCMB to be loaded."
             )
 
         if not self.lightcone_modules:
-            # Get all unique redshifts from all coeval boxes in cores.
-            self.redshifts = list(
-                set(sum((x.redshift for x in self.coeval_modules), []))
-            )
+            if self.cmb_modules:
+                self._use_tanh = True
+                self._use_coeval = False
+                self._require_spline = True
+            else:
+                # Get all unique redshifts from all coeval boxes in cores.
+                self.redshifts = list(
+                    set(sum((x.redshift for x in self.coeval_modules), []))
+                )
 
-            for z in self.redshift:
-                if z not in self.redshifts and len(self.redshifts) < 3:
-                    raise ValueError(
-                        "To use LikelihoodNeutralFraction, the core must be a lightcone, "
-                        "or coeval with >=3 redshifts, or containing the desired redshift"
-                    )
-                elif z not in self.redshifts:
-                    self._require_spline = True
+                for z in self.redshift:
+                    if z not in self.redshifts and len(self.redshifts) < 3:
+                        raise ValueError(
+                            "To use LikelihoodNeutralFraction, the core must be a lightcone, "
+                            "or coeval with >=3 redshifts, or containing the desired redshift"
+                        )
+                    elif z not in self.redshifts:
+                        self._require_spline = True
 
-            self._use_coeval = True
-
+                self._use_coeval = True
         else:
             self._use_coeval = False
             self._require_spline = True
@@ -872,8 +1163,15 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             xHI = np.array([np.mean(x) for x in ctx.get("xHI")])
             redshifts = self.redshifts
         else:
-            xHI = ctx.get("lightcone").global_xHI
-            redshifts = ctx.get("lightcone").node_redshifts
+            if self._use_tanh:
+                # TODO just a temperory fix to get xHI from x_e
+                # 1.0818709330934035 = 1+0.25*YHe/(1-YHe) with YHe coming from BBN
+                # I think there is a way to fix YHe using user defined value
+                xHI = ctx.get("xHI")
+                redshifts = ctx.get("zs")
+            else:
+                xHI = ctx.get("lightcone").global_xHI
+                redshifts = ctx.get("lightcone").node_redshifts
 
         redshifts, xHI = np.sort([redshifts, xHI])
         return {"xHI": xHI, "redshifts": redshifts}
@@ -890,7 +1188,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
             if z in model["redshifts"]:
                 lnprob += self.lnprob(
-                    model["xHI"][self.redshifts.index(z)], data, sigma
+                    model["xHI"][model["redshifts"].index(z)], data, sigma
                 )
             else:
                 lnprob += self.lnprob(model_spline(z), data, sigma)
@@ -1318,3 +1616,169 @@ class LikelihoodEDGES(LikelihoodBaseFile):
             return -0.5 * np.square(
                 (model["freq_tb_min"] - self.freq_edges) / self.freq_err_edges
             )
+
+
+class LikelihoodForest(LikelihoodBaseFile):
+    """
+    A likelihood based on chi^2 comparison to measured CDF of Lyman-alpha forest effective optical depth.
+
+    This is the likelihood arising from Bosman et al. (2018), which reports new constraints on Lyman-alpha
+    opacity with a sample of 62 quasars at z>5.7, or D'Odorico et al. in prep., which includes new samples
+    from the XQR-30 survey.
+
+    Parameters
+    ----------
+    name : str
+        The name used to match the core
+
+    observation : str
+        The observation that is used to construct the tau_eff statisctic.
+
+    """
+
+    required_cores = (core.CoreForest,)
+
+    def __init__(self, name="", observation="bosman_optimistic", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = str(name)
+        self.observation = str(observation)
+        self.n_realization = 150
+
+    def setup(self):
+        """Setup instance."""
+        if len(self.redshifts) != 1:
+            raise ValueError(
+                "to use the provided forests, a separate core/likelihood instance pair for each redshift is required!"
+            )
+        if "bosman" in self.observation:
+            if self.redshifts[0] not in [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]:
+                raise ValueError(
+                    "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman!"
+                )
+            self.tau_range = [0, 8]
+            self.hist_bin_width = 0.1
+            self.hist_bin_size = int(
+                (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
+            )
+
+            self.datafile = [
+                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz")
+            ]
+            self.noisefile = [
+                path.join(
+                    path.dirname(__file__),
+                    "data/Forests/Bosman18/PDF_ErrorCovarianceMatrix_GP/z%s.npy"
+                    % str(self.redshifts[0]).replace(".", "pt"),
+                )
+            ]
+
+        else:
+            raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
+
+        super().setup()
+
+    def _read_data(self):
+        data = super()._read_data()[0]
+        targets = np.where(
+            (data["zs"] > (self.redshifts[0] - 0.1))
+            * (data["zs"] <= (self.redshifts[0] + 0.1))
+        )[0]
+        pdfs = np.zeros([2, self.hist_bin_size])
+
+        pdfs[0] = np.histogram(
+            data["tau_lower"][targets], range=self.tau_range, bins=self.hist_bin_size
+        )[0]
+
+        pdfs[1] = np.histogram(
+            data["tau_upper"][targets], range=self.tau_range, bins=self.hist_bin_size
+        )[0]
+        return pdfs
+
+    def _read_noise(self):
+        # read the ECM due to the GP approximation
+        ErrorCovarianceMatrix_GP = super()._read_noise()[0]
+        return ErrorCovarianceMatrix_GP
+
+    @cached_property
+    def paired_core(self):
+        """The forest core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if isinstance(c, core.CoreForest) and c.name == self.name:
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreForest with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
+
+    @property
+    def redshifts(self):
+        """Redshifts at which forest is defined."""
+        return self.paired_core.redshift
+
+    @property
+    def _is_lightcone(self):
+        return isinstance(self.core_primary, core.CoreLightConeModule)
+
+    def reduce_data(self, ctx):
+        """Reduce data to model."""
+        if not self._is_lightcone:
+            raise NotImplementedError(
+                "The Forest can only work with lightcone at the moment"
+            )
+
+        tau_eff = ctx.get("tau_eff_%s" % self.name)
+        # use the same binning as the obs
+
+        n_realization = tau_eff.shape[0]
+        pdfs = np.zeros([n_realization, self.hist_bin_size])
+        for jj in range(n_realization):
+            pdfs[jj] = np.histogram(
+                tau_eff[jj], range=self.tau_range, bins=self.hist_bin_size
+            )[0]
+
+        ecm_cosmic = np.cov(pdfs.T)
+        self.noise = (
+            self.noise + ecm_cosmic + np.diag(np.ones(self.hist_bin_size) * 1e-5)
+        )
+
+        return np.mean(pdfs, axis=0)
+
+    def computeLikelihood(self, model):
+        """
+        Compute the likelihood, given the lightcone output from 21cmFAST.
+
+        Parameters
+        ----------
+        model : list of pdfs
+            Exactly the output of :meth:`simulate`.
+
+        Returns
+        -------
+        lnl : float
+            The log-likelihood for the given model.
+        """
+        det = np.linalg.det(self.noise)
+        if det == 0:
+            logger.warning(
+                "Determinant is zero for this error covariance matrix, return -inf for lnl"
+            )
+            return -np.inf
+
+        diff = model - self.data[0]
+        for ii in np.where(self.data[0] != self.data[1])[0]:
+            if model[ii] < self.data[0][ii]:
+                diff[ii] = min(0, model[ii] - self.data[1][ii])
+        diff = diff.reshape([1, -1])
+
+        lnl = (
+            -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(self.noise), diff.T])[0, 0]
+        )
+        if det < 0:
+            logger.warning(
+                "Determinant (%f) is negative for this error covariance matrix, lnl=%f, return -inf for lnl"
+                % (det, lnl)
+            )
+            return -np.inf
+        return lnl

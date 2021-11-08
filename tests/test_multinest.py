@@ -21,9 +21,12 @@ def test_multinest():
         ],
         [mcmc.LikelihoodLuminosityFunction(name="lfz%d" % z) for z in redshifts],
         model_name=model_name,
-        params=dict(
-            F_STAR10=F_STAR10, ALPHA_STAR=ALPHA_STAR, M_TURN=M_TURN, t_STAR=t_STAR,
-        ),
+        params={
+            "F_STAR10": F_STAR10,
+            "ALPHA_STAR": ALPHA_STAR,
+            "M_TURN": M_TURN,
+            "t_STAR": t_STAR,
+        },
         use_multinest=True,
         **mcmc_options,
     )
