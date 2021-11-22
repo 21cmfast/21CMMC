@@ -951,6 +951,9 @@ class CoreForest(CoreLightConeModule):
                 ) + lc.global_xH[index - 1] * (
                     self.redshift[0] - lc.node_redshifts[index]
                 )
+                filling_factor /= (
+                    lc.node_redshifts[index - 1] - lc.node_redshifts[index]
+                )
                 ctx.add("filling_factor_%s" % self.name, filling_factor)
 
                 fbias_FGPA = np.load(

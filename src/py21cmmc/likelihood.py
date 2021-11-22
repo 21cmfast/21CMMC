@@ -1816,6 +1816,8 @@ class LikelihoodForest(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
+        if self.redshifts[0] < 5.25:
+            return 0
         if model is None:
             return -np.inf
         diff = model - self.data[0]
