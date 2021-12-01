@@ -1710,7 +1710,8 @@ class LikelihoodForest(LikelihoodBaseFile):
             self.noisefile = [
                 path.join(
                     path.dirname(__file__),
-                    "data/Forests/Bosman21/PDF_ErrorCovarianceMatrix_GP/%s" % filename,
+                    "data/Forests/Bosman21/fewerbins/PDF_ErrorCovarianceMatrix_GP/%s"
+                    % filename,
                 )
             ]
             logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
@@ -1721,7 +1722,7 @@ class LikelihoodForest(LikelihoodBaseFile):
             )
 
         self.tau_range = [0, 8]  # hard coded because of pre-calculated ECM structure
-        self.hist_bin_width = 0.1
+        self.hist_bin_width = 0.5
         self.hist_bin_size = int(
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
         )

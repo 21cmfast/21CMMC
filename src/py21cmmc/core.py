@@ -734,7 +734,7 @@ class CoreForest(CoreLightConeModule):
         self.even_spacing = even_spacing
         self.seed = seed
         self.tau_range = [0, 8]  # hard coded because of pre-calculated ECM structure
-        self.hist_bin_width = 0.1
+        self.hist_bin_width = 0.5
         self.hist_bin_size = int(
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
         )
@@ -959,7 +959,7 @@ class CoreForest(CoreLightConeModule):
                 fbias_FGPA = np.load(
                     path.join(
                         path.dirname(__file__),
-                        "data/Forests/Bosman21/fbias_FGPA/z%s.npy"
+                        "data/Forests/Bosman21/fewerbins/fbias_FGPA/z%s.npy"
                         % str(self.redshift[0]).replace(".", "pt"),
                     ),
                     allow_pickle=True,
@@ -1067,7 +1067,7 @@ class CoreForest(CoreLightConeModule):
 
                 if "xqr30" in self.observation:
                     cdf = (
-                        np.cumsum(np.histogram(tau_eff, range=[0, 20], bins=200)[0])
+                        np.cumsum(np.histogram(tau_eff, range=[0, 20], bins=40)[0])
                         / self.nlos
                     )  # range and bins are hard coded because of pre-calculated fbias structure
                     cdf_rescaled = interp1d(
