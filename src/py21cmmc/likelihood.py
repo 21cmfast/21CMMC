@@ -1738,11 +1738,17 @@ class LikelihoodForest(LikelihoodBaseFile):
         pdfs = np.zeros([2, self.hist_bin_size])
 
         pdfs[0] = np.histogram(
-            data["tau_lower"][targets], range=self.tau_range, bins=self.hist_bin_size
+            data["tau_lower"][targets],
+            range=self.tau_range,
+            bins=self.hist_bin_size,
+            density=True,
         )[0]
 
         pdfs[1] = np.histogram(
-            data["tau_upper"][targets], range=self.tau_range, bins=self.hist_bin_size
+            data["tau_upper"][targets],
+            range=self.tau_range,
+            bins=self.hist_bin_size,
+            density=True,
         )[0]
         return pdfs
 
