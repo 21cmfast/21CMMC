@@ -1736,19 +1736,27 @@ class LikelihoodForest(LikelihoodBaseFile):
         )[0]
         pdfs = np.zeros([2, self.hist_bin_size])
 
-        pdfs[0] = np.histogram(
-            data["tau_lower"][targets],
-            range=self.tau_range,
-            bins=self.hist_bin_size,
-            density=True,
-        )[0]
+        pdfs[0] = (
+            np.histogram(
+                data["tau_lower"][targets],
+                range=self.tau_range,
+                bins=self.hist_bin_size,
+                density=True,
+            )[0]
+            * np.sum(data["tau_lower"][targets] < self.tau_range[-1])
+            / len(data["tau_lower"][targets])
+        )
 
-        pdfs[1] = np.histogram(
-            data["tau_upper"][targets],
-            range=self.tau_range,
-            bins=self.hist_bin_size,
-            density=True,
-        )[0]
+        pdfs[1] = (
+            np.histogram(
+                data["tau_upper"][targets],
+                range=self.tau_range,
+                bins=self.hist_bin_size,
+                density=True,
+            )[0]
+            * np.sum(data["tau_upper"][targets] < self.tau_range[-1])
+            / len(data["tau_upper"][targets])
+        )
         return pdfs
 
     def _read_noise(self):
