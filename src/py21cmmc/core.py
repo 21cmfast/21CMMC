@@ -1074,7 +1074,8 @@ class CoreForest(CoreLightConeModule):
                         fbias, cdf, fill_value=(0, 1), bounds_error=False
                     )(bins)
                     pdfs[jj] = (
-                        np.ediff1d(cdf_rescaled, to_begin=cdf_rescaled[0]) * self.nlos
+                        np.ediff1d(cdf_rescaled, to_begin=cdf_rescaled[0])
+                        / self.hist_bin_width
                     )
                 else:
                     for jj in range(self.n_realization):
