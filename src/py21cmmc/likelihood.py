@@ -1736,7 +1736,7 @@ class LikelihoodForest(LikelihoodBaseFile):
                 * (data["zs"] <= (self.redshifts[0] + 0.1))
             )[0]
         elif "xqr30" in self.observation:
-            targets = np.arange(data["zs"])  # take all
+            targets = np.arange(len(data["zs"]))  # take all
         pdfs = np.zeros([2, self.hist_bin_size])
 
         pdfs[0] = (
