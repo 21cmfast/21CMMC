@@ -776,6 +776,11 @@ class CoreForest(CoreLightConeModule):
                 allow_pickle=True,
             )
             self.nlos = len(data["zs"])
+            if self.mean_flux:
+                logger.warning(
+                    "XQR30 introduces pre-calculated fbias to fix CDF directly, mean_flux will be disabled!"
+                )
+                self.mean_flux = None
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
         logger.debug(
