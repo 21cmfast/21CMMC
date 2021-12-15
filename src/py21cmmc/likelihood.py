@@ -1731,10 +1731,13 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     def _read_data(self):
         data = super()._read_data()[0]
-        targets = np.where(
-            (data["zs"] > (self.redshifts[0] - 0.1))
-            * (data["zs"] <= (self.redshifts[0] + 0.1))
-        )[0]
+        if "bosman" in self.observation:
+            targets = np.where(
+                (data["zs"] > (self.redshifts[0] - 0.1))
+                * (data["zs"] <= (self.redshifts[0] + 0.1))
+            )[0]
+        elif "xqr30" in self.observation:
+            targets = np.arange(data["zs"])  # take all
         pdfs = np.zeros([2, self.hist_bin_size])
 
         pdfs[0] = (
