@@ -248,7 +248,8 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
 
     else:
         pool = mcmc_options.pop(
-            "pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1)),
+            "pool",
+            ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1)),
         )
         sampler = sampler_cls(
             continue_sampling=continue_sampling,

@@ -707,10 +707,10 @@ class CoreForest(CoreLightConeModule):
         else:
             raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
 
-        if self.nlos * self.n_realization > self.user_params.HII_DIM ** 2:
+        if self.nlos * self.n_realization > self.user_params.HII_DIM**2:
             raise ValueError(
                 "You asked for %d realizations, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
-                % (self.n_realization, self.user_params.HII_DIM ** 2, self.nlos)
+                % (self.n_realization, self.user_params.HII_DIM**2, self.nlos)
             )
 
     def setup(self):
@@ -744,7 +744,7 @@ class CoreForest(CoreLightConeModule):
             redshifts = np.tile(redshifts, (*gamma_bg.shape[:-1], 1))
 
         delta_ss = (
-            2.67e4 * temp ** 0.17 * (1.0 + redshifts) ** -3 * gamma_bg ** (2.0 / 3.0)
+            2.67e4 * temp**0.17 * (1.0 + redshifts) ** -3 * gamma_bg ** (2.0 / 3.0)
         )
         gamma_local[~flag_neutral] = gamma_bg[~flag_neutral] * (
             0.98
@@ -806,7 +806,7 @@ class CoreForest(CoreLightConeModule):
             raise NotImplementedError("A lightcone core is required!")
         lightcone_redshifts = lc.lightcone_redshifts
         lightcone_distances = lc.lightcone_distances
-        total_los = lc.user_params.HII_DIM ** 2
+        total_los = lc.user_params.HII_DIM**2
 
         index_right = np.where(
             lightcone_distances
