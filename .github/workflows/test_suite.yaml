@@ -64,14 +64,14 @@ jobs:
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate ${ENV_NAME}
           conda env update -f ci/test-env.yml
-          pip install git+git://github.com/21cmFAST/21cmFAST.git
+          pip install git+https://github.com/21cmFAST/21cmFAST.git
       - name: Install Dependencies MacOSX
         if: matrix.os == 'macos-latest'
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate ${ENV_NAME}
           conda env update -f ci/test-env.yml
-          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install git+git://github.com/21cmFAST/21cmFAST.git
+          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install git+https://github.com/21cmFAST/21cmFAST.git
       - name: Install 21CMMC Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
