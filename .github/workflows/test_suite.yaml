@@ -71,7 +71,7 @@ jobs:
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate ${ENV_NAME}
           conda env update -f ci/test-env.yml
-          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install git+https://github.com/21cmFAST/21cmFAST.git
+          CC=gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install git+https://github.com/21cmFAST/21cmFAST.git
       - name: Install 21CMMC Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -83,7 +83,7 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          CC=gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
       - name: Run Tests
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
