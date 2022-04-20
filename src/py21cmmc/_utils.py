@@ -1,11 +1,10 @@
 """Utility functions used throughout 21CMMC."""
 
 try:
-    # Python <= 3.9
-    from collections import Iterable
-    # Python > 3.9
+    from collections import Iterable  # Python <= 3.9
+
 except ImportError:
-    from collections.abc import Iterable
+    from collections.abc import Iterable  # Python > 3.9
 
 
 def flatten(items):
