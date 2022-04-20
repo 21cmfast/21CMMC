@@ -3,6 +3,7 @@
 try:
     # Python <= 3.9
     from collections import Iterable
+
     # Python > 3.9
 except ImportError:
     from collections.abc import Iterable
