@@ -1,7 +1,12 @@
+name: tests
 channels:
   - conda-forge
+  - conda-forge/label/cf201901
   - defaults
 dependencies:
+  - gcc
+  - fftw
+  - gsl
   - pytest>=5.0
   - pytest-cov
   - pytest-remotedata>=0.3.2
@@ -16,6 +21,7 @@ dependencies:
   - multinest
   - pymultinest
   - pip
+  - 21cmFAST
   - pip:
     - powerbox
     - cached_property
