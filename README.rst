@@ -32,7 +32,7 @@ Features
 Scalability
 ===========
 
-.. image::  https://user-images.githubusercontent.com/15994713/165235100-1885780c-fb08-4005-93cd-5604dacb3114.png
+.. image:: docs/multinest_scalability.jpg
     :width: 866
 see more `here <https://github.com/21cmfast/21CMMC/issues/50/>`_.
 
