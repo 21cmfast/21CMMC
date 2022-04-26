@@ -34,7 +34,7 @@ Scalability
 
 .. image:: docs/multinest_scalability.jpg
     :width: 866
-see more `here <https://github.com/21cmfast/21CMMC/issues/50/>`_.
+This plot shows the number of models performed using the MultiNest sampler as a function of thread number, illustrating an almost ideal scaling. There are three runs for each thread number, which are indicated by the filled circles with errorbar. The double sided arrows show the relative loss when scaling up the calculation. see more `here <https://github.com/21cmfast/21CMMC/issues/50/>`_.
 
 Documentation
 =============
