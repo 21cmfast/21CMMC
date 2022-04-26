@@ -72,7 +72,7 @@ setup(
         "emcee<3",
         "powerbox>=0.5.7",
         "cached_property",
-        "21cmFAST>=3.0.0dev6",
+        "21cmFAST",
         "pymultinest",
     ],
     extras_require={

@@ -4,9 +4,6 @@ channels:
   - conda-forge/label/cf201901
   - defaults
 dependencies:
-  - gcc
-  - fftw
-  - gsl
   - pytest>=5.0
   - pytest-cov
   - pytest-remotedata>=0.3.2
