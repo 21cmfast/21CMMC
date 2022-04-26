@@ -36,7 +36,6 @@ Scalability
     :width: 866
 see more `here <https://github.com/21cmfast/21CMMC/issues/50/>`_.
 
-
 Documentation
 =============
 
