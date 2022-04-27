@@ -34,7 +34,7 @@ Scalability
 
 .. image:: docs/multinest_scalability.jpg
     :width: 866
-This plot shows the number of models performed using the MultiNest sampler as a function of thread number, illustrating an almost ideal scaling. There are three runs for each thread number, which are indicated by the filled circles with errorbar. The double sided arrows show the relative loss when scaling up the calculation. see more `here <https://github.com/21cmfast/21CMMC/issues/50/>`_.
+This plot shows the number of test models (see details `here <https://github.com/21cmfast/21CMMC/issues/50/#issuecomment-1091391508>_`) performed using the MultiNest sampler as a function of thread number, illustrating an almost ideal scalability where #model per human hour scales linearly with #thread. There are three runs for each thread number, which are indicated by the filled circles with errorbar. The double sided arrows show the relative (w.r.t. the 24-thread case) loss when scaling up the calculation. Note that a typical inference study, working with more complex models and therefore performing much fewer models per human hour, is expected to remain the same level of scalability.
 
 Documentation
 =============
