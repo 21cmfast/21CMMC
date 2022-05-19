@@ -6,7 +6,6 @@ from os import mkdir, path
 from py21cmfast import yaml
 from py21cmfast._utils import ParameterError
 
-
 from .cosmoHammer import (
     CosmoHammerSampler,
     HDFStorageUtil,
