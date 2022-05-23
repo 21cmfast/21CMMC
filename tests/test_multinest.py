@@ -2,7 +2,6 @@ import pytest
 
 import numpy as np
 import pymultinest
-from functools import partial
 from py21cmfast._utils import ParameterError
 
 import py21cmmc as mcmc
@@ -35,45 +34,41 @@ def prior(astro_params):
             arg_values = [v for k, v in params.items() if k in self.arg_names]
             return arg_values
 
-    def f(x, astro_params):
+    def f(x):
         if x[-1] <= astro_params[-1][0]:
             return 0.0
         else:
-            return ParameterError()
+            raise ParameterError()
 
-    return PriorFunction(astro_params.keys, partial(f, astro_params=astro_params))
+    return PriorFunction(astro_params.keys, f)
 
 
-@pytest.fixture(scope="module")
-def flat_prior_samples(tmpdirec, astro_params, prior):
-    model_name = "MultinestPrior"
+def test_multinest_samples(astro_params, prior):
+    model_name = "Prior"
     mcmc_options = {
-        "n_live_points": 100,
-        "max_iter": 1000,
+        "n_live_points": 1000,
+        "max_iter": 10000,
         "write_output": True,
     }
 
     mcmc.run_mcmc(
         core_modules=[],
         likelihood_modules=[prior],
-        datadir=str(tmpdirec),
         model_name=model_name,
         params=astro_params,
         use_multinest=True,
+        continue_sampling=False,
         **mcmc_options,
     )
 
     nest = pymultinest.Analyzer(
         2,
-        outputfiles_basename=str(tmpdirec / "MultiNest" / model_name),
+        outputfiles_basename="./MultiNest/%s" % model_name,
     )
     samples = nest.get_data()
     posterior = nest.get_equal_weighted_posterior()
-    return samples, posterior
+    print(samples.shape, posterior.shape)
 
-
-def test_multinest_samples(astro_params, flat_prior_samples):
-    samples, posterior = flat_prior_samples
     epsilon = 1e-12
 
     # check shape
@@ -84,19 +79,20 @@ def test_multinest_samples(astro_params, flat_prior_samples):
     assert np.allclose(samples[:, 1], 0.0)
     assert np.allclose(posterior[:, -1], 0.0)
 
+    # check ranges
     for i in range(len(astro_params.keys)):
-        # check lower range
         assert np.all(samples[:, 2 + i] > astro_params[i][1] - epsilon)
         assert np.all(posterior[:, i] > astro_params[i][1] - epsilon)
-        # check upper range
+
         assert np.all(samples[:, 2 + i] < astro_params[i][2] + epsilon)
         assert np.all(posterior[:, i] < astro_params[i][2] + epsilon)
-        # check if infinities were excluded
-        assert np.all(samples[:, 2 + i] < astro_params[i][0] + epsilon)
-        assert np.all(posterior[:, i] < astro_params[i][0] + epsilon)
+
+    # check if infinities were excluded
+    assert np.all(samples[:, -1] < astro_params[-1][0] + epsilon)
+    assert np.all(posterior[:, -2] < astro_params[-1][0] + epsilon)
 
 
-def test_multinest(tmpdirec):
+def test_multinest():
 
     model_name = "LuminosityLikelihood"
     redshifts = [6, 7, 8, 10]
@@ -123,13 +119,11 @@ def test_multinest(tmpdirec):
             "t_STAR": t_STAR,
         },
         use_multinest=True,
-        datadir=str(tmpdirec),
+        continue_sampling=False,
         **mcmc_options,
     )
 
-    nest = pymultinest.Analyzer(
-        4, outputfiles_basename=str(tmpdirec / "MultiNest" / model_name)
-    )
+    nest = pymultinest.Analyzer(4, outputfiles_basename="./MultiNest/%s" % model_name)
     data = nest.get_data()
 
     assert data.shape[1] == 6
