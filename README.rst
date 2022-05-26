@@ -3,10 +3,10 @@
 ======
 
 .. start-badges
-.. image:: https://travis-ci.org/21cmFAST/21CMMC.svg
-    :target: https://travis-ci.org/21cmFAST/21CMMC
-.. image:: https://coveralls.io/repos/github/21cmfast/21CMMC/badge.svg?branch=master
-    :target: https://coveralls.io/github/21cmfast/21CMMC?branch=master
+.. image:: https://github.com/21cmfast/21CMMC/actions/workflows/test_suite.yaml/badge.svg
+    :target: https://github.com/21cmfast/21CMMC/actions/workflows/test_suite.yaml
+.. image:: https://codecov.io/gh/21cmfast/21CMMC/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/21cmfast/21CMMC
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/ambv/black
 .. image:: https://readthedocs.org/projects/21cmmc/badge/?version=latest
