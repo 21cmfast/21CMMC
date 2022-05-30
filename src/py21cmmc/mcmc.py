@@ -1,8 +1,10 @@
 """High-level functions for running MCMC chains."""
 import logging
+import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from os import mkdir, path
 from py21cmfast import yaml
+from py21cmfast._utils import ParameterError
 
 from .cosmoHammer import (
     CosmoHammerSampler,
@@ -208,19 +210,18 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
     if use_multinest:
 
         def likelihood(p, ndim, nparams):
-            inp = [
-                params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)
-            ]
-            return chain.computeLikelihoods(
-                chain.build_model_data(
-                    Params(*[(k, v) for k, v in zip(params.keys, inp)])
+            try:
+                return chain.computeLikelihoods(
+                    chain.build_model_data(
+                        Params(*[(k, v) for k, v in zip(params.keys, p)])
+                    )
                 )
-            )
+            except ParameterError:
+                return -np.inf
 
         def prior(p, ndim, nparams):
-            p = [
-                params[i][1] + p[i] * (params[i][2] - params[i][1]) for i in range(ndim)
-            ]
+            for i in range(ndim):
+                p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
 
         try:
             sampler = run(
