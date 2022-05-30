@@ -1653,11 +1653,15 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     required_cores = (core.CoreForest,)
 
-    def __init__(self, name="", observation="bosman_optimistic", *args, **kwargs):
+    def __init__(self, name="", observation="xqr30", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.observation = str(observation)
-        self.n_realization = 150
+        self.tau_range = [0, 8]
+        self.hist_bin_width = 0.1
+        self.hist_bin_size = int(
+            (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
+        )
 
     def setup(self):
         """Setup instance."""
@@ -1666,107 +1670,44 @@ class LikelihoodForest(LikelihoodBaseFile):
                 "to use the provided forests, a separate core/likelihood instance pair for each redshift is required!"
             )
         if "bosman" in self.observation:
-            if self.redshifts[0] not in [5.0, 5.2, 5.4, 5.6, 5.8, 6.0]:
-                raise ValueError(
-                    "only forests at z=5.0, 5.2, 5.4, 5.6, 5.8, 6.0 are provided for bosman!"
-                )
-            self.datafile = [
-                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz")
-            ]
-            self.noisefile = [
-                path.join(
-                    path.dirname(__file__),
-                    "data/Forests/Bosman18/PDF_ErrorCovarianceMatrix_GP/z%s.npy"
-                    % str(self.redshifts[0]).replace(".", "pt"),
-                )
-            ]
+            logger.warning("Automatically set to use the new likelihoods!Contact the team if you want to use earlier likelihoods in 2101.09033")
+            self.observation = "xqr30"
 
-        elif "xqr30" in self.observation:
-            if self.redshifts[0] not in [
-                5.0,
-                5.1,
-                5.2,
-                5.3,
-                5.4,
-                5.5,
-                5.6,
-                5.7,
-                5.8,
-                5.9,
-                6.0,
-                6.1,
-                6.2,
-            ]:
-                raise ValueError(
-                    "only forests at z=5.0, 5.1, 5.2,... 6.1, and 6.2 are provided for bosman!"
-                )
-            filename = "z%s.npy" % str(self.redshifts[0]).replace(".", "pt")
-            self.datafile = [
-                path.join(
-                    path.dirname(__file__),
-                    "data/Forests/Bosman21/tau_eff/%s" % filename,
-                )
-            ]
-            self.noisefile = [
-                path.join(
-                    path.dirname(__file__),
-                    "data/Forests/Bosman21/fewerbins/PDF_ErrorCovarianceMatrix_GP/%s"
-                    % filename,
-                )
-            ]
-            logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
-
-        else:
-            raise NotImplementedError(
-                "Use bosman_optimistic or bosman_pessimistic or xqr30!"
+        if self.observation is not "xqr30":
+            raise NotImplementedError("Use xqr30!")
+        if self.redshifts[0] not in [
+            5.0,
+            5.1,
+            5.2,
+            5.3,
+            5.4,
+            5.5,
+            5.6,
+            5.7,
+            5.8,
+            5.9,
+            6.0,
+            6.1,
+            6.2,
+        ]:
+            raise ValueError(
+                "only forests at z=5.0, 5.1, 5.2,... 6.1, and 6.2 are provided for bosman!"
             )
-
-        self.tau_range = [0, 8]  # hard coded because of pre-calculated ECM structure
-        self.hist_bin_width = 0.5
-        self.hist_bin_size = int(
-            (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
-        )
+        filename = "z%s.npy" % str(self.redshifts[0]).replace(".", "pt")
+        self.datafile = [
+            path.join(
+                path.dirname(__file__),
+                "data/Forests/Bosman21/tau_eff/%s" % filename,
+            )
+        ]
+        logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
 
         super().setup()
 
     def _read_data(self):
         data = super()._read_data()[0]
-        if "bosman" in self.observation:
-            targets = np.where(
-                (data["zs"] > (self.redshifts[0] - 0.1))
-                * (data["zs"] <= (self.redshifts[0] + 0.1))
-            )[0]
-        elif "xqr30" in self.observation:
-            targets = np.arange(len(data["zs"]))  # take all
-        pdfs = np.zeros([2, self.hist_bin_size])
-
-        pdfs[0] = (
-            np.histogram(
-                data["tau_lower"][targets],
-                range=self.tau_range,
-                bins=self.hist_bin_size,
-                density=True,
-            )[0]
-            * np.sum(data["tau_lower"][targets] < self.tau_range[-1])
-            / len(data["tau_lower"][targets])
-        )
-
-        pdfs[1] = (
-            np.histogram(
-                data["tau_upper"][targets],
-                range=self.tau_range,
-                bins=self.hist_bin_size,
-                density=True,
-            )[0]
-            * np.sum(data["tau_upper"][targets] < self.tau_range[-1])
-            / len(data["tau_upper"][targets])
-        )
-        return pdfs
-
-    def _read_noise(self):
-        # read the ECM due to the GP approximation
-        ErrorCovarianceMatrix_GP = super()._read_noise()[0]
-        return ErrorCovarianceMatrix_GP
+        targets = np.arange(len(data["zs"]))  # take all
+        return data["tau_lower"][targets]
 
     @cached_property
     def paired_core(self):
@@ -1796,29 +1737,8 @@ class LikelihoodForest(LikelihoodBaseFile):
             raise NotImplementedError(
                 "The Forest can only work with lightcone at the moment"
             )
-        ecm_cosmic = ctx.get(self.name + "ecm_cosmic")
-        if ecm_cosmic is None:
-            return None
 
-        if "xqr30" in self.observation:
-            filling_factor = ctx.get("filling_factor_%s" % self.name)
-            if filling_factor > 0.7:
-                self.noise = self.noise[7]
-            else:
-                index_left = int(filling_factor * 10)
-                index_right = index_left + 1
-                weight_left = index_right - filling_factor * 10
-                weight_right = filling_factor * 10 - index_left
-                self.noise = (
-                    self.noise[index_left] * weight_left
-                    + self.noise[index_right] * weight_right
-                )
-
-        self.noise = (
-            self.noise + ecm_cosmic + np.diag(np.ones(self.hist_bin_size) * 1e-4)
-        )
-
-        return ctx.get(self.name + "mean_pdf")
+        return ctx.get(self.name + "pdf")
 
     def computeLikelihood(self, model):
         """
@@ -1836,29 +1756,12 @@ class LikelihoodForest(LikelihoodBaseFile):
         """
         if self.redshifts[0] < 5.25:
             return 0
+
         if model is None:
             return -np.inf
-        diff = model - self.data[0]
-        # flat likelihood between upper and lower PDF
-        for ii in np.where(self.data[0] != self.data[1])[0]:
-            if model[ii] < self.data[0][ii]:
-                diff[ii] = min(0, model[ii] - self.data[1][ii])
+        
+        probability = 1.0
+        bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size+1)
+        probability = np.prod(model[np.digtize(self.data[0], bins)-1])
 
-        # L=0 for models where diff!=0 and covariance=0
-        index_zeroEC = np.where(np.diagonal(self.noise) == 0)[0]
-        if len(index_zeroEC) > 0:
-            if np.max(np.abs(diff[index_zeroEC])) > 0:
-                return -np.inf
-
-        index_validEC = np.where(np.diagonal(self.noise) > 0)[0]
-        noise = self.noise[index_validEC][:, index_validEC]
-        if np.linalg.det(noise) < 0:
-            logger.warning(
-                "Determinant is negative for this error covariance matrix, return -inf for lnl"
-            )
-            return -np.inf
-        diff = diff[index_validEC]
-        diff = diff.reshape([1, -1])
-
-        lnl = -0.5 * np.linalg.multi_dot([diff, np.linalg.inv(noise), diff.T])[0, 0]
-        return lnl
+        return np.log(probability)

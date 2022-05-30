@@ -17,17 +17,17 @@ from scipy.interpolate import interp1d
 
 
 try:
-	from collections import Iterable  # Python <= 3.9
+    from collections import Iterable  # Python <= 3.9
 except ImportError:
-	from collections.abc import Iterable  # Python > 3.9
+    from collections.abc import Iterable  # Python > 3.9
 
 def flatten(items):
-	"""Yield items from any nested iterable; see Reference."""
-	for x in items:
-		if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
-			yield from flatten(x)
-		else:
-			yield x
+    """Yield items from any nested iterable; see Reference."""
+    for x in items:
+        if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
+            yield from flatten(x)
+        else:
+            yield x
 
 logger = logging.getLogger("21cmFAST")
 
@@ -696,28 +696,10 @@ class CoreForest(CoreLightConeModule):
 
     observation : str
         The observation that is used to construct the tau_eff statisctic.
-        Currently, only bosman_optimistic and bosman_pessimistic are provided for Bosman+18,
-        and xqr30 for Bosman+21.
-
-    n_realization : int
-        The number of realizations to evaluate the error covariance matrix, default is 150.
+        Currently, only xqr30 for Bosman+21.
 
     bin_size : float
-        The bin size for calculating effective optical depth, default is 50 / hlittle
-
-    redshift_bin : bool
-        Whether or not the bin size is in redshift, default is False.
-
-    mean_flux : float
-        The mean flux (usually from observation) used to rescale the modelling results.
-        If not provided, the modelled mean flux will be rescaled according to input parameters
-        log10_f_rescale and f_rescale_slope.
-
-    even_spacing : bool
-        Whether or not to do different realizations by having even space, default is True.
-
-    seed : int
-        The randome seed for doing realizations, default if 1993. This is only needed when even_spacing is False.
+        The redshift bin size for calculating effective optical depth, default is 0.1.
 
     Other Parameters
     ----------------
@@ -728,96 +710,31 @@ class CoreForest(CoreLightConeModule):
     def __init__(
         self,
         name="",
-        observation="bosman_optimistic",
-        n_realization=150,
-        bin_size=None,
-        redshift_bin=False,
-        mean_flux=None,
-        even_spacing=True,
-        seed=1993,
+        observation="xqr30",
+        bin_size=0.1,
         **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
-        self.n_realization = n_realization
         self.bin_size = bin_size
-        self.redshift_bin = redshift_bin
-        self.mean_flux = mean_flux
-        self.even_spacing = even_spacing
-        self.seed = seed
-        self.tau_range = [0, 8]  # hard coded because of pre-calculated ECM structure
-        self.hist_bin_width = 0.5
+        self.tau_range = [0, 8] 
+        self.hist_bin_width = 0.1
         self.hist_bin_size = int(
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
         )
 
         super().__init__(**kwargs)
 
-        if self.bin_size is None:
-            self.bin_size = 50 / self.cosmo_params.hlittle
-
-        if self.redshift_bin and self.bin_size > 2:
-            logger.warning(
-                "You asked for a bin size of %f in redshift, for real?" % self.bin_size
-            )
-
-        if not self.redshift_bin and self.bin_size < 10:
-            logger.warning(
-                "You asked for a bin size of %f in comoving, for real?" % self.bin_size
-            )
-
         if (
             self.observation == "bosman_optimistic"
             or self.observation == "bosman_pessimistic"
         ):
-            data = np.load(
-                path.join(path.dirname(__file__), "data/Forests/Bosman18/data.npz"),
-                allow_pickle=True,
-            )
-            targets = (data["zs"] > self.redshift[0] - 0.1) * (
-                data["zs"] <= self.redshift[0] + 0.1
-            )
-            self.nlos = sum(targets)
-        elif self.observation == "xqr30":
-            filename = "z%s.npy" % (str(self.redshift[0]).replace(".", "pt"))
-            data = np.load(
-                path.join(
-                    path.dirname(__file__),
-                    "data/Forests/Bosman21/tau_eff/%s" % filename,
-                ),
-                allow_pickle=True,
-            )
-            self.nlos = len(data["zs"])
-            if self.mean_flux:
-                logger.warning(
-                    "XQR30 introduces pre-calculated fbias to fix CDF directly, mean_flux will be disabled!"
-                )
-                self.mean_flux = None
-        else:
-            raise NotImplementedError("Use bosman_optimistic or bosman_pessimistic!")
-        logger.debug(
-            "doing %s at z=%.1f, %d los"
-            % (self.observation, self.redshift[0], self.nlos)
-        )
+            logger.warning("Automatically set to use the new likelihoods!Contact the team if you want to use earlier likelihoods in 2101.09033")
+            self.observation = "xqr30"
 
-        if self.even_spacing:
-            if self.nlos * self.n_realization > self.user_params.HII_DIM ** 2:
-                raise ValueError(
-                    "You asked for %d realizations with even_spacing, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
-                    % (self.n_realization, self.user_params.HII_DIM ** 2, self.nlos)
-                )
-        else:
-            if self.nlos * self.n_realization > self.user_params.HII_DIM ** 2:
-                logger.warning(
-                    "You asked for %d realizations with even_spacing, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM otherwise Cosmic Variance can be underestiamted!"
-                    % (self.nlos, self.user_params.HII_DIM ** 2, self.nlos)
-                )
-            if self.nlos > self.user_params.HII_DIM ** 2:
-                raise ValueError(
-                    "You asked for %d los without even_spacing, larger than what the box has (%d)! Increase HII_DIM!"
-                    % (self.nlos, self.user_params.HII_DIM ** 2)
-                )
-
+        if self.observation is not "xqr30":
+            raise NotImplementedError("set observation=xqr30!")
+           
     def setup(self):
         """Run post-init setup."""
         CoreBase.setup(self)
@@ -885,23 +802,6 @@ class CoreForest(CoreLightConeModule):
             * residual_xHI
         )
 
-    def find_n_rescale(self, tau, mean_fluxave_target):
-        """Find the rescaling factor so that the mean transmission equal to observations."""
-        # Newton-Raphson method
-        x = 1
-        Ntry = 0
-        while np.abs(np.mean(np.exp(-tau * x)) / mean_fluxave_target - 1) > 1e-2:
-            f_x = np.mean(np.exp(-tau * x)) - mean_fluxave_target
-            f_prime_x = np.min([-1e-10, np.mean(-tau * np.exp(-tau * x))])
-            x -= f_x / f_prime_x
-            if x < 0:
-                x = 0
-            Ntry += 1
-            if Ntry > 1e3:
-                break
-                raise RuntimeError("I've tried too many times...", x, f_x, f_prime_x)
-        return x
-
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         astro_params, cosmo_params = self._update_params(ctx.getParams())
@@ -910,201 +810,72 @@ class CoreForest(CoreLightConeModule):
 
         if lc is None:
             logger.debug("CoreForest: no lightcone!")
-            ctx.add(self.name + "mean_pdf", np.zeros(self.hist_bin_size) + np.nan)
-            ctx.add(self.name + "ecm_cosmic", None)
+            ctx.add(self.name + "pdf", None)
         else:
             lightcone_redshifts = lc.lightcone_redshifts
-            lightcone_distances = lc.lightcone_distances
             total_los = lc.user_params.HII_DIM ** 2
 
-            if not self.redshift_bin:
+            index_right_lc = np.where(
+                lightcone_redshifts > self.redshift[0] + self.bin_size / 2
+            )[0][0]
+            index_left_lc = np.where(
+                lightcone_redshifts > self.redshift[0] - self.bin_size / 2
+            )[0][0]
+            if index_left_lc == 0:
+                logger.warning(
+                    "stepping out of the lightcone redshift range, go lower!"
+                )
+                # TODO here should give a warning!
                 index_right_lc = np.where(
-                    lightcone_distances
-                    > (
-                        lightcone_distances[
-                            np.where(lightcone_redshifts > self.redshift[0])[0][0]
-                        ]
-                        + self.bin_size / 2
-                    )
-                )[0][0]
-                index_left_lc = np.where(
-                    lightcone_distances
-                    > (
-                        lightcone_distances[
-                            np.where(lightcone_redshifts > self.redshift[0])[0][0]
-                        ]
-                        - self.bin_size / 2
-                    )
-                )[0][0]
-                if index_left_lc == 0:
-                    logger.warning(
-                        "stepping out of the lightcone redshift range, go lower!"
-                    )
-                    # TODO here should give a warning!
-                    index_right_lc = np.where(
-                        lightcone_distances > (lightcone_distances[0] + self.bin_size)
-                    )[0][0]
+                    lightcone_redshifts > lightcone_redshifts[0] + self.bin_size
+                )
+
+            index = np.where(np.asarray(lc.node_redshifts) < self.redshift[0])[0][0]
+            filling_factor = lc.global_xH[index] * (
+                lc.node_redshifts[index - 1] - self.redshift[0]
+            ) + lc.global_xH[index - 1] * (
+                self.redshift[0] - lc.node_redshifts[index]
+            )
+            filling_factor /= (
+                lc.node_redshifts[index - 1] - lc.node_redshifts[index]
+            )
+            ctx.add("filling_factor_%s" % self.name, filling_factor)
+
+            if not hasattr(ctx.getParams(), "log10_f_rescale"):
+                logger.warning(
+                    "missing input hyper parameter, log10_f_rescale, assigning 0!"
+                )
+                f_rescale = 1
             else:
-                index_right_lc = np.where(
-                    lightcone_redshifts > self.redshift[0] + self.bin_size / 2
-                )[0][0]
-                index_left_lc = np.where(
-                    lightcone_redshifts > self.redshift[0] - self.bin_size / 2
-                )[0][0]
-                if index_left_lc == 0:
-                    logger.warning(
-                        "stepping out of the lightcone redshift range, go lower!"
-                    )
-                    # TODO here should give a warning!
-                    index_right_lc = np.where(
-                        lightcone_redshifts > lightcone_redshifts[0] + self.bin_size
-                    )
+                f_rescale = 10 ** ctx.getParams().log10_f_rescale
 
-            if self.observation == "xqr30":
-
-                index = np.where(np.asarray(lc.node_redshifts) < self.redshift[0])[0][0]
-                filling_factor = lc.global_xH[index] * (
-                    lc.node_redshifts[index - 1] - self.redshift[0]
-                ) + lc.global_xH[index - 1] * (
-                    self.redshift[0] - lc.node_redshifts[index]
+            if not hasattr(ctx.getParams(), "f_rescale_slope"):
+                logger.warning(
+                    "missing input hyper parameter, f_rescale_slope, assigning 0!"
                 )
-                filling_factor /= (
-                    lc.node_redshifts[index - 1] - lc.node_redshifts[index]
-                )
-                ctx.add("filling_factor_%s" % self.name, filling_factor)
+            else:
+                f_rescale += (
+                    self.redshift[0] - 5.7
+                ) * ctx.getParams().f_rescale_slope
 
-                fbias_FGPA = np.load(
-                    path.join(
-                        path.dirname(__file__),
-                        "data/Forests/Bosman21/fewerbins/fbias_FGPA/z%s.npy"
-                        % str(self.redshift[0]).replace(".", "pt"),
-                    ),
-                    allow_pickle=True,
-                )
-                if filling_factor > 0.7:
-                    fbias = fbias_FGPA[7]
-                else:
-                    index_left = int(filling_factor * 10)
-                    index_right = index_left + 1
-                    weight_left = index_right - filling_factor * 10
-                    weight_right = filling_factor * 10 - index_left
-                    fbias = (
-                        fbias_FGPA[index_left] * weight_left
-                        + fbias_FGPA[index_right] * weight_right
-                    )
-                    logger.debug(
-                        "doing xqr30 at z=%.1f with filling factor of %.2f"
-                        % (self.redshift[0], filling_factor)
-                    )
 
-                # intepolate between different filling factors for the GP noise and fbias factor
-                bins = np.linspace(
-                    self.tau_range[0] + self.hist_bin_width * 0.5,
-                    self.tau_range[1] - self.hist_bin_width * 0.5,
-                    self.hist_bin_size,
-                )
+            gamma_bg = lc.Gamma12_box[:,:,index_left_lc:index_right_lc].reshape([total_los, index_right_lc-index_left_lc])
+            delta = lc.density[:, :, index_left_lc:index_right_lc].reshape([total_los, index_right_lc-index_left_lc]) + 1.0
+            temp = lc.temp_kinetic_all_gas[:,:,index_left_lc:index_right_lc].reshape([total_los, index_right_lc-index_left_lc])/1e4
 
-            if not self.mean_flux:
-                if not hasattr(ctx.getParams(), "log10_f_rescale"):
-                    logger.warning(
-                        "missing input hyper parameter, log10_f_rescale, assigning 0!"
-                    )
-                    f_rescale = 1
-                else:
-                    f_rescale = 10 ** ctx.getParams().log10_f_rescale
+            tau_lyman_alpha = self.tau_GP(
+                gamma_bg,
+                delta,
+                temp,
+                lightcone_redshifts[index_left_lc:index_right_lc],
+            )
 
-                if not hasattr(ctx.getParams(), "f_rescale_slope"):
-                    logger.warning(
-                        "missing input hyper parameter, f_rescale_slope, assigning 0!"
-                    )
-                else:
-                    f_rescale += (
-                        self.redshift[0] - 5.7
-                    ) * ctx.getParams().f_rescale_slope
+            tau_eff = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
 
-            pdfs = np.zeros([self.n_realization, self.hist_bin_size]) + np.nan
-            # select a few number of the los according to the observation
-            for jj in range(self.n_realization):
-                if self.even_spacing:
-                    gamma_bg = lc.Gamma12_box[
-                        :, :, index_left_lc:index_right_lc
-                    ].reshape([total_los, index_right_lc - index_left_lc])[
-                        jj :: int(total_los / self.nlos)
-                    ][
-                        : self.nlos
-                    ]
-                    delta = (
-                        lc.density[:, :, index_left_lc:index_right_lc].reshape(
-                            [total_los, index_right_lc - index_left_lc]
-                        )[jj :: int(total_los / self.nlos)][: self.nlos]
-                        + 1.0
-                    )
-                    temp = (
-                        lc.temp_kinetic_all_gas[
-                            :, :, index_left_lc:index_right_lc
-                        ].reshape([total_los, index_right_lc - index_left_lc])[
-                            jj :: int(total_los / self.nlos)
-                        ][
-                            : self.nlos
-                        ]
-                        / 1e4
-                    )
-                else:
-                    rng = np.random.default_rng(self.seed + jj)
-                    random_index = rng.choice(
-                        self.user_params.HII_DIM ** 2, size=self.nlos, replace=False
-                    )
-                    random_ii = (random_index / self.user_params.HII_DIM).astype(int)
-                    random_jj = random_index % self.user_params.HII_DIM
-                    gamma_bg = lc.Gamma12_box[
-                        random_ii, random_jj, index_left_lc:index_right_lc
-                    ]
-                    delta = (
-                        lc.density[random_ii, random_jj, index_left_lc:index_right_lc]
-                        + 1.0
-                    )
-                    temp = (
-                        lc.temp_kinetic_all_gas[
-                            random_ii, random_jj, index_left_lc:index_right_lc
-                        ]
-                        / 1e4
-                    )
-
-                tau_lyman_alpha = self.tau_GP(
-                    gamma_bg,
-                    delta,
-                    temp,
-                    lightcone_redshifts[index_left_lc:index_right_lc],
-                )
-
-                if self.mean_flux:
-                    f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
-
-                tau_eff = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
-
-                if "xqr30" in self.observation:
-                    cdf = (
-                        np.cumsum(np.histogram(tau_eff, range=[0, 20], bins=40)[0])
-                        / self.nlos
-                    )  # range and bins are hard coded because of pre-calculated fbias structure
-                    cdf_rescaled = interp1d(
-                        fbias, cdf, fill_value=(0, 1), bounds_error=False
-                    )(bins)
-                    pdfs[jj] = (
-                        np.ediff1d(cdf_rescaled, to_begin=cdf_rescaled[0])
-                        / self.hist_bin_width
-                    )
-                else:
-                    for jj in range(self.n_realization):
-                        pdfs[jj] = np.histogram(
-                            tau_eff,
-                            range=self.tau_range,
-                            bins=self.hist_bin_size,
-                            density=True,
-                        )[0]
-
-            ctx.add(self.name + "ecm_cosmic", np.cov(pdfs.T))
-            ctx.add(self.name + "mean_pdf", np.mean(pdfs, axis=0))
+            # TODO: get kde from david
+            tau_eff_hydro = kde(tau_eff, filling_factor, self.redshift[0])
+            pdf = np.histogram(tau_eff_hydro, bins=self.hist_bin_size, range=self.tau_range, density=True)[0]
+            ctx.add(self.name + "pdf", pdf)
 
     def save(self, ctx):
         """Save outputs and astro_params details."""
@@ -1115,8 +886,8 @@ class CoreForest(CoreLightConeModule):
 
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
-                self.name + "mean_pdf",
-                data=ctx.get(self.name + "mean_pdf"),
+                self.name + "pdf",
+                data=ctx.get(self.name + "pdf"),
                 dtype="float",
             )
             if f.get("node_redshifts") is None:
