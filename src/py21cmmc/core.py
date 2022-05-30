@@ -15,7 +15,19 @@ from hashlib import md5
 from os import path
 from scipy.interpolate import interp1d
 
-from . import _utils as ut
+
+try:
+	from collections import Iterable  # Python <= 3.9
+except ImportError:
+	from collections.abc import Iterable  # Python > 3.9
+
+def flatten(items):
+	"""Yield items from any nested iterable; see Reference."""
+	for x in items:
+		if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
+			yield from flatten(x)
+		else:
+			yield x
 
 logger = logging.getLogger("21cmFAST")
 
@@ -130,7 +142,7 @@ class ModuleBase:
     @property
     def _rq_cores(self):
         """List of all loaded cores that are in the requirements, in order of the requirements."""
-        req = ut.flatten(self.required_cores)
+        req = flatten(self.required_cores)
         return tuple(core for core in self._cores for r in req if isinstance(core, r))
 
     @property
@@ -576,7 +588,7 @@ class CoreLightConeModule(CoreCoevalModule):
                 global_quantities=lightcone_quantities,
                 **self.global_params,
             )
-        except Exception:
+        except:
             lightcone = None
 
         ctx.add("lightcone", lightcone)
