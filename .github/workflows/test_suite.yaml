@@ -20,76 +20,82 @@ jobs:
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
     name: Testing
-    #    needs: [linter]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.7, 3.8, 3.9, "3.10"]
+    defaults:
+      run:
+        # Adding -l {0} ensures conda can be found properly in each step
+        shell: bash -l {0}
     steps:
       - uses: actions/checkout@master
         with:
           fetch-depth: 0
-      - name: Get Miniconda MacOSX
-        if: matrix.os == 'macos-latest'
+
+      - name: Cache conda
+        uses: actions/cache@v2
+        env:
+          # Increase this value to reset cache if ci/tests.yaml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ~/conda_pkgs_dir
+          key:
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci/tests.yaml', 'setup.cfg') }}
+
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2.1.1
+        with:
+          # auto-update-conda: true
+          miniconda-version: "latest"
+          python-version: ${{ matrix.python-version }}
+          environment-file: ci/test-env.yml
+          activate-environment: tests
+          channel-priority: strict
+          use-only-tar-bz2: true
+
+      - name: Conda Info
         run: |
-          wget https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O $HOME/miniconda.sh;
-          bash $HOME/miniconda.sh -b -p $HOME/miniconda
-      - name: Get Miniconda Linux
-        if: matrix.os == 'ubuntu-latest'
+          conda info -a
+          conda list
+          PYVER=`python -c "import sys; print('{:d}.{:d}'.format(sys.version_info.major, sys.version_info.minor))"`
+          if [[ $PYVER != $PYTHON ]]; then
+            exit 1;
+          fi
+
+      # - name: Get C Libraries Linux
+      #   if: matrix.os == 'ubuntu-latest'
+      #   run: |
+      #     sudo apt-get install libfftw3-dev
+      #     sudo apt-get install libgsl0-dev
+
+      # - name: Install Dependencies MacOSX
+      #   if: matrix.os == 'macos-latest'
+      #   run: |
+      #     export PATH="$HOME/miniconda/bin:$PATH"
+      #     source activate ${ENV_NAME}
+      #     conda env update -f ci/test-env.yml
+      #     CC=gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install git+https://github.com/21cmFAST/21cmFAST.git
+
+      - name: Install 21CMMC
+#        if: matrix.os == 'ubuntu-latest'
         run: |
-          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $HOME/miniconda.sh;
-          bash $HOME/miniconda.sh -b -p $HOME/miniconda
-      - name: Setup Environment
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          ./ci/install_conda.sh
-      - name: Get C Libraries Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get install libfftw3-dev
-          sudo apt-get install libgsl0-dev
-      - name: Get C Libraries MacOSX
-        if: matrix.os == 'macos-latest'
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
-          conda install gsl
-          conda install -c conda-forge fftw
-          conda install -c conda-forge/label/cf201901 gcc
-      - name: Install Dependencies Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate ${ENV_NAME}
-          conda env update -f ci/test-env.yml
-          pip install git+git://github.com/21cmFAST/21cmFAST.git
-      - name: Install Dependencies MacOSX
-        if: matrix.os == 'macos-latest'
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate ${ENV_NAME}
-          conda env update -f ci/test-env.yml
-          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install git+git://github.com/21cmFAST/21cmFAST.git
-      - name: Install 21CMMC Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
+          echo $(which pip)
           pip install .
-      - name: Install 21CMMC MacOS
-        if: matrix.os == 'macos-latest'
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
-          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+
+      # - name: Install 21CMMC MacOS
+      #   if: matrix.os == 'macos-latest'
+      #   run: |
+      #     export PATH="$HOME/miniconda/bin:$PATH"
+      #     source activate $ENV_NAME
+      #     CC=gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
       - name: Run Tests
         run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
-          python -m pytest --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
-      - uses: codecov/codecov-action@v1.5.2
+          python -m pytest --cov=py21cmmc --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
+
+      - uses: codecov/codecov-action@v2
         if: matrix.os == 'ubuntu-latest' && success()
         with:
           file: ./coverage.xml #optional

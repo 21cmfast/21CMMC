@@ -837,7 +837,7 @@ class CoreForest(CoreLightConeModule):
             redshifts = np.tile(redshifts, (*gamma_bg.shape[:-1], 1))
 
         delta_ss = (
-            2.67e4 * temp ** 0.17 * (1.0 + redshifts) ** -3 * gamma_bg ** (2.0 / 3.0)
+            2.67e4 * temp**0.17 * (1.0 + redshifts) ** -3 * gamma_bg ** (2.0 / 3.0)
         )
         gamma_local[~flag_neutral] = gamma_bg[~flag_neutral] * (
             0.98
