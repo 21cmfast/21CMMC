@@ -601,10 +601,12 @@ class CoreLuminosityFunction(CoreCoevalModule):
         if self.flag_options.USE_MINI_HALOS:
             lc = ctx.get("lightcone")
             z_all = np.array(lc.node_redshifts)[::-1]
-            mturnovers = interp1d(z_all, np.array(lc.mturnovers)[::-1])(self.redshift)
-            mturnovers_mini = interp1d(z_all, np.array(lc.mturnovers_mini)[::-1])(
+            mturnovers = 10 ** interp1d(z_all, np.array(lc.log10_mturnovers)[::-1])(
                 self.redshift
             )
+            mturnovers_mini = 10 ** interp1d(
+                z_all, np.array(lc.log10_mturnovers_mini)[::-1]
+            )(self.redshift)
             return p21.compute_luminosity_function(
                 mturnovers=mturnovers,
                 mturnovers_mini=mturnovers_mini,
