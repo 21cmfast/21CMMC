@@ -479,7 +479,7 @@ class CoreLightConeModule(CoreCoevalModule):
     * ``lightcone``: a :class:`~py21cmfast.LightCone` instance.
     """
 
-    def __init__(self, *, max_redshift=None, **kwargs):
+    def __init__(self, *, coarsen_factor=16,max_redshift=None, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn(
                 "ctx_variables does not apply to the lightcone module (at least not yet). It will "
@@ -487,7 +487,8 @@ class CoreLightConeModule(CoreCoevalModule):
             )
 
         super().__init__(**kwargs)
-        self.max_redshift = max_redshift
+        self.max_redshift = max_redshift,
+        self.coarsen_factor=coarsen_factor
 
     def setup(self):
         """Setup the chain."""
@@ -514,11 +515,12 @@ class CoreLightConeModule(CoreCoevalModule):
                 astro_params=self.astro_params,
                 flag_options=self.flag_options,
                 write=True,
+                coarsen_factor=self.coarsen_factor,
                 regenerate=self.regenerate,
                 direc=self.io_options["cache_dir"],
                 random_seed=self.initial_conditions_seed,
                 **self.global_params,
-            )
+            )[0]
 
             # update the seed
             self.initial_conditions_seed = lightcone.random_seed
@@ -540,7 +542,7 @@ class CoreLightConeModule(CoreCoevalModule):
         )
 
         # Call C-code
-        lightcone = p21.run_lightcone(
+        lightcone, output_DH = p21.run_lightcone(
             redshift=self.redshift[0],
             max_redshift=self.max_redshift,
             astro_params=astro_params,
@@ -548,6 +550,7 @@ class CoreLightConeModule(CoreCoevalModule):
             cosmo_params=cosmo_params,
             user_params=self.user_params,
             regenerate=False,
+            coarsen_factor=self.coarsen_factor,
             random_seed=self.initial_conditions_seed,
             write=self.io_options["cache_mcmc"],
             direc=self.io_options["cache_dir"],
@@ -557,6 +560,7 @@ class CoreLightConeModule(CoreCoevalModule):
         )
 
         ctx.add("lightcone", lightcone)
+        ctx.add("output_DH", output_DH)
 
 
 class CoreLuminosityFunction(CoreCoevalModule):
