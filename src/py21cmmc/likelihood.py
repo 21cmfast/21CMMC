@@ -6,6 +6,7 @@ from io import IOBase
 from os import path, rename
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
+from hashlib import md5
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 from . import core
@@ -657,6 +658,8 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             chunk_indices = chunk_indices[:-1]
 
         chunk_indices.append(brightness_temp.n_slices)
+        params = ctx.getParams() 
+        filename = md5(str(params).replace("\n", "").encode()).hexdigest() 
 
         for i in range(self.nchunks):
             start = chunk_indices[i]
@@ -673,6 +676,17 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 ignore_k_zero=self.ignore_k_zero,
             )
             data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
+            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset( 
+                        'k_%d'%i,
+                        data=k,
+                        dtype="float"
+                )
+                f.create_dataset( 
+                        'delta_%d'%i
+                        data=k,
+                        dtype="float"
+                )
 
         return data
 
@@ -1057,6 +1071,15 @@ class LikelihoodPlanck(LikelihoodBase):
             redshifts=z_extrap,
             global_xHI=xHI,
         )
+
+        params = ctx.getParams() 
+        filename = md5(str(params).replace("\n", "").encode()).hexdigest() 
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f: 
+            f.create_dataset(
+                    "tau_e",
+                    data=tau_value,
+                    dtype="float",
+            )
 
         return {"tau": tau_value}
 

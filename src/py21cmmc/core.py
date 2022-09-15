@@ -12,6 +12,7 @@ import py21cmfast as p21
 import warnings
 from os import path
 from scipy.interpolate import interp1d
+from hashlib import md5
 
 from . import _utils as ut
 
@@ -561,7 +562,41 @@ class CoreLightConeModule(CoreCoevalModule):
         )
 
         ctx.add("lightcone", lightcone)
-        ctx.add("output_DH", output_DH)
+        #ctx.add("output_DH", output_DH)
+        params = ctx.getParams()
+        filename = md5(str(params).replace("\n", "").encode()).hexdigest()
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f: 
+             f.create_dataset( 
+                 "node_redshifts", 
+                 data=lightcone.node_redshifts, 
+                 dtype="float", 
+            )
+            f.create_dataset(
+                "global_xH",
+                data=lightcone.global_xH,
+                dtype="float",
+            )
+            f.create_dataset(
+                "global_Gamma12",
+                data=lightcone.global_Gamma12,
+                dtype="float",
+            )
+            f.create_dataset(
+                "global_brightness_temp",
+                data=lightcone.global_brightness_temp,
+                dtype="float",
+            )
+            f.create_dataset(
+                "global_temp_kinetic_all_gas",
+                data=lightcone.global_temp_kinetic_all_gas,
+                dtype="float",
+            )
+            grp = f.create_group("params")
+            for kk, v in getattr(lc, "astro_params").__dict__.items():
+                if v is None:
+                    continue
+                else:
+                    grp.attrs[kk] = v 
 
 
 class CoreLuminosityFunction(CoreCoevalModule):
@@ -648,6 +683,15 @@ class CoreLuminosityFunction(CoreCoevalModule):
             "luminosity_function" + self.name,
             {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc},
         )
+
+        params = ctx.getParams()
+        filename = md5(str(params).replace("\n", "").encode()).hexdigest()
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            f.create_dataset(
+                    "luminosity_function" + self.name,
+                    data=lfunc,
+                    dtype="float",
+            )
 
     @property
     def sigma(self):
