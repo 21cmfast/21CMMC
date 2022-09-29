@@ -1185,7 +1185,10 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 xHI = ctx.get("xHI")
                 redshifts = ctx.get("zs")
             else:
-                xHI = ctx.get("lightcone").global_xHI
+                lc = ctx.get("lightcone")
+                if lc is None:
+                    return {"xHI": None, "redshifts": None}x
+                xHI = lc.global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts
 
         redshifts, xHI = np.sort([redshifts, xHI])
@@ -1195,6 +1198,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         """Compute the likelihood."""
         lnprob = 0
 
+        if model["xHI"] is None:
+            return -np.inf
         if self._require_spline:
             model_spline = InterpolatedUnivariateSpline(
                 model["redshifts"], model["xHI"], k=1
