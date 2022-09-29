@@ -15,11 +15,11 @@ from hashlib import md5
 from os import path
 from scipy.interpolate import interp1d
 
-
 try:
     from collections import Iterable  # Python <= 3.9
 except ImportError:
     from collections.abc import Iterable  # Python > 3.9
+
 
 def flatten(items):
     """Yield items from any nested iterable; see Reference."""
@@ -28,6 +28,7 @@ def flatten(items):
             yield from flatten(x)
         else:
             yield x
+
 
 logger = logging.getLogger("21cmFAST")
 
@@ -717,7 +718,7 @@ class CoreForest(CoreLightConeModule):
         self.name = str(name)
         self.observation = str(observation)
         self.bin_size = bin_size
-        self.tau_range = [0, 8] 
+        self.tau_range = [0, 8]
         self.hist_bin_width = 0.1
         self.hist_bin_size = int(
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
@@ -729,12 +730,14 @@ class CoreForest(CoreLightConeModule):
             self.observation == "bosman_optimistic"
             or self.observation == "bosman_pessimistic"
         ):
-            logger.warning("Automatically set to use the new likelihoods!Contact the team if you want to use earlier likelihoods in 2101.09033")
+            logger.warning(
+                "Automatically set to use the new likelihoods!Contact the team if you want to use earlier likelihoods in 2101.09033"
+            )
             self.observation = "xqr30"
 
-        if self.observation is not "xqr30":
+        if self.observation != "xqr30":
             raise NotImplementedError("set observation=xqr30!")
-           
+
     def setup(self):
         """Run post-init setup."""
         CoreBase.setup(self)
@@ -813,7 +816,7 @@ class CoreForest(CoreLightConeModule):
             ctx.add(self.name + "pdf", None)
         else:
             lightcone_redshifts = lc.lightcone_redshifts
-            total_los = lc.user_params.HII_DIM ** 2
+            total_los = lc.user_params.HII_DIM**2
 
             index_right_lc = np.where(
                 lightcone_redshifts > self.redshift[0] + self.bin_size / 2
@@ -833,12 +836,8 @@ class CoreForest(CoreLightConeModule):
             index = np.where(np.asarray(lc.node_redshifts) < self.redshift[0])[0][0]
             filling_factor = lc.global_xH[index] * (
                 lc.node_redshifts[index - 1] - self.redshift[0]
-            ) + lc.global_xH[index - 1] * (
-                self.redshift[0] - lc.node_redshifts[index]
-            )
-            filling_factor /= (
-                lc.node_redshifts[index - 1] - lc.node_redshifts[index]
-            )
+            ) + lc.global_xH[index - 1] * (self.redshift[0] - lc.node_redshifts[index])
+            filling_factor /= lc.node_redshifts[index - 1] - lc.node_redshifts[index]
             ctx.add("filling_factor_%s" % self.name, filling_factor)
 
             if not hasattr(ctx.getParams(), "log10_f_rescale"):
@@ -854,14 +853,23 @@ class CoreForest(CoreLightConeModule):
                     "missing input hyper parameter, f_rescale_slope, assigning 0!"
                 )
             else:
-                f_rescale += (
-                    self.redshift[0] - 5.7
-                ) * ctx.getParams().f_rescale_slope
+                f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
 
-
-            gamma_bg = lc.Gamma12_box[:,:,index_left_lc:index_right_lc].reshape([total_los, index_right_lc-index_left_lc])
-            delta = lc.density[:, :, index_left_lc:index_right_lc].reshape([total_los, index_right_lc-index_left_lc]) + 1.0
-            temp = lc.temp_kinetic_all_gas[:,:,index_left_lc:index_right_lc].reshape([total_los, index_right_lc-index_left_lc])/1e4
+            gamma_bg = lc.Gamma12_box[:, :, index_left_lc:index_right_lc].reshape(
+                [total_los, index_right_lc - index_left_lc]
+            )
+            delta = (
+                lc.density[:, :, index_left_lc:index_right_lc].reshape(
+                    [total_los, index_right_lc - index_left_lc]
+                )
+                + 1.0
+            )
+            temp = (
+                lc.temp_kinetic_all_gas[:, :, index_left_lc:index_right_lc].reshape(
+                    [total_los, index_right_lc - index_left_lc]
+                )
+                / 1e4
+            )
 
             tau_lyman_alpha = self.tau_GP(
                 gamma_bg,
@@ -871,11 +879,12 @@ class CoreForest(CoreLightConeModule):
             )
 
             tau_eff = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
+            ctx.add(self.name + "tau_GP", tau_eff)
 
-            # TODO: get kde from david
-            tau_eff_hydro = kde(tau_eff, filling_factor, self.redshift[0])
-            pdf = np.histogram(tau_eff_hydro, bins=self.hist_bin_size, range=self.tau_range, density=True)[0]
-            ctx.add(self.name + "pdf", pdf)
+            pdf = np.histogram(
+                tau_eff, bins=self.hist_bin_size, range=self.tau_range, density=True
+            )[0]
+            ctx.add(self.name + "tau_GP_pdf", pdf)
 
     def save(self, ctx):
         """Save outputs and astro_params details."""
@@ -886,8 +895,8 @@ class CoreForest(CoreLightConeModule):
 
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
-                self.name + "pdf",
-                data=ctx.get(self.name + "pdf"),
+                self.name + "tau_GP_pdf",
+                data=ctx.get(self.name + "tau_GP_pdf"),
                 dtype="float",
             )
             if f.get("node_redshifts") is None:

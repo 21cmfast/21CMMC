@@ -1670,10 +1670,12 @@ class LikelihoodForest(LikelihoodBaseFile):
                 "to use the provided forests, a separate core/likelihood instance pair for each redshift is required!"
             )
         if "bosman" in self.observation:
-            logger.warning("Automatically set to use the new likelihoods!Contact the team if you want to use earlier likelihoods in 2101.09033")
+            logger.warning(
+                "Automatically set to use the new likelihoods!Contact the team if you want to use earlier likelihoods in 2101.09033"
+            )
             self.observation = "xqr30"
 
-        if self.observation is not "xqr30":
+        if self.observation != "xqr30":
             raise NotImplementedError("Use xqr30!")
         if self.redshifts[0] not in [
             5.0,
@@ -1701,6 +1703,10 @@ class LikelihoodForest(LikelihoodBaseFile):
             )
         ]
         logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
+        logger.debug("loading KDE...")
+        self.kde = np.load(
+            "/home/yqin/notebooks/hybrid/forest_xqr30/kde.npy", allow_pickle=True
+        ).item()
 
         super().setup()
 
@@ -1738,7 +1744,20 @@ class LikelihoodForest(LikelihoodBaseFile):
                 "The Forest can only work with lightcone at the moment"
             )
 
-        return ctx.get(self.name + "pdf")
+        np.random.seed(self.initial_conditions_see)
+        model = ctx.get(self.name + "tau_GP")
+        tau_GPs = model[np.random.randint(0, len(model), len(self.data[0]))]
+
+        log_probs = self.kde.score_samples(
+            np.stack([self.data[0], tau_GPs]).T,
+            inherent_conditionals={
+                "z": self.redshifts[0],
+                "xHI": ctx.get("filling_factor_%s" % self.name),
+            },
+            conditional_features=["tau_GP"],
+        )
+
+        return log_probs
 
     def computeLikelihood(self, model):
         """
@@ -1759,9 +1778,5 @@ class LikelihoodForest(LikelihoodBaseFile):
 
         if model is None:
             return -np.inf
-        
-        probability = 1.0
-        bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size+1)
-        probability = np.prod(model[np.digtize(self.data[0], bins)-1])
 
-        return np.log(probability)
+        return np.log(np.prod(model))
