@@ -920,7 +920,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                 my_l_max_EE = max(my_clik_EE.get_lmax())
             else:
                 raise AttributeError(
-                    "I did not understand name %s"(name)
+                    "I did not understand name %s"%(name)
                     + "please choose between"
                     + "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE"
                 )
@@ -1187,7 +1187,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             else:
                 lc = ctx.get("lightcone")
                 if lc is None:
-                    return {"xHI": None, "redshifts": None}x
+                    return {"xHI": None, "redshifts": None}
                 xHI = lc.global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts
 
@@ -1710,8 +1710,9 @@ class LikelihoodForest(LikelihoodBaseFile):
         logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
         logger.debug("loading KDE...")
         self.kde = np.load(
-            "/home/yqin/notebooks/hybrid/forest_xqr30/kde.npy", allow_pickle=True
-        ).item()
+            path.join(
+                path.dirname(__file__),
+                "data/Forests/Bosman21/kde.npy"),  allow_pickle=True).item()
 
         super().setup()
 
