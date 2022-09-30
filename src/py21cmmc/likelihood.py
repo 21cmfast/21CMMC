@@ -649,7 +649,6 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             )
         )
         nchunks = len(chunk_indices) - 1
-        data = np.zeros([nchunks + 1, self.n_psbins])
         z_centers = np.zeros(nchunks)
 
         for i in range(nchunks):
@@ -669,6 +668,10 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 ignore_kpar_zero=self.ignore_kpar_zero,
                 ignore_k_zero=self.ignore_k_zero,
             )
+            if i == 0:
+                data = np.zeros([nchunks + 1, len(k)])
+                data[0] = k
+
             data[i + 1] = power * k**3 / (2 * np.pi**2)
             index_center = int(brightness_temp.shape[0] * self.box_ratio)
             if index_center % 2 == 0:
@@ -1525,6 +1528,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def reduce_data(self, ctx):
         """Reduce simulated model data."""
         lfunc = ctx.get("luminosity_function" + self.name)
+        lfunc["filename"] = ctx.get("filename")
         if not self._is_setup:
             # During setup, return a list, so that it can be matched with the
             # list of length one of datafile to be written.
