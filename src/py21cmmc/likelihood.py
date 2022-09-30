@@ -3,7 +3,6 @@ import h5py
 import logging
 import numpy as np
 from cached_property import cached_property
-from hashlib import md5
 from io import IOBase
 from os import path, rename
 from powerbox.tools import get_power
@@ -920,7 +919,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                 my_l_max_EE = max(my_clik_EE.get_lmax())
             else:
                 raise AttributeError(
-                    "I did not understand name %s"%(name)
+                    "I did not understand name %s" % (name)
                     + "please choose between"
                     + "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE"
                 )
@@ -998,7 +997,8 @@ class LikelihoodPlanck(LikelihoodBase):
         """
         if model["tau"] is None:
             return -np.inf
-        return (
+
+        logprob = (
             -0.5
             * np.square(self.tau_mean - model["tau"])
             / (
@@ -1006,6 +1006,16 @@ class LikelihoodPlanck(LikelihoodBase):
                 + (self.tau_sigma_u - self.tau_sigma_l) * (model["tau"] - self.tau_mean)
             )
         )
+        filename = model["filename"]
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            f.create_dataset(
+                "tau_e_logpronb",
+                data=[
+                    logprob,
+                ],
+                dtype="float",
+            )
+        return logprob
 
     @property
     def _is_lightcone(self):
@@ -1065,15 +1075,18 @@ class LikelihoodPlanck(LikelihoodBase):
             global_xHI=xHI,
         )
         ctx.add("tau_e", tau_value)
-        return {"tau": tau_value}
 
-    def save(self, ctx):
-        """Save outputs and astro_params details."""
-        if self._is_lightcone:
-            params = ctx.getParams()
-            filename = md5(str(params).replace("\n", "").encode()).hexdigest()
-            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
-                f.create_dataset("tau_e", data=ctx.get("tau_e"), dtype="float")
+        filename = ctx.get("filename")
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            f.create_dataset(
+                "tau_e",
+                data=[
+                    ctx.get("tau_e"),
+                ],
+                dtype="float",
+            )
+
+        return {"tau": tau_value, "filename": filename}
 
 
 class LikelihoodNeutralFraction(LikelihoodBase):
@@ -1085,7 +1098,6 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     """
 
     required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule, core.CoreCMB),)
-    threshold = 0.06
 
     def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
         """
@@ -1110,6 +1122,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         self.redshift = _ensure_iter(redshift)
         self.xHI = _ensure_iter(xHI)
         self.xHI_sigma = _ensure_iter(xHI_sigma)
+        self.threshold = self.xHI
 
         # By default, setup as if using coeval boxes.
         self.redshifts = (
@@ -1461,6 +1474,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def reduce_data(self, ctx):
         """Reduce simulated model data."""
         lfunc = ctx.get("luminosity_function" + self.name)
+        lfunc["filename"] = ctx.get("filename")
         if not self._is_setup:
             # During setup, return a list, so that it can be matched with the
             # list of length one of datafile to be written.
@@ -1472,16 +1486,29 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """Compute the likelihood."""
         lnl = 0
         for i, z in enumerate(self.redshifts):
+            if model["Muv"] is None:
+                return -np.inf
             model_spline = InterpolatedUnivariateSpline(
                 model["Muv"][i][::-1], model["lfunc"][i][::-1]
             )
-            lnl += -0.5 * np.sum(
-                (
+            lnl_z = (
+                -0.5
+                * (
                     (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
                     ** 2
                     / self.noise["sigma"][i] ** 2
                 )[self.data["Muv"][i] > self.mag_brightest]
             )
+
+            filename = model["filename"]
+            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset(
+                    "luminosity_function" + self.name + "logprobs",
+                    data=lnl_z,
+                    dtype="float",
+                )
+            lnl += np.sum(lnl_z)
+
         return lnl
 
     def define_noise(self, ctx, model):
@@ -1710,16 +1737,16 @@ class LikelihoodForest(LikelihoodBaseFile):
         logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
         logger.debug("loading KDE...")
         self.kde = np.load(
-            path.join(
-                path.dirname(__file__),
-                "data/Forests/Bosman21/kde.npy"),  allow_pickle=True).item()
+            path.join(path.dirname(__file__), "data/Forests/Bosman21/kde.npy"),
+            allow_pickle=True,
+        ).item()
 
         super().setup()
 
     def _read_data(self):
         data = super()._read_data()[0]
         targets = np.arange(len(data["zs"]))  # take all
-        return data["tau_lower"][targets]
+        return np.exp(-data["tau_lower"][targets])
 
     @cached_property
     def paired_core(self):
@@ -1750,20 +1777,34 @@ class LikelihoodForest(LikelihoodBaseFile):
                 "The Forest can only work with lightcone at the moment"
             )
 
-        np.random.seed(self.initial_conditions_see)
-        model = ctx.get(self.name + "tau_GP")
-        tau_GPs = model[np.random.randint(0, len(model), len(self.data[0]))]
+        np.random.seed(self.core_primary.initial_conditions_seed)
+        model = ctx.get(self.name + "flux_GP")
+        if model is None:
+            return {"forest_%s" % self.name: None}
+
+        filling_factor = ctx.get("filling_factor_%s" % self.name)
+        # hard boundary for the KDE
+        if filling_factor > 0.7:
+            return {"forest_%s" % self.name: None}
+
+        flux_GPs = model[np.random.randint(0, len(model), len(self.data))]
 
         log_probs = self.kde.score_samples(
-            np.stack([self.data[0], tau_GPs]).T,
+            np.stack([self.data, flux_GPs]).T,
             inherent_conditionals={
                 "z": self.redshifts[0],
-                "xHI": ctx.get("filling_factor_%s" % self.name),
+                "xHI": filling_factor,
             },
             conditional_features=["tau_GP"],
         )
 
-        return log_probs
+        filename = ctx.get("filename")
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            f.create_dataset(
+                self.name + "forest_logpronbs", data=log_probs, dtype="float"
+            )
+
+        return {"forest_%s" % self.name: log_probs}
 
     def computeLikelihood(self, model):
         """
@@ -1782,7 +1823,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         if self.redshifts[0] < 5.25:
             return 0
 
-        if model is None:
+        if model["forest_%s" % self.name] is None:
             return -np.inf
 
-        return np.log(np.prod(model))
+        return np.sum(model["forest_%s" % self.name])

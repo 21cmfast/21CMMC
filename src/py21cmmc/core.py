@@ -559,6 +559,31 @@ class CoreLightConeModule(CoreCoevalModule):
             "Nrec_box",
         )
 
+        params = ctx.getParams()
+        filename = md5(str(params).replace("\n", "").encode()).hexdigest()
+        if path.exists("output/run_%s.hdf5" % filename):
+            i_duplicate = 1
+            while True:
+                filename_try = filename + "_%d" % i_duplicate
+                if path.exists("output/run_%s.hdf5" % filename_try):
+                    i_duplicate += 1
+                else:
+                    filename = filename_try
+                    break
+
+        ctx.add("filename", filename)
+        logger.debug(f"parameters: {params}, filename: {filename}")
+
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            for kk, v in astro_params.__dict__.items():
+                if v is None:
+                    continue
+                else:
+                    f.attrs[kk] = v
+            f.attrs["log10_f_rescale"] = params.log10_f_rescale
+            f.attrs["f_rescale_slope"] = params.f_rescale_slope
+            f.attrs["random_seed"] = self.initial_conditions_seed
+
         # Call C-code
         try:
             lightcone = p21.run_lightcone(
@@ -576,6 +601,49 @@ class CoreLightConeModule(CoreCoevalModule):
                 global_quantities=lightcone_quantities,
                 **self.global_params,
             )
+
+            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset(
+                    "node_redshifts",
+                    data=lightcone.node_redshifts,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_xH",
+                    data=lightcone.global_xH,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_Gamma12",
+                    data=lightcone.global_Gamma12,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_MFP",
+                    data=lightcone.global_MFP,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_temp_kinetic_all_gas",
+                    data=lightcone.global_temp_kinetic_all_gas,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_Nion",
+                    data=lightcone.global_Nion,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_Nrec",
+                    data=lightcone.global_Nrec,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "Nion",
+                    data=lightcone.Nion_acg,
+                    dtype="float",
+                )
+
         except:
             lightcone = None
 
@@ -623,6 +691,8 @@ class CoreLuminosityFunction(CoreCoevalModule):
         """Return the luminosity function for given parameters."""
         if self.flag_options.USE_MINI_HALOS:
             lc = ctx.get("lightcone")
+            if lc is None:
+                return None, None, None
             z_all = np.array(lc.node_redshifts)[::-1]
             mturnovers = 10 ** interp1d(z_all, np.array(lc.log10_mturnovers)[::-1])(
                 self.redshift
@@ -657,15 +727,22 @@ class CoreLuminosityFunction(CoreCoevalModule):
 
         # Call C-code
         Muv, mhalo, lfunc = self.run(astro_params, cosmo_params, ctx)
-
-        Muv = [m[~np.isnan(lf)] for lf, m in zip(lfunc, Muv)]
-        mhalo = [m[~np.isnan(lf)] for lf, m in zip(lfunc, mhalo)]
-        lfunc = [m[~np.isnan(lf)] for lf, m in zip(lfunc, lfunc)]
+        if Muv is not None:
+            Muv = [m[~np.isnan(lf)] for lf, m in zip(lfunc, Muv)]
+            mhalo = [m[~np.isnan(lf)] for lf, m in zip(lfunc, mhalo)]
+            lfunc = [m[~np.isnan(lf)] for lf, m in zip(lfunc, lfunc)]
 
         ctx.add(
             "luminosity_function" + self.name,
             {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc},
         )
+        filename = ctx.get("filename")
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            f.create_dataset(
+                "luminosity_function" + self.name,
+                data=lfunc,
+                dtype="float",
+            )
 
     @property
     def sigma(self):
@@ -820,7 +897,7 @@ class CoreForest(CoreLightConeModule):
 
         if lc is None:
             logger.debug("CoreForest: no lightcone!")
-            ctx.add(self.name + "pdf", None)
+            ctx.add(self.name + "flux_GP", None)
         else:
             lightcone_redshifts = lc.lightcone_redshifts
             total_los = lc.user_params.HII_DIM**2
@@ -862,6 +939,9 @@ class CoreForest(CoreLightConeModule):
             else:
                 f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
 
+            if f_rescale < 0:
+                f_rescale = 0
+
             gamma_bg = lc.Gamma12_box[:, :, index_left_lc:index_right_lc].reshape(
                 [total_los, index_right_lc - index_left_lc]
             )
@@ -885,20 +965,20 @@ class CoreForest(CoreLightConeModule):
                 lightcone_redshifts[index_left_lc:index_right_lc],
             )
 
-            tau_eff = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
-            ctx.add(self.name + "tau_GP", tau_eff)
+            flux_GP = np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1)
+            ctx.add(self.name + "flux_GP", flux_GP)
 
-            pdf = np.histogram(
-                tau_eff, bins=self.hist_bin_size, range=self.tau_range, density=True
-            )[0]
+            n, bin_edges = np.histogram(
+                -np.log(flux_GP), bins=self.hist_bin_size, range=self.tau_range
+            )
+            pdf = n / np.array(np.diff(bin_edges), float) / len(flux_GP)
             ctx.add(self.name + "tau_GP_pdf", pdf)
+
+            self.save(ctx)
 
     def save(self, ctx):
         """Save outputs and astro_params details."""
-        lc = ctx.get("lightcone")
-        params = ctx.getParams()
-        filename = md5(str(params).replace("\n", "").encode()).hexdigest()
-        logger.debug(f"parameters: {params}, filename: {filename}")
+        filename = ctx.get("filename")
 
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
@@ -906,57 +986,6 @@ class CoreForest(CoreLightConeModule):
                 data=ctx.get(self.name + "tau_GP_pdf"),
                 dtype="float",
             )
-            if f.get("node_redshifts") is None:
-                f.create_dataset(
-                    "node_redshifts",
-                    data=lc.node_redshifts,
-                    dtype="float",
-                )
-                f.create_dataset(
-                    "global_xH",
-                    data=lc.global_xH,
-                    dtype="float",
-                )
-                f.create_dataset(
-                    "global_Gamma12",
-                    data=lc.global_Gamma12,
-                    dtype="float",
-                )
-                f.create_dataset(
-                    "global_MFP",
-                    data=lc.global_MFP,
-                    dtype="float",
-                )
-                f.create_dataset(
-                    "global_temp_kinetic_all_gas",
-                    data=lc.global_temp_kinetic_all_gas,
-                    dtype="float",
-                )
-                f.create_dataset(
-                    "global_Nion",
-                    data=lc.global_Nion,
-                    dtype="float",
-                )
-                f.create_dataset(
-                    "global_Nrec",
-                    data=lc.global_Nrec,
-                    dtype="float",
-                )
-                f.create_dataset(
-                    "Nion",
-                    data=lc.Nion_acg,
-                    dtype="float",
-                )
-                grp = f.create_group("params")
-                for kk, v in getattr(lc, "astro_params").__dict__.items():
-                    if v is None:
-                        continue
-                    else:
-                        grp.attrs[kk] = v
-                    grp.attrs["log10_f_rescale"] = params.log10_f_rescale
-                    grp.attrs["f_rescale_slope"] = params.f_rescale_slope
-
-                f.attrs["random_seed"] = ctx.get("lightcone").random_seed
 
 
 class CoreCMB(CoreBase):
