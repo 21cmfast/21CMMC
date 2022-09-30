@@ -807,6 +807,10 @@ class CoreForest(CoreLightConeModule):
         self.hist_bin_size = int(
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
         )
+        self.kde = np.load(
+            path.join(path.dirname(__file__), "data/Forests/Bosman21/kde.npy"),
+            allow_pickle=True,
+        ).item()
 
         super().__init__(**kwargs)
 
@@ -897,8 +901,9 @@ class CoreForest(CoreLightConeModule):
 
         if lc is None:
             logger.debug("CoreForest: no lightcone!")
-            ctx.add(self.name + "flux_GP", None)
+            ctx.add(self.name + "tau_hydro_pdf", None)
         else:
+            filename = ctx.get("filename")
             lightcone_redshifts = lc.lightcone_redshifts
             total_los = lc.user_params.HII_DIM**2
 
@@ -922,7 +927,6 @@ class CoreForest(CoreLightConeModule):
                 lc.node_redshifts[index - 1] - self.redshift[0]
             ) + lc.global_xH[index - 1] * (self.redshift[0] - lc.node_redshifts[index])
             filling_factor /= lc.node_redshifts[index - 1] - lc.node_redshifts[index]
-            ctx.add("filling_factor_%s" % self.name, filling_factor)
 
             if not hasattr(ctx.getParams(), "log10_f_rescale"):
                 logger.warning(
@@ -965,27 +969,53 @@ class CoreForest(CoreLightConeModule):
                 lightcone_redshifts[index_left_lc:index_right_lc],
             )
 
-            flux_GP = np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1)
-            ctx.add(self.name + "flux_GP", flux_GP)
-
+            flux_GPs = np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1)
             n, bin_edges = np.histogram(
-                -np.log(flux_GP), bins=self.hist_bin_size, range=self.tau_range
+                -np.log(flux_GPs), bins=self.hist_bin_size, range=self.tau_range
             )
-            pdf = n / np.array(np.diff(bin_edges), float) / len(flux_GP)
-            ctx.add(self.name + "tau_GP_pdf", pdf)
+            pdf = n / np.array(np.diff(bin_edges), float) / len(flux_GPs)
+            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                dset = f.create_dataset(
+                    self.name + "tau_GP_pdf",
+                    data=pdf,
+                    dtype="float",
+                )
+                dset.attrs["filling_factor"] = filling_factor
 
-            self.save(ctx)
+            # hard boundary for the KDE
+            if filling_factor <= 0.7:
+                flux_hydros = np.copy(flux_GPs)
+                for ii, flux_GP in enumerate(flux_GPs):
+                    try:
 
-    def save(self, ctx):
-        """Save outputs and astro_params details."""
-        filename = ctx.get("filename")
+                        flux_hydros[ii] = self.kde.sample(
+                            inherent_conditionals={
+                                "z": self.redshift[0],
+                                "xHI": filling_factor,
+                            },
+                            conditionals={"tau_GP": flux_GP},
+                            n_samples=1,
+                            keep_dims=False,
+                        )[0][0]
+                    except:
+                        # This is basically saying tau_hydro = tau_GP for those not captured by Sherwood
+                        pass
 
-        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
-            f.create_dataset(
-                self.name + "tau_GP_pdf",
-                data=ctx.get(self.name + "tau_GP_pdf"),
-                dtype="float",
-            )
+                n, bin_edges = np.histogram(
+                    -np.log(flux_hydros), bins=self.hist_bin_size, range=self.tau_range
+                )
+                pdf = n / np.array(np.diff(bin_edges), float) / len(flux_hydros)
+
+                with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                    f.create_dataset(
+                        self.name + "tau_hydro_pdf",
+                        data=pdf,
+                        dtype="float",
+                    )
+
+                ctx.add(self.name + "tau_hydro_pdf", pdf)
+            else:
+                ctx.add(self.name + "tau_hydro_pdf", None)
 
 
 class CoreCMB(CoreBase):

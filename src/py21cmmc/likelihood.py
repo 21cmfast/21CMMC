@@ -1736,10 +1736,6 @@ class LikelihoodForest(LikelihoodBaseFile):
         ]
         logger.debug("doing xqr30 at z=%.1f" % self.redshifts[0])
         logger.debug("loading KDE...")
-        self.kde = np.load(
-            path.join(path.dirname(__file__), "data/Forests/Bosman21/kde.npy"),
-            allow_pickle=True,
-        ).item()
 
         super().setup()
 
@@ -1778,25 +1774,14 @@ class LikelihoodForest(LikelihoodBaseFile):
             )
 
         np.random.seed(self.core_primary.initial_conditions_seed)
-        model = ctx.get(self.name + "flux_GP")
-        if model is None:
+        pdf = ctx.get(self.name + "tau_hydro_pdf")
+
+        if pdf is None:
             return {"forest_%s" % self.name: None}
 
-        filling_factor = ctx.get("filling_factor_%s" % self.name)
-        # hard boundary for the KDE
-        if filling_factor > 0.7:
-            return {"forest_%s" % self.name: None}
-
-        flux_GPs = model[np.random.randint(0, len(model), len(self.data))]
-
-        log_probs = self.kde.score_samples(
-            np.stack([self.data, flux_GPs]).T,
-            inherent_conditionals={
-                "z": self.redshifts[0],
-                "xHI": filling_factor,
-            },
-            conditional_features=["tau_GP"],
-        )
+        pdf /= np.amax(pdf)
+        bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
+        log_probs = np.log(pdf[np.digitize(self.data, bins) - 1])
 
         filename = ctx.get("filename")
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
@@ -1824,6 +1809,9 @@ class LikelihoodForest(LikelihoodBaseFile):
             return 0
 
         if model["forest_%s" % self.name] is None:
+            return -np.inf
+
+        if np.sum(np.isnan(model["forest_%s" % self.name])) > 0:
             return -np.inf
 
         return np.sum(model["forest_%s" % self.name])
