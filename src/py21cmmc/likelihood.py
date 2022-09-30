@@ -1,12 +1,14 @@
 """Module containing 21CMMC likelihoods."""
+import h5py
 import logging
 import numpy as np
+from astropy import units
+from astropy.cosmology import z_at_value
 from cached_property import cached_property
 from io import IOBase
 from os import path, rename
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
-from hashlib import md5
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 from . import core
@@ -550,24 +552,13 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     required_cores = (core.CoreLightConeModule,)
 
-    def __init__(self, *args, nchunks=1, **kwargs):
+    def __init__(self, *args, box_ratio=1, **kwargs):
         super().__init__(*args, **kwargs)
-        self.nchunks = nchunks
+        self.box_ratio = box_ratio
 
     def setup(self):
         """Perform post-init setup."""
         LikelihoodBaseFile.setup(self)
-
-        # Ensure that there is one dataset and noiseset per redshift.
-        if len(self.data) != self.nchunks:
-            raise ValueError(
-                "There needs to be one dataset (datafile) for each chunk!!"
-            )
-
-        if self.noise and len(self.noise) != self.nchunks:
-            raise ValueError(
-                "There needs to be one dataset (noisefile) for each chunk!"
-            )
 
         # Check if all data is formatted correctly.
         self._check_data_format()
@@ -644,57 +635,104 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
-        brightness_temp = ctx.get("lightcone")
-        data = []
+        lc = ctx.get("lightcone")
+        if lc is None:
+            logger.debug("Likelihood1DPowerLightcone: no lightcone!")
+            return {"21cmPS": None}
+
+        brightness_temp = lc.brightness_temp
         chunk_indices = list(
             range(
                 0,
-                brightness_temp.n_slices,
-                round(brightness_temp.n_slices / self.nchunks),
+                brightness_temp.shape[2],
+                int(brightness_temp.shape[0] * self.box_ratio),
             )
         )
+        nchunks = len(chunk_indices) - 1
+        data = np.zeros([nchunks + 1, self.n_psbins])
+        z_centers = np.zeros(nchunks)
 
-        if len(chunk_indices) > self.nchunks:
-            chunk_indices = chunk_indices[:-1]
-
-        chunk_indices.append(brightness_temp.n_slices)
-        params = ctx.getParams() 
-        filename = md5(str(params).replace("\n", "").encode()).hexdigest() 
-
-        for i in range(self.nchunks):
+        for i in range(nchunks):
             start = chunk_indices[i]
             end = chunk_indices[i + 1]
-            chunklen = (end - start) * brightness_temp.cell_size
 
             power, k = self.compute_power(
-                brightness_temp.brightness_temp[:, :, start:end],
-                (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
+                brightness_temp[:, :, start:end],
+                (
+                    self.user_params.BOX_LEN,
+                    self.user_params.BOX_LEN,
+                    self.user_params.BOX_LEN * self.box_ratio,
+                ),
                 self.n_psbins,
                 log_bins=self.logk,
                 ignore_kperp_zero=self.ignore_kperp_zero,
                 ignore_kpar_zero=self.ignore_kpar_zero,
                 ignore_k_zero=self.ignore_k_zero,
             )
-            data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
+            data[i + 1] = power * k**3 / (2 * np.pi**2)
+            index_center = int(brightness_temp.shape[0] * self.box_ratio)
+            if index_center % 2 == 0:
+                dist_center = 0.5 * (
+                    lc.lightcone_distances[start + int(0.5 * index_center)]
+                    + lc.lightcone_distances[start + int(0.5 * index_center) - 1]
+                )
+            else:
+                dist_center = lc.lightcone_distances[start + int(0.5 * index_center)]
+            z_centers[i] = z_at_value(
+                self.core_primary.cosmo_params.cosmo.comoving_distance,
+                dist_center * units.Mpc,
+            )
+        print("z_centers", z_centers)
+
+        filename = ctx.get("filename")
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            f.create_dataset("21cmPS", data=data, dtype="float")
+            f.create_dataset("z_centers", data=z_centers, dtype="float")
+
+        return {"21cmPS": data, "filename": filename}
+
+    def computeLikelihood(self, model):
+        """Compute the likelihood given a model.
+
+        Parameters
+        ----------
+        model : list of dict
+            A list of dictionaries, one for each redshift. Exactly the output of
+            :meth:'reduce_data`.
+        """
+        lnl = 0
+        noise = 0
+        if model["21cmPS"] is None:
+            return -np.inf
+
+        ks = model["21cmPS"][0]
+        mask = np.logical_and(ks <= self.max_k, ks >= self.min_k)
+        filename = model["filename"]
+
+        for i, pd in enumerate(self.data_spline):
+
+            moduncert = (
+                self.model_uncertainty * pd(ks[mask])
+                if not self.error_on_model
+                else self.model_uncertainty * model["21cmPS"][i + 1][mask]
+            )
+
+            if self.noise_spline:
+                noise = self.noise_spline[i](ks[mask])
+
+            # TODO: if moduncert depends on model, not data, then it should appear
+            #  as -0.5 log(sigma^2) term below.
+            lnl_z = -0.5 * (
+                (model["21cmPS"][i + 1][mask] - pd(ks[mask])) ** 2
+                / (moduncert**2 + noise**2)
+            )
+            lnl += np.sum(lnl_z)
+
             with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
-                f.create_dataset( 
-                        'k_%d'%i,
-                        data=k,
-                        dtype="float"
-                )
-                f.create_dataset( 
-                        'delta_%d'%i
-                        data=k,
-                        dtype="float"
-                )
+                f.create_dataset("21cmPS_logprobs_%d" % i, data=lnl_z, dtype="float")
+        logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
-        return data
-
-    def store(self, model, storage):
-        """Store the model into backend storage."""
-        # add the power to the written data
-        for i, m in enumerate(model):
-            storage.update({k + "_%s" % i: v for k, v in m.items()})
+        return lnl
 
 
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
@@ -932,7 +970,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                 my_l_max_EE = max(my_clik_EE.get_lmax())
             else:
                 raise AttributeError(
-                    "I did not understand name %s"(name)
+                    "I did not understand name %s" % (name)
                     + "please choose between"
                     + "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE"
                 )
@@ -1008,7 +1046,10 @@ class LikelihoodPlanck(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
-        return (
+        if model["tau"] is None:
+            return -np.inf
+
+        logprob = (
             -0.5
             * np.square(self.tau_mean - model["tau"])
             / (
@@ -1016,6 +1057,16 @@ class LikelihoodPlanck(LikelihoodBase):
                 + (self.tau_sigma_u - self.tau_sigma_l) * (model["tau"] - self.tau_mean)
             )
         )
+        filename = model["filename"]
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            f.create_dataset(
+                "tau_e_logpronb",
+                data=[
+                    logprob,
+                ],
+                dtype="float",
+            )
+        return logprob
 
     @property
     def _is_lightcone(self):
@@ -1034,6 +1085,9 @@ class LikelihoodPlanck(LikelihoodBase):
         if self._is_lightcone:
 
             lc = ctx.get("lightcone")
+            if lc is None:
+                logger.debug("LikelihoodPlanck: no lightcone!")
+                return {"tau": None}
 
             redshifts = lc.node_redshifts
             xHI = lc.global_xHI
@@ -1071,17 +1125,19 @@ class LikelihoodPlanck(LikelihoodBase):
             redshifts=z_extrap,
             global_xHI=xHI,
         )
+        ctx.add("tau_e", tau_value)
 
-        params = ctx.getParams() 
-        filename = md5(str(params).replace("\n", "").encode()).hexdigest() 
-        with h5py.File("output/run_%s.hdf5" % filename, "a") as f: 
+        filename = ctx.get("filename")
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
-                    "tau_e",
-                    data=tau_value,
-                    dtype="float",
+                "tau_e",
+                data=[
+                    ctx.get("tau_e"),
+                ],
+                dtype="float",
             )
 
-        return {"tau": tau_value}
+        return {"tau": tau_value, "filename": filename}
 
 
 class LikelihoodNeutralFraction(LikelihoodBase):
@@ -1093,7 +1149,6 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     """
 
     required_cores = ((core.CoreLightConeModule, core.CoreCoevalModule, core.CoreCMB),)
-    threshold = 0.06
 
     def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
         """
@@ -1118,6 +1173,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         self.redshift = _ensure_iter(redshift)
         self.xHI = _ensure_iter(xHI)
         self.xHI_sigma = _ensure_iter(xHI_sigma)
+        self.threshold = self.xHI
 
         # By default, setup as if using coeval boxes.
         self.redshifts = (
@@ -1193,6 +1249,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 xHI = ctx.get("xHI")
                 redshifts = ctx.get("zs")
             else:
+                if ctx.get("lightcone") is None:
+                    return {"xHI": None, "redshifts": None}
                 xHI = ctx.get("lightcone").global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts
 
@@ -1202,6 +1260,9 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         lnprob = 0
+
+        if model["redshifts"] is None:
+            return -np.inf
 
         if self._require_spline:
             model_spline = InterpolatedUnivariateSpline(
@@ -1475,16 +1536,29 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """Compute the likelihood."""
         lnl = 0
         for i, z in enumerate(self.redshifts):
+            if model["Muv"] is None:
+                return -np.inf
             model_spline = InterpolatedUnivariateSpline(
                 model["Muv"][i][::-1], model["lfunc"][i][::-1]
             )
-            lnl += -0.5 * np.sum(
-                (
+            lnl_z = (
+                -0.5
+                * (
                     (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
                     ** 2
                     / self.noise["sigma"][i] ** 2
                 )[self.data["Muv"][i] > self.mag_brightest]
             )
+
+            filename = model["filename"]
+            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset(
+                    "luminosity_function" + self.name + "logprobs",
+                    data=lnl_z,
+                    dtype="float",
+                )
+            lnl += np.sum(lnl_z)
+
         return lnl
 
     def define_noise(self, ctx, model):

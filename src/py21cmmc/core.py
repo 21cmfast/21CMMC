@@ -5,14 +5,15 @@ This is the basis of the plugin system for :mod:`py21cmmc`.
 TODO: Add description of the API of cores (and how to define new ones).
 """
 import copy
+import h5py
 import inspect
 import logging
 import numpy as np
 import py21cmfast as p21
 import warnings
+from hashlib import md5
 from os import path
 from scipy.interpolate import interp1d
-from hashlib import md5
 
 from . import _utils as ut
 
@@ -481,7 +482,7 @@ class CoreLightConeModule(CoreCoevalModule):
     * ``lightcone``: a :class:`~py21cmfast.LightCone` instance.
     """
 
-    def __init__(self, *, coarsen_factor=16,max_redshift=None, **kwargs):
+    def __init__(self, *, coarsen_factor=16, max_redshift=None, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn(
                 "ctx_variables does not apply to the lightcone module (at least not yet). It will "
@@ -489,8 +490,8 @@ class CoreLightConeModule(CoreCoevalModule):
             )
 
         super().__init__(**kwargs)
-        self.max_redshift = max_redshift,
-        self.coarsen_factor=coarsen_factor
+        self.max_redshift = (max_redshift,)
+        self.coarsen_factor = coarsen_factor
 
     def setup(self):
         """Setup the chain."""
@@ -543,60 +544,83 @@ class CoreLightConeModule(CoreCoevalModule):
             "density",
         )
 
-        # Call C-code
-        lightcone, output_DH = p21.run_lightcone(
-            redshift=self.redshift[0],
-            max_redshift=self.max_redshift,
-            astro_params=astro_params,
-            flag_options=self.flag_options,
-            cosmo_params=cosmo_params,
-            user_params=self.user_params,
-            regenerate=False,
-            coarsen_factor=self.coarsen_factor,
-            random_seed=self.initial_conditions_seed,
-            write=self.io_options["cache_mcmc"],
-            direc=self.io_options["cache_dir"],
-            lightcone_quantities=lightcone_quantities,
-            global_quantities=lightcone_quantities,
-            **self.global_params,
-        )
-
-        ctx.add("lightcone", lightcone)
-        #ctx.add("output_DH", output_DH)
         params = ctx.getParams()
         filename = md5(str(params).replace("\n", "").encode()).hexdigest()
-        with h5py.File("output/run_%s.hdf5" % filename, "a") as f: 
-             f.create_dataset( 
-                 "node_redshifts", 
-                 data=lightcone.node_redshifts, 
-                 dtype="float", 
-            )
-            f.create_dataset(
-                "global_xH",
-                data=lightcone.global_xH,
-                dtype="float",
-            )
-            f.create_dataset(
-                "global_Gamma12",
-                data=lightcone.global_Gamma12,
-                dtype="float",
-            )
-            f.create_dataset(
-                "global_brightness_temp",
-                data=lightcone.global_brightness_temp,
-                dtype="float",
-            )
-            f.create_dataset(
-                "global_temp_kinetic_all_gas",
-                data=lightcone.global_temp_kinetic_all_gas,
-                dtype="float",
-            )
-            grp = f.create_group("params")
-            for kk, v in getattr(lc, "astro_params").__dict__.items():
+        if path.exists("output/run_%s.hdf5" % filename):
+            i_duplicate = 1
+            while True:
+                filename_try = filename + "_%d" % i_duplicate
+                if path.exists("output/run_%s.hdf5" % filename_try):
+                    i_duplicate += 1
+                else:
+                    filename = filename_try
+                    break
+
+        ctx.add("filename", filename)
+        logger.debug(f"parameters: {params}, filename: {filename}")
+
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            for kk, v in astro_params.__dict__.items():
                 if v is None:
                     continue
                 else:
-                    grp.attrs[kk] = v 
+                    f.attrs[kk] = v
+            f.attrs["random_seed"] = self.initial_conditions_seed
+
+        # Call C-code
+        try:
+            lightcone, output_DH = p21.run_lightcone(
+                redshift=self.redshift[0],
+                max_redshift=self.max_redshift,
+                astro_params=astro_params,
+                flag_options=self.flag_options,
+                cosmo_params=cosmo_params,
+                user_params=self.user_params,
+                regenerate=False,
+                coarsen_factor=self.coarsen_factor,
+                random_seed=self.initial_conditions_seed,
+                write=self.io_options["cache_mcmc"],
+                direc=self.io_options["cache_dir"],
+                lightcone_quantities=lightcone_quantities,
+                global_quantities=lightcone_quantities,
+                **self.global_params,
+            )
+
+            ctx.add("lightcone", lightcone)
+
+            params = ctx.getParams()
+            filename = md5(str(params).replace("\n", "").encode()).hexdigest()
+            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset(
+                    "node_redshifts",
+                    data=lightcone.node_redshifts,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_xH",
+                    data=lightcone.global_xH,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_Gamma12",
+                    data=lightcone.global_Gamma12,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_brightness_temp",
+                    data=lightcone.global_brightness_temp,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_temp_kinetic_all_gas",
+                    data=lightcone.global_temp_kinetic_all_gas,
+                    dtype="float",
+                )
+
+        except:
+            lightcone = None
+
+        ctx.add("lightcone", lightcone)
 
 
 class CoreLuminosityFunction(CoreCoevalModule):
@@ -640,6 +664,8 @@ class CoreLuminosityFunction(CoreCoevalModule):
         """Return the luminosity function for given parameters."""
         if self.flag_options.USE_MINI_HALOS:
             lc = ctx.get("lightcone")
+            if lc is None:
+                return None, None, None
             z_all = np.array(lc.node_redshifts)[::-1]
             mturnovers = 10 ** interp1d(z_all, np.array(lc.log10_mturnovers)[::-1])(
                 self.redshift
@@ -674,23 +700,21 @@ class CoreLuminosityFunction(CoreCoevalModule):
 
         # Call C-code
         Muv, mhalo, lfunc = self.run(astro_params, cosmo_params, ctx)
-
-        Muv = [m[~np.isnan(lf)] for lf, m in zip(lfunc, Muv)]
-        mhalo = [m[~np.isnan(lf)] for lf, m in zip(lfunc, mhalo)]
-        lfunc = [m[~np.isnan(lf)] for lf, m in zip(lfunc, lfunc)]
+        if Muv is not None:
+            Muv = [m[~np.isnan(lf)] for lf, m in zip(lfunc, Muv)]
+            mhalo = [m[~np.isnan(lf)] for lf, m in zip(lfunc, mhalo)]
+            lfunc = [m[~np.isnan(lf)] for lf, m in zip(lfunc, lfunc)]
 
         ctx.add(
             "luminosity_function" + self.name,
             {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc},
         )
-
-        params = ctx.getParams()
-        filename = md5(str(params).replace("\n", "").encode()).hexdigest()
+        filename = ctx.get("filename")
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset(
-                    "luminosity_function" + self.name,
-                    data=lfunc,
-                    dtype="float",
+                "luminosity_function" + self.name,
+                data=lfunc,
+                dtype="float",
             )
 
     @property
