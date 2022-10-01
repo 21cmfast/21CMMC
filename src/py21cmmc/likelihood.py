@@ -1742,7 +1742,10 @@ class LikelihoodForest(LikelihoodBaseFile):
     def _read_data(self):
         data = super()._read_data()[0]
         targets = np.arange(len(data["zs"]))  # take all
-        return np.exp(-data["tau_lower"][targets])
+        return [
+            data["tau_lower"][targets],
+            np.where(np.isinf(data["tau_upper"][targets]))[0],
+        ]
 
     @cached_property
     def paired_core(self):
@@ -1780,7 +1783,10 @@ class LikelihoodForest(LikelihoodBaseFile):
             return {"forest_%s" % self.name: None}
 
         bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
-        log_probs = np.log(pdf[np.digitize(self.data, bins) - 1])
+        tau_lower_bins = np.digitize(self.data[0], bins) - 1
+        log_probs = np.log(pdf[tau_lower_bins])  # using tau_lower
+        for i_nodetection in self.data[1]:  # non detection always has the highest P
+            log_probs[i_nodetection] = np.max(pdf[tau_lower_bins[i_nodetection] :])
 
         filename = ctx.get("filename")
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
