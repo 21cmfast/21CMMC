@@ -1774,12 +1774,11 @@ class LikelihoodForest(LikelihoodBaseFile):
             )
 
         np.random.seed(self.core_primary.initial_conditions_seed)
-        pdf = ctx.get(self.name + "tau_hydro_pdf")
+        pdf = ctx.get(self.name + "tau_hydro_pdf") * self.hist_bin_width
 
         if pdf is None:
             return {"forest_%s" % self.name: None}
 
-        pdf /= np.amax(pdf)
         bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
         log_probs = np.log(pdf[np.digitize(self.data, bins) - 1])
 
