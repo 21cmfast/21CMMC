@@ -394,17 +394,33 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     @cached_property
     def data_spline(self):
         """Splines of data power spectra."""
-        return [
-            InterpolatedUnivariateSpline(d["k"], d["delta"], k=1) for d in self.data
-        ]
+        results = [None, ] * len(self.data)
+        for ii, d in enumerate(self.data):
+            ks = d["k"]
+            deltas = d["delta"]
+
+            mask = np.isnan(deltas)
+            ks = ks[mask]
+            deltas = deltas[mask]
+            deltas[np.isinf(deltas)] = 1e19 # sad hack to deal with inf...
+            results[ii] = InterpolatedUnivariateSpline(ks, deltas, k=1)
+        return results
 
     @cached_property
     def noise_spline(self):
         """Splines of noise power spectra."""
         if self.noise:
-            return [
-                InterpolatedUnivariateSpline(n["k"], n["errs"], k=1) for n in self.noise
-            ]
+            results = [None, ] * len(self.noise)
+            for ii, n in enumerate(self.noise):
+                ks = n["k"]
+                errs = n["errs"]
+    
+                mask = np.isnan(errs)
+                ks = ks[mask]
+                errs = errs[mask]
+                errs[np.isinf(errs)] = 1e19 # sad hack to deal with inf...
+                results[ii] = InterpolatedUnivariateSpline(ks, errs, k=1)
+            return results
         else:
             return None
 
@@ -539,8 +555,8 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         storage backend.
         """
         # add the power to the written data
-        for i, m in enumerate(model):
-            storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
+        #for i, m in enumerate(model):
+        #    storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
 
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
@@ -685,8 +701,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 self.core_primary.cosmo_params.cosmo.comoving_distance,
                 dist_center * units.Mpc,
             )
-        print("z_centers", z_centers)
-
+                    
         filename = ctx.get("filename")
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
             f.create_dataset("21cmPS", data=data, dtype="float")
