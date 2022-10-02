@@ -7,7 +7,7 @@ from io import IOBase
 from os import path, rename
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, interp1d
 
 from . import core
 
@@ -1485,23 +1485,28 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         lnl = 0
+        muv_output = np.linspace(-24, -4, 100)
+        filename = model["filename"]
+
         for i, z in enumerate(self.redshifts):
             if model["Muv"] is None:
                 return -np.inf
-            model_spline = InterpolatedUnivariateSpline(
-                model["Muv"][i][::-1], model["lfunc"][i][::-1]
-            )
+
+            flf = interp1d(model["Muv"][i], model["lfunc"][i], fill_value="extrapolate")
             lnl_z = (
                 -0.5
                 * (
-                    (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
-                    ** 2
+                    (self.data["lfunc"][i] - 10 ** flf(self.data["Muv"][i])) ** 2
                     / self.noise["sigma"][i] ** 2
                 )[self.data["Muv"][i] > self.mag_brightest]
             )
 
-            filename = model["filename"]
             with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset(
+                    "luminosity_function" + self.name,
+                    data=flf(muv_output),
+                    dtype="float",
+                )
                 f.create_dataset(
                     "luminosity_function" + self.name + "logprobs",
                     data=lnl_z,
@@ -1777,10 +1782,11 @@ class LikelihoodForest(LikelihoodBaseFile):
             )
 
         np.random.seed(self.core_primary.initial_conditions_seed)
-        pdf = ctx.get(self.name + "tau_hydro_pdf") * self.hist_bin_width
+        pdf = ctx.get(self.name + "tau_hydro_pdf")
 
         if pdf is None:
             return {"forest_%s" % self.name: None}
+        pdf *= self.hist_bin_width
 
         bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
         tau_lower_bins = np.digitize(self.data[0], bins) - 1

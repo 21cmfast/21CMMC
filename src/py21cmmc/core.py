@@ -482,7 +482,7 @@ class CoreLightConeModule(CoreCoevalModule):
     * ``lightcone``: a :class:`~py21cmfast.LightCone` instance.
     """
 
-    def __init__(self, *, max_redshift=None, **kwargs):
+    def __init__(self, *, max_redshift=None, initializing_default_boxes=True, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn(
                 "ctx_variables does not apply to the lightcone module (at least not yet). It will "
@@ -491,6 +491,7 @@ class CoreLightConeModule(CoreCoevalModule):
 
         super().__init__(**kwargs)
         self.max_redshift = max_redshift
+        self.initializing_default_boxes = initializing_default_boxes
 
     def setup(self):
         """Setup the chain."""
@@ -507,6 +508,7 @@ class CoreLightConeModule(CoreCoevalModule):
         if (
             all(p not in self.cosmo_params.self.keys() for p in self.parameter_names)
             and not self.change_seed_every_iter
+            and self.initializing_default_boxes
         ):
             logger.info("Initializing default boxes for the entire chain.")
             lightcone_quantities = (
@@ -736,13 +738,6 @@ class CoreLuminosityFunction(CoreCoevalModule):
             "luminosity_function" + self.name,
             {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc},
         )
-        filename = ctx.get("filename")
-        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
-            f.create_dataset(
-                "luminosity_function" + self.name,
-                data=lfunc,
-                dtype="float",
-            )
 
     @property
     def sigma(self):
