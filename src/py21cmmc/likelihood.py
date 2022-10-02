@@ -9,7 +9,7 @@ from io import IOBase
 from os import path, rename
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, interp1d
 
 from . import core
 
@@ -394,15 +394,17 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     @cached_property
     def data_spline(self):
         """Splines of data power spectra."""
-        results = [None, ] * len(self.data)
+        results = [
+            None,
+        ] * len(self.data)
         for ii, d in enumerate(self.data):
             ks = d["k"]
             deltas = d["delta"]
 
             mask = np.isnan(deltas)
-            ks = ks[mask]
-            deltas = deltas[mask]
-            deltas[np.isinf(deltas)] = 1e19 # sad hack to deal with inf...
+            ks = ks[~mask]
+            deltas = deltas[~mask]
+            deltas[np.isinf(deltas)] = 1e19  # sad hack to deal with inf...
             results[ii] = InterpolatedUnivariateSpline(ks, deltas, k=1)
         return results
 
@@ -410,15 +412,17 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     def noise_spline(self):
         """Splines of noise power spectra."""
         if self.noise:
-            results = [None, ] * len(self.noise)
+            results = [
+                None,
+            ] * len(self.noise)
             for ii, n in enumerate(self.noise):
                 ks = n["k"]
                 errs = n["errs"]
-    
+
                 mask = np.isnan(errs)
-                ks = ks[mask]
-                errs = errs[mask]
-                errs[np.isinf(errs)] = 1e19 # sad hack to deal with inf...
+                ks = ks[~mask]
+                errs = errs[~mask]
+                errs[np.isinf(errs)] = 1e19  # sad hack to deal with inf...
                 results[ii] = InterpolatedUnivariateSpline(ks, errs, k=1)
             return results
         else:
@@ -554,9 +558,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         Do not use this method -- it is called by the MCMC routine to save data to the
         storage backend.
         """
-        # add the power to the written data
-        #for i, m in enumerate(model):
-        #    storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
 
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
@@ -651,10 +652,12 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
+        filename = ctx.get("filename")
+
         lc = ctx.get("lightcone")
         if lc is None:
             logger.debug("Likelihood1DPowerLightcone: no lightcone!")
-            return {"21cmPS": None}
+            return {"21cmPS": None, "z_centers": None, "filename": filename}
 
         brightness_temp = lc.brightness_temp
         chunk_indices = list(
@@ -701,13 +704,8 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 self.core_primary.cosmo_params.cosmo.comoving_distance,
                 dist_center * units.Mpc,
             )
-                    
-        filename = ctx.get("filename")
-        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
-            f.create_dataset("21cmPS", data=data, dtype="float")
-            f.create_dataset("z_centers", data=z_centers, dtype="float")
 
-        return {"21cmPS": data, "filename": filename}
+        return {"21cmPS": data, "z_centers": z_centers, "filename": filename}
 
     def computeLikelihood(self, model):
         """Compute the likelihood given a model.
@@ -720,33 +718,42 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         """
         lnl = 0
         noise = 0
+        filename = model["filename"]
+
         if model["21cmPS"] is None:
+            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset("21cmPS", dtype="float")
+                f.create_dataset("z_centers", dtype="float")
+                for i in len(range(self.data_spline)):
+                    f.create_dataset("21cmPS_logprobs_%d" % i, dtype="float")
             return -np.inf
 
         ks = model["21cmPS"][0]
         mask = np.logical_and(ks <= self.max_k, ks >= self.min_k)
-        filename = model["filename"]
 
-        for i, pd in enumerate(self.data_spline):
+        with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+            f.create_dataset("21cmPS", data=model["21cmPS"], dtype="float")
+            f.create_dataset("z_centers", data=model["z_centers"], dtype="float")
 
-            moduncert = (
-                self.model_uncertainty * pd(ks[mask])
-                if not self.error_on_model
-                else self.model_uncertainty * model["21cmPS"][i + 1][mask]
-            )
+            for i, pd in enumerate(self.data_spline):
 
-            if self.noise_spline:
-                noise = self.noise_spline[i](ks[mask])
+                moduncert = (
+                    self.model_uncertainty * pd(ks[mask])
+                    if not self.error_on_model
+                    else self.model_uncertainty * model["21cmPS"][i + 1][mask]
+                )
 
-            # TODO: if moduncert depends on model, not data, then it should appear
-            #  as -0.5 log(sigma^2) term below.
-            lnl_z = -0.5 * (
-                (model["21cmPS"][i + 1][mask] - pd(ks[mask])) ** 2
-                / (moduncert**2 + noise**2)
-            )
-            lnl += np.sum(lnl_z)
+                if self.noise_spline:
+                    noise = self.noise_spline[i](ks[mask])
 
-            with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                # TODO: if moduncert depends on model, not data, then it should appear
+                #  as -0.5 log(sigma^2) term below.
+                lnl_z = -0.5 * (
+                    (model["21cmPS"][i + 1][mask] - pd(ks[mask])) ** 2
+                    / (moduncert**2 + noise**2)
+                )
+                lnl += np.sum(lnl_z)
+
                 f.create_dataset("21cmPS_logprobs_%d" % i, data=lnl_z, dtype="float")
         logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
@@ -1554,23 +1561,28 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         lnl = 0
+        muv_output = np.linspace(-24, -4, 100)
+        filename = model["filename"]
+
         for i, z in enumerate(self.redshifts):
             if model["Muv"] is None:
                 return -np.inf
-            model_spline = InterpolatedUnivariateSpline(
-                model["Muv"][i][::-1], model["lfunc"][i][::-1]
-            )
+
+            flf = interp1d(model["Muv"][i], model["lfunc"][i], fill_value="extrapolate")
             lnl_z = (
                 -0.5
                 * (
-                    (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
-                    ** 2
+                    (self.data["lfunc"][i] - 10 ** flf(self.data["Muv"][i])) ** 2
                     / self.noise["sigma"][i] ** 2
                 )[self.data["Muv"][i] > self.mag_brightest]
             )
 
-            filename = model["filename"]
             with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                f.create_dataset(
+                    "luminosity_function" + self.name,
+                    data=flf(muv_output),
+                    dtype="float",
+                )
                 f.create_dataset(
                     "luminosity_function" + self.name + "logprobs",
                     data=lnl_z,
