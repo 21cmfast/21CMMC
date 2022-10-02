@@ -551,6 +551,7 @@ class CoreLightConeModule(CoreCoevalModule):
             "temp_kinetic_all_gas",
             "Gamma12_box",
             "density",
+            "x_e_box",
         )
 
         params = ctx.getParams()
@@ -606,6 +607,11 @@ class CoreLightConeModule(CoreCoevalModule):
                 f.create_dataset(
                     "global_xH",
                     data=lightcone.global_xH,
+                    dtype="float",
+                )
+                f.create_dataset(
+                    "global_x_e",
+                    data=lightcone.global_x_e,
                     dtype="float",
                 )
                 f.create_dataset(
