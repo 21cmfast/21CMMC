@@ -65,6 +65,7 @@ def run_mcmc(
     log_level_21CMMC=None,
     sampler_cls=CosmoHammerSampler,
     use_multinest=False,
+    use_zeus=False,
     **mcmc_options,
 ) -> CosmoHammerSampler:
     r"""Run an MCMC chain.
@@ -100,6 +101,8 @@ def run_mcmc(
         The logging level of the cosmoHammer log file.
     use_multinest : bool, optional
         If true, use the MultiNest sampler instead.
+    use_zeus : bool, optional
+        If true, use the zeus sampler instead.
 
     Other Parameters
     ----------------
@@ -126,14 +129,22 @@ def run_mcmc(
         whether or not to detect multi mode
     write_output : bool, optional
         write output files? This is required for analysis.
+        If use_zeus, parameters required by zeus as shown below should be
+        provided here.
 
     Returns
     -------
     sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
         The sampler object, from which the chain itself may be accessed (via the
-        ``samples`` attribute). If use_multinest, return multinest sampler
+        ``samples`` attribute). If use_multinest, return multinest sampler. 
+        If use_zeus, return (???)
     """
     file_prefix = path.join(datadir, model_name)
+    
+    # check that only one sampler is specified
+    if use_multinest and use_zeus:
+        raise ValueError("You cannot use_multinest and use_zeus at the same time!")
+
     if use_multinest:
         n_live_points = mcmc_options.get("n_live_points", 100)
         importance_nested_sampling = mcmc_options.get(
@@ -153,6 +164,16 @@ def run_mcmc(
         mkdir(datadir)
     except FileExistsError:
         pass
+
+    if use_zeus:
+        ndim = mcmc_options.get("ndim", 2) # Number of parameters/dimensions (e.g. m and c)
+        nwalkers = mcmc_options.get(nwalkers, 10) # Number of walkers to use. It should be at least twice the number of dimensions.
+        nsteps = mcmc_options.get(nsteps, 100) # Number of steps/iterations.
+        start = 0.01 * np.random.randn(nwalkers, ndim) # Initial positions of the walkers.
+        try:
+            import zeus
+        except ImportError:
+            raise ImportError("You need to install zeus to use this function!")
 
     # Setup parameters.
     if not isinstance(params, Params):
@@ -183,9 +204,9 @@ def run_mcmc(
             if hasattr(lk, "_simulate") and lk._simulate:
                 logger.warning(
                     """
-Likelihood {} was defined to re-simulate data/noise, but this is incompatible with
-`continue_sampling`. Setting simulate=False and continuing...
-"""
+                    Likelihood {} was defined to re-simulate data/noise, but this is incompatible with
+                    `continue_sampling`. Setting simulate=False and continuing...
+                    """
                 )
                 lk._simulate = False
 
@@ -246,6 +267,28 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
             raise ImportError(
                 "You also need to build MultiNest library. See https://johannesbuchner.github.io/PyMultiNest/install.html#id4 for more information."
             )
+
+    elif use_zeus:
+
+        def likelihood(p):
+            try:
+                return chain.computeLikelihoods(
+                    chain.build_model_data(
+                        Params(*[(k, v) for k, v in zip(params.keys, p)])
+                    )
+                )
+            except ParameterError:
+                return -np.inf
+
+        # let us treat the prior as totally uninformative for now
+        # def prior(p, ndim, nparams):
+        #     for i in range(ndim):
+        #         p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
+
+        sampler = zeus.EnsembleSampler(nwalkers, ndim, likelihood) # Initialise the sampler
+        sampler.run_mcmc(start, nsteps) # Run sampling
+        sampler.summary # Print summary diagnostics
+        return 1
 
     else:
         pool = mcmc_options.pop(
