@@ -167,8 +167,8 @@ def run_mcmc(
 
     if use_zeus:
         ndim = mcmc_options.get("ndim", 2) # Number of parameters/dimensions (e.g. m and c)
-        nwalkers = mcmc_options.get(nwalkers, 10) # Number of walkers to use. It should be at least twice the number of dimensions.
-        nsteps = mcmc_options.get(nsteps, 100) # Number of steps/iterations.
+        nwalkers = mcmc_options.get("nwalkers", 10) # Number of walkers to use. It should be at least twice the number of dimensions.
+        nsteps = mcmc_options.get("nsteps", 100) # Number of steps/iterations.
         start = 0.01 * np.random.randn(nwalkers, ndim) # Initial positions of the walkers.
         try:
             import zeus
@@ -269,6 +269,11 @@ def run_mcmc(
             )
 
     elif use_zeus:
+        
+        def prior(p, ndim):
+            for i in range(ndim):
+                p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
+            return p
 
         def likelihood(p):
             try:
@@ -280,12 +285,20 @@ def run_mcmc(
             except ParameterError:
                 return -np.inf
 
+        def posterior(p, ndim):
+            p = prior(p, ndim)
+            return likelihood(p)
+
         # let us treat the prior as totally uninformative for now
         # def prior(p, ndim, nparams):
         #     for i in range(ndim):
         #         p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
+        
+        print('nwalkers:', nwalkers)
+        print('ndim:', ndim)
+        print('nsteps', nsteps)
 
-        sampler = zeus.EnsembleSampler(nwalkers, ndim, likelihood) # Initialise the sampler
+        sampler = zeus.EnsembleSampler(nwalkers, ndim, posterior, args=[ndim]) # Initialise the sampler
         sampler.run_mcmc(start, nsteps) # Run sampling
         sampler.summary # Print summary diagnostics
         return 1
