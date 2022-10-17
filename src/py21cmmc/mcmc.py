@@ -1,6 +1,8 @@
 """High-level functions for running MCMC chains."""
+from cmath import log
 import logging
 import numpy as np
+import scipy.stats as stats
 from concurrent.futures import ProcessPoolExecutor
 from os import mkdir, path
 from py21cmfast import yaml
@@ -129,15 +131,48 @@ def run_mcmc(
         whether or not to detect multi mode
     write_output : bool, optional
         write output files? This is required for analysis.
+        
         If use_zeus, parameters required by zeus as shown below should be
         provided here.
+    nsteps : int
+        number of steps per iteration
+    ndim : int
+        number of dimensions to sampler over
+    nwalkers : int
+        number of walkers
+    tolerance : float, optional
+        Tuning optimization tolerance (Default is 0.05).
+    patience : int, optional
+        Number of tuning steps to wait to make sure that tuning is done (Default is 5).
+    maxsteps : int, optional
+        Number of maximum stepping-out steps (Default is 10^4).
+    mu : float, optional
+        Scale factor (Default value is 1.0), this will be tuned if tune=True.
+    maxiter : int, optional
+        Number of maximum Expansions/Contractions (Default is 10^4).
+    pool : bool, optional
+        External pool of workers to distribute workload to multiple CPUs (default is None).
+    vectorize : bool, optional
+        If true (default is False), logprob_fn receives not just one point but an array of points, and returns an array of log-probabilities.
+    blobs_dtype : list, optional
+        List containing names and dtypes of blobs metadata e.g. [("log_prior", float), ("mean", float)]. 
+        It's useful when you want to save multiple species of metadata. Default is None.
+    verbose : bool, optional
+        If True (default) print log statements.
+    check_walkers : bool, optional
+        If True (default) then check that nwalkers >= 2*ndim and even.
+    shuffle_ensemble : bool, optional
+        If True (default) then shuffle the ensemble of walkers in every iteration before splitting it.
+    light_mode : bool, optional
+        If True (default is False) then no expansions are performed after the tuning phase. 
+        This can significantly reduce the number of log likelihood evaluations but works best in target distributions that are apprroximately Gaussian.
 
     Returns
     -------
     sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
         The sampler object, from which the chain itself may be accessed (via the
         ``samples`` attribute). If use_multinest, return multinest sampler. 
-        If use_zeus, return (???)
+        If use_zeus, return zeus sampler.
     """
     file_prefix = path.join(datadir, model_name)
     
@@ -169,7 +204,25 @@ def run_mcmc(
         ndim = mcmc_options.get("ndim", 2) # Number of parameters/dimensions (e.g. m and c)
         nwalkers = mcmc_options.get("nwalkers", 10) # Number of walkers to use. It should be at least twice the number of dimensions.
         nsteps = mcmc_options.get("nsteps", 100) # Number of steps/iterations.
-        start = 0.01 * np.random.randn(nwalkers, ndim) # Initial positions of the walkers.
+        # set up parameters
+        params = Params(*[(k, v) for k, v in params.items()])
+        # initial positions of the walkers
+        start = np.asarray([stats.truncnorm.rvs((params[i][1] - params[i][0]) / params[i][-1], \
+            (params[i][2] - params[i][0]) / params[i][-1], loc=params[i][0], scale=params[i][-1],\
+            size=nwalkers) for i in range(ndim)]).T
+        tolerance = mcmc_options.get("tolerance", 0.05)
+        patience = mcmc_options.get("patience", 5)
+        maxsteps = mcmc_options.get("maxsteps", 1e4)
+        mu = mcmc_options.get("mu", 1.0)
+        maxiter = mcmc_options.get("maxiter", 1e4)
+        pool = mcmc_options.get("pool", None)
+        vectorize = mcmc_options.get("vectorize", False)
+        blobs_dtype = mcmc_options.get("blobs_dtype", None)
+        verbose = mcmc_options.get("vectorize", True)
+        check_walkers = mcmc_options.get("check_walkers", True)
+        shuffle_ensemble = mcmc_options.get("shuffle_ensemble", True)
+        light_mode = mcmc_options.get("light_mode", False)
+        print(start.shape)
         try:
             import zeus
         except ImportError:
@@ -183,7 +236,7 @@ def run_mcmc(
         core_modules, likelihood_modules, params, setup=False
     )
 
-    if continue_sampling and not use_multinest:
+    if continue_sampling and not (use_multinest or use_zeus):
         try:
             with open(file_prefix + ".LCC.yml", "r") as f:
                 old_chain = yaml.load(f)
@@ -270,10 +323,11 @@ def run_mcmc(
 
     elif use_zeus:
         
-        def prior(p, ndim):
-            for i in range(ndim):
-                p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
-            return p
+        def prior(p):
+            for i in range(len(p)):
+                if (p[i] > params[i][2]) or (p[i] < params[i][1]):
+                    return p, True
+            return p, False
 
         def likelihood(p):
             try:
@@ -285,23 +339,20 @@ def run_mcmc(
             except ParameterError:
                 return -np.inf
 
-        def posterior(p, ndim):
-            p = prior(p, ndim)
-            return likelihood(p)
+        def posterior(p):
+            # pass point into prior to check if in bounds
+            p, inf = prior(p)
+            if inf:
+                return -np.inf
+            # if in bounds, evaluate likelihood
+            log_prob = likelihood(p)
+            return log_prob
 
-        # let us treat the prior as totally uninformative for now
-        # def prior(p, ndim, nparams):
-        #     for i in range(ndim):
-        #         p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
-        
-        print('nwalkers:', nwalkers)
-        print('ndim:', ndim)
-        print('nsteps', nsteps)
-
-        sampler = zeus.EnsembleSampler(nwalkers, ndim, posterior, args=[ndim]) # Initialise the sampler
+        sampler = zeus.EnsembleSampler(nwalkers, ndim, posterior, tolerance=tolerance, patience=patience,\
+            maxsteps=maxsteps, mu=mu, maxiter=maxiter, pool=pool, vectorize=vectorize, blobs_dtype=blobs_dtype,\
+            verbose=verbose, check_walkers=check_walkers, shuffle_ensemble=shuffle_ensemble, light_mode=light_mode) # Initialise the sampler
         sampler.run_mcmc(start, nsteps) # Run sampling
-        sampler.summary # Print summary diagnostics
-        return 1
+        return sampler
 
     else:
         pool = mcmc_options.pop(
