@@ -1,8 +1,8 @@
 """High-level functions for running MCMC chains."""
-from cmath import log
 import logging
 import numpy as np
 import scipy.stats as stats
+from cmath import log
 from concurrent.futures import ProcessPoolExecutor
 from os import mkdir, path
 from py21cmfast import yaml
@@ -131,7 +131,7 @@ def run_mcmc(
         whether or not to detect multi mode
     write_output : bool, optional
         write output files? This is required for analysis.
-        
+
         If use_zeus, parameters required by zeus as shown below should be
         provided here.
     nsteps : int
@@ -155,7 +155,7 @@ def run_mcmc(
     vectorize : bool, optional
         If true (default is False), logprob_fn receives not just one point but an array of points, and returns an array of log-probabilities.
     blobs_dtype : list, optional
-        List containing names and dtypes of blobs metadata e.g. [("log_prior", float), ("mean", float)]. 
+        List containing names and dtypes of blobs metadata e.g. [("log_prior", float), ("mean", float)].
         It's useful when you want to save multiple species of metadata. Default is None.
     verbose : bool, optional
         If True (default) print log statements.
@@ -164,18 +164,18 @@ def run_mcmc(
     shuffle_ensemble : bool, optional
         If True (default) then shuffle the ensemble of walkers in every iteration before splitting it.
     light_mode : bool, optional
-        If True (default is False) then no expansions are performed after the tuning phase. 
+        If True (default is False) then no expansions are performed after the tuning phase.
         This can significantly reduce the number of log likelihood evaluations but works best in target distributions that are apprroximately Gaussian.
 
     Returns
     -------
     sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
         The sampler object, from which the chain itself may be accessed (via the
-        ``samples`` attribute). If use_multinest, return multinest sampler. 
+        ``samples`` attribute). If use_multinest, return multinest sampler.
         If use_zeus, return zeus sampler.
     """
     file_prefix = path.join(datadir, model_name)
-    
+
     # check that only one sampler is specified
     if use_multinest and use_zeus:
         raise ValueError("You cannot use_multinest and use_zeus at the same time!")
@@ -201,15 +201,28 @@ def run_mcmc(
         pass
 
     if use_zeus:
-        ndim = mcmc_options.get("ndim", int(len(params.items()))) # Number of parameters/dimensions (e.g. m and c)
-        nwalkers = mcmc_options.get("nwalkers", int(2*ndim)) # Number of walkers to use. It should be at least twice the number of dimensions.
-        nsteps = mcmc_options.get("nsteps", 100) # Number of steps/iterations.git
+        ndim = mcmc_options.get(
+            "ndim", 2
+        )  # Number of parameters/dimensions (e.g. m and c)
+        nwalkers = mcmc_options.get(
+            "nwalkers", 10
+        )  # Number of walkers to use. It should be at least twice the number of dimensions.
+        nsteps = mcmc_options.get("nsteps", 100)  # Number of steps/iterations.
         # set up parameters
         params = Params(*[(k, v) for k, v in params.items()])
         # initial positions of the walkers
-        start = np.asarray([stats.truncnorm.rvs((params[i][1] - params[i][0]) / params[i][-1], \
-            (params[i][2] - params[i][0]) / params[i][-1], loc=params[i][0], scale=params[i][-1],\
-            size=nwalkers) for i in range(ndim)]).T
+        start = np.asarray(
+            [
+                stats.truncnorm.rvs(
+                    (params[i][1] - params[i][0]) / params[i][-1],
+                    (params[i][2] - params[i][0]) / params[i][-1],
+                    loc=params[i][0],
+                    scale=params[i][-1],
+                    size=nwalkers,
+                )
+                for i in range(ndim)
+            ]
+        ).T
         tolerance = mcmc_options.get("tolerance", 0.05)
         patience = mcmc_options.get("patience", 5)
         maxsteps = mcmc_options.get("maxsteps", 1e4)
@@ -347,11 +360,24 @@ def run_mcmc(
             log_prob = likelihood(p)
             return log_prob
 
-        sampler = zeus.EnsembleSampler(nwalkers, ndim, posterior, tolerance=tolerance, \
-            patience=patience, maxsteps=maxsteps, mu=mu, maxiter=maxiter, pool=pool, \
-            vectorize=vectorize, blobs_dtype=blobs_dtype, verbose=verbose, \
-            check_walkers=check_walkers, shuffle_ensemble=shuffle_ensemble, light_mode=light_mode) # Initialise the sampler
-        sampler.run_mcmc(start, nsteps) # Run sampling
+        sampler = zeus.EnsembleSampler(
+            nwalkers,
+            ndim,
+            posterior,
+            tolerance=tolerance,
+            patience=patience,
+            maxsteps=maxsteps,
+            mu=mu,
+            maxiter=maxiter,
+            pool=pool,
+            vectorize=vectorize,
+            blobs_dtype=blobs_dtype,
+            verbose=verbose,
+            check_walkers=check_walkers,
+            shuffle_ensemble=shuffle_ensemble,
+            light_mode=light_mode,
+        )  # Initialise the sampler
+        sampler.run_mcmc(start, nsteps)  # Run sampling
         return sampler
 
     else:
