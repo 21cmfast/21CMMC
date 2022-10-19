@@ -27,6 +27,7 @@ Features
 
 * Seamless integration with ``emcee``-based MCMC.
 * Supports the ``MultiNest`` sampler.
+* Supports the ``zeus`` sampler.
 * MCMC is easily extensible via the addition of different likelihoods using the same underlying data.
 
 Scalability

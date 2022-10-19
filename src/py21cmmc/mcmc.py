@@ -135,11 +135,11 @@ def run_mcmc(
         If use_zeus, parameters required by zeus as shown below should be
         provided here.
     nsteps : int
-        number of steps per iteration
+        number of steps per iteration (Default is 100)
     ndim : int
-        number of dimensions to sampler over
+        number of dimensions to sample over (Default is number of supplied parameters)
     nwalkers : int
-        number of walkers
+        number of walkers (Default is 2*ndim)
     tolerance : float, optional
         Tuning optimization tolerance (Default is 0.05).
     patience : int, optional
@@ -201,9 +201,9 @@ def run_mcmc(
         pass
 
     if use_zeus:
-        ndim = mcmc_options.get("ndim", 2) # Number of parameters/dimensions (e.g. m and c)
-        nwalkers = mcmc_options.get("nwalkers", 10) # Number of walkers to use. It should be at least twice the number of dimensions.
-        nsteps = mcmc_options.get("nsteps", 100) # Number of steps/iterations.
+        ndim = mcmc_options.get("ndim", int(len(params.items()))) # Number of parameters/dimensions (e.g. m and c)
+        nwalkers = mcmc_options.get("nwalkers", int(2*ndim)) # Number of walkers to use. It should be at least twice the number of dimensions.
+        nsteps = mcmc_options.get("nsteps", 100) # Number of steps/iterations.git
         # set up parameters
         params = Params(*[(k, v) for k, v in params.items()])
         # initial positions of the walkers
@@ -256,10 +256,8 @@ def run_mcmc(
         for lk in chain.getLikelihoodModules():
             if hasattr(lk, "_simulate") and lk._simulate:
                 logger.warning(
-                    """
-                    Likelihood {} was defined to re-simulate data/noise, but this is incompatible with
-                    `continue_sampling`. Setting simulate=False and continuing...
-                    """
+                    f"Likelihood {lk} was defined to re-simulate data/noise, but this is incompatible with"
+                    "`continue_sampling`. Setting simulate=False and continuing..."
                 )
                 lk._simulate = False
 
@@ -322,14 +320,15 @@ def run_mcmc(
             )
 
     elif use_zeus:
-        
+
         def prior(p):
-            for i in range(len(p)):
-                if (p[i] > params[i][2]) or (p[i] < params[i][1]):
+            for i, value in enumerate(p):
+                if (value > params[i][2]) or (value < params[i][1]):
                     return p, True
             return p, False
 
         def likelihood(p):
+            print(params)
             try:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
@@ -348,9 +347,10 @@ def run_mcmc(
             log_prob = likelihood(p)
             return log_prob
 
-        sampler = zeus.EnsembleSampler(nwalkers, ndim, posterior, tolerance=tolerance, patience=patience,\
-            maxsteps=maxsteps, mu=mu, maxiter=maxiter, pool=pool, vectorize=vectorize, blobs_dtype=blobs_dtype,\
-            verbose=verbose, check_walkers=check_walkers, shuffle_ensemble=shuffle_ensemble, light_mode=light_mode) # Initialise the sampler
+        sampler = zeus.EnsembleSampler(nwalkers, ndim, posterior, tolerance=tolerance, \
+            patience=patience, maxsteps=maxsteps, mu=mu, maxiter=maxiter, pool=pool, \
+            vectorize=vectorize, blobs_dtype=blobs_dtype, verbose=verbose, \
+            check_walkers=check_walkers, shuffle_ensemble=shuffle_ensemble, light_mode=light_mode) # Initialise the sampler
         sampler.run_mcmc(start, nsteps) # Run sampling
         return sampler
 
