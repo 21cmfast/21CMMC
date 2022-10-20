@@ -17,6 +17,7 @@ dependencies:
   - matplotlib
   - multinest
   - pymultinest
+  - zeus
   - pip
   - 21cmFAST
   - pip:

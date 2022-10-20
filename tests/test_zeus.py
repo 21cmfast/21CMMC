@@ -1,4 +1,5 @@
 import numpy as np
+import zeus
 
 from py21cmmc import mcmc
 import py21cmmc as p21mc
@@ -41,8 +42,6 @@ def test_zeus():
         use_zeus=True,
         nsteps=1
     )
-
-    import zeus
 
     fchain = chain.get_chain(flat=True)
 
