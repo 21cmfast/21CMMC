@@ -9,7 +9,7 @@ def test_zeus():
 
     core = p21mc.CoreCoevalModule(
         redshift=[7, 8, 9],
-        user_params=dict(HII_DIM=50, BOX_LEN=125.0),
+        user_params={"HII_DIM": 50, "BOX_LEN": 125.0},
         regenerate=False,
         change_seed_every_iter=False,
     )
@@ -32,10 +32,10 @@ def test_zeus():
         likelihood,
         datadir="data",
         model_name=model_name,
-        params=dict(
-            HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0],
-            ION_Tvir_MIN=[4.7, 4, 6, 0.1],
-        ),
+        params={
+            "HII_EFF_FACTOR": [30.0, 10.0, 50.0, 3.0],
+            "ION_Tvir_MIN": [4.7, 4, 6, 0.1],
+        },
         reuse_burnin=False,
         continue_sampling=False,
         use_zeus=True,
