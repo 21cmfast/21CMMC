@@ -582,8 +582,10 @@ class CoreLightConeModule(CoreCoevalModule):
                     continue
                 else:
                     f.attrs[kk] = v
-            f.attrs["log10_f_rescale"] = params.log10_f_rescale
-            f.attrs["f_rescale_slope"] = params.f_rescale_slope
+            if hasattr(params, "log10_f_rescale"):
+                f.attrs["log10_f_rescale"] = params.log10_f_rescale
+            if hasattr(params, "f_rescale_slope"):
+                f.attrs["f_rescale_slope"] = params.f_rescale_slope
             f.attrs["random_seed"] = self.initial_conditions_seed
 
         # Call C-code
@@ -925,16 +927,17 @@ class CoreForest(CoreLightConeModule):
 
             if not hasattr(ctx.getParams(), "log10_f_rescale"):
                 logger.warning(
-                    "missing input hyper parameter, log10_f_rescale, assigning 0!"
+                    "missing input hyper parameter, log10_f_rescale, assigning -0.13!"
                 )
-                f_rescale = 1
+                f_rescale = 10**-0.13
             else:
                 f_rescale = 10 ** ctx.getParams().log10_f_rescale
 
             if not hasattr(ctx.getParams(), "f_rescale_slope"):
                 logger.warning(
-                    "missing input hyper parameter, f_rescale_slope, assigning 0!"
+                    "missing input hyper parameter, f_rescale_slope, assigning -0.7!"
                 )
+                f_rescale += (self.redshift[0] - 5.7) * -0.7
             else:
                 f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
 
@@ -1001,6 +1004,21 @@ class CoreForest(CoreLightConeModule):
                 )
                 pdf = n / np.array(np.diff(bin_edges), float) / len(flux_hydros)
 
+                with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                    f.create_dataset(
+                        self.name + "tau_hydro_pdf_nonoise",
+                        data=pdf,
+                        dtype="float",
+                    )
+
+                # add 10% continum uncertainties
+                flux_hydros *= np.random.normal(
+                    loc=1, scale=0.1, size=flux_hydros.shape
+                )
+                n, bin_edges = np.histogram(
+                    -np.log(flux_hydros), bins=self.hist_bin_size, range=self.tau_range
+                )
+                pdf = n / np.array(np.diff(bin_edges), float) / len(flux_hydros)
                 with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                     f.create_dataset(
                         self.name + "tau_hydro_pdf",
