@@ -927,17 +927,16 @@ class CoreForest(CoreLightConeModule):
 
             if not hasattr(ctx.getParams(), "log10_f_rescale"):
                 logger.warning(
-                    "missing input hyper parameter, log10_f_rescale, assigning -0.13!"
+                    "missing input hyper parameter, log10_f_rescale, assigning 0!"
                 )
-                f_rescale = 10**-0.13
+                f_rescale = 1.0
             else:
                 f_rescale = 10 ** ctx.getParams().log10_f_rescale
 
             if not hasattr(ctx.getParams(), "f_rescale_slope"):
                 logger.warning(
-                    "missing input hyper parameter, f_rescale_slope, assigning -0.7!"
-                )
-                f_rescale += (self.redshift[0] - 5.7) * -0.7
+                    "missing input hyper parameter, f_rescale_slope, assigning 0!"
+                )  # f_rescale += (self.redshift[0] - 5.7) * -0.7
             else:
                 f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
 
