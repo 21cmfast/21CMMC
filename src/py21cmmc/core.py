@@ -967,11 +967,11 @@ class CoreForest(CoreLightConeModule):
                 lightcone_redshifts[index_left_lc:index_right_lc],
             )
 
-            flux_GPs = np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1)
+            tau_GPs = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
             n, bin_edges = np.histogram(
-                -np.log(flux_GPs), bins=self.hist_bin_size, range=self.tau_range
+                tau_GPs, bins=self.hist_bin_size, range=self.tau_range
             )
-            pdf = n / np.array(np.diff(bin_edges), float) / len(flux_GPs)
+            pdf = n / np.array(np.diff(bin_edges), float) / len(tau_GPs)
             with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                 dset = f.create_dataset(
                     self.name + "tau_GP_pdf",
@@ -982,16 +982,17 @@ class CoreForest(CoreLightConeModule):
 
             # hard boundary for the KDE
             if filling_factor <= 0.7:
-                flux_hydros = np.copy(flux_GPs)
-                for ii, flux_GP in enumerate(flux_GPs):
+                lntau_GPs = np.log(tau_GPs)  # lntau gives the best results
+                lntau_hydros = np.copy(lntau_GPs)
+                for ii, lntau_GP in enumerate(lntau_GPs):
                     try:
 
-                        flux_hydros[ii] = self.kde.sample(
+                        lntau_hydros[ii] = self.kde.sample(
                             inherent_conditionals={
                                 "z": self.redshift[0],
                                 "xHI": filling_factor,
                             },
-                            conditionals={"tau_GP": flux_GP},
+                            conditionals={"tau_GP": lntau_GP},
                             n_samples=1,
                             keep_dims=False,
                         )[0][0]
@@ -999,10 +1000,11 @@ class CoreForest(CoreLightConeModule):
                         # This is basically saying tau_hydro = tau_GP for those not captured by Sherwood
                         pass
 
+                tau_hydros = np.exp(lntau_hydros)
                 n, bin_edges = np.histogram(
-                    -np.log(flux_hydros), bins=self.hist_bin_size, range=self.tau_range
+                    tau_hydros, bins=self.hist_bin_size, range=self.tau_range
                 )
-                pdf = n / np.array(np.diff(bin_edges), float) / len(flux_hydros)
+                pdf = n / np.array(np.diff(bin_edges), float) / len(tau_hydros)
 
                 with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                     f.create_dataset(
@@ -1012,13 +1014,13 @@ class CoreForest(CoreLightConeModule):
                     )
 
                 # add 10% continum uncertainties
-                flux_hydros *= np.random.normal(
-                    loc=1, scale=0.1, size=flux_hydros.shape
+                tau_hydros -= np.log(
+                    np.random.normal(loc=1, scale=0.1, size=tau_hydros.shape)
                 )
                 n, bin_edges = np.histogram(
-                    -np.log(flux_hydros), bins=self.hist_bin_size, range=self.tau_range
+                    tau_hydros, bins=self.hist_bin_size, range=self.tau_range
                 )
-                pdf = n / np.array(np.diff(bin_edges), float) / len(flux_hydros)
+                pdf = n / np.array(np.diff(bin_edges), float) / len(tau_hydros)
                 with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                     f.create_dataset(
                         self.name + "tau_hydro_pdf",
