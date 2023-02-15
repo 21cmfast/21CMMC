@@ -1501,7 +1501,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """The luminosity function core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-            if (isinstance(c, core.CoreLuminosityFunction) and and c.name == self.name) or (isinstance(c, core.Core21cmEMU) and c.name == self.name):
+            if (isinstance(c, core.CoreLuminosityFunction) and c.name == self.name) or (isinstance(c, core.Core21cmEMU) and c.name == self.name):
                 paired.append(c)
         if len(paired) > 1:
             raise ValueError(
