@@ -1978,11 +1978,21 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
 
                 ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
                 # Include emulator error term if present
-                try:
-                    # Should apply window function on i.e. np.dot() on the error too? Not sure.
-                    error_val = np.sqrt(PS_limit_vars + (0.2*ModelPS_val_afterWF)**2 + model[0]['delta_err'][zbin]**2 )
-                except:
+                if 'delta_err' in model[0].keys():
+                    ModelPS_val_1sigma_upper_afterWF = np.dot(PS_limit_wfcs, ModelPS_val + model[0]['delta_err'][zbin, :Nkwfbins])
+                    ModelPS_val_1sigma_lower_afterWF = np.dot(PS_limit_wfcs, ModelPS_val - model[0]['delta_err'][zbin, :Nkwfbins])
+                    # The upper and lower errors are very similar usually, so we can just take the mean and use that. 
+                    #Commented out code is if we want to take the asymmetry into account
+                    #error_val_upper = np.sqrt(PS_limit_vars + (0.2*ModelPS_val_afterWF)**2 + (ModelPS_val_1sigma_upper_afterWF-ModelPS_val_afterWF)**2 ) 
+                    #error_val_lower = np.sqrt(PS_limit_vars + (0.2*ModelPS_val_afterWF)**2 + (ModelPS_val_1sigma_lower_afterWF-ModelPS_val_afterWF)**2 )
+                    #mask = PS_limit_vals > ModelPS_val_afterWF
+                    #error_val = error_val_lower
+                    #error_val[mask] = error_val_upper[mask]
+                    mean_err = np.mean([ModelPS_val_1sigma_upper_afterWF-ModelPS_val_afterWF, ModelPS_val_afterWF-ModelPS_val_1sigma_lower_afterWF], axis = 0)
+                    error_val = np.sqrt(PS_limit_vars + (0.2*ModelPS_val_afterWF)**2 + (mean_err)**2 )
+                else:
                     error_val = np.sqrt(PS_limit_vars + (0.2 * ModelPS_val_afterWF)**2)
+                print('old', np.sqrt(PS_limit_vars + (0.2 * ModelPS_val_afterWF)**2))
                 likelihood = 0.5 + 0.5 * erf( ( PS_limit_vals - ModelPS_val_afterWF ) / (np.sqrt(2) * error_val) ) # another way to write likelihood for 1-side Gaussian
                 likelihood[likelihood <= 0.0] = 1e-50
                 lnl += np.nansum(np.log(likelihood))
