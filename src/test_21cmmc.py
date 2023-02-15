@@ -8,7 +8,7 @@ import numpy as np
 c21cmemu = core.Core21cmEMU(emu_path = 'py21cmmc/21cmEMU')
 chain = mcmc.run_mcmc(
     [c21cmemu],
-    [likelihood.Likelihood1DPowerLightconeUpper.from_builtin_data("HERA_H1C_IDR3_1"), 
+    [likelihood.Likelihood1DPowerLightconeUpper.from_builtin_data("HERA_H1C_IDR3"), 
      likelihood.LikelihoodPlanck(),
      likelihood.LikelihoodLuminosityFunction(z = 6), 
      likelihood.LikelihoodLuminosityFunction(z = 7), 
