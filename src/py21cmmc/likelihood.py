@@ -1048,15 +1048,19 @@ class LikelihoodPlanck(LikelihoodBase):
             tau_err = ctx.get('tau_e_err')
             tau_value = ctx.get('tau_e')
 
-        else:
+        if self._is_lightcone:
+
             lc = ctx.get("lightcone")
 
             redshifts = lc.node_redshifts
             xHI = lc.global_xHI
             
+        else:
+            
             redshifts = self.core_primary.redshift
             xHI = [np.mean(x.xH_box) for x in ctx.get("xHI")]
 
+        if not self._is_emu:
             if len(redshifts) < 3:
                 raise ValueError(
                     "You cannot use the Planck prior likelihood with less than 3 redshifts"
