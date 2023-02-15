@@ -1042,19 +1042,18 @@ class LikelihoodPlanck(LikelihoodBase):
         """
         # Extract relevant info from the context.
 
-        if self._is_lightcone:
-
-            lc = ctx.get("lightcone")
-
-            redshifts = lc.node_redshifts
-            xHI = lc.global_xHI
-        elif self._is_emu:
+        if self._is_emu:
             redshifts = ctx.get('redshifts')
             xHI = ctx.get('xHI')
             tau_err = ctx.get('tau_e_err')
             tau_value = ctx.get('tau_e')
 
         else:
+            lc = ctx.get("lightcone")
+
+            redshifts = lc.node_redshifts
+            xHI = lc.global_xHI
+            
             redshifts = self.core_primary.redshift
             xHI = [np.mean(x.xH_box) for x in ctx.get("xHI")]
 
@@ -1087,6 +1086,7 @@ class LikelihoodPlanck(LikelihoodBase):
                 redshifts=z_extrap,
                 global_xHI=xHI,
             )
+
         if self._is_emu:
             return {"tau": tau_value, 'tau_err': tau_err}
         else:
@@ -1501,7 +1501,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """The luminosity function core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-            if isinstance(c, core.CoreLuminosityFunction) or isinstance(c, core.Core21cmEMU) and c.name == self.name:
+            if (isinstance(c, core.CoreLuminosityFunction) and and c.name == self.name) or (isinstance(c, core.Core21cmEMU) and c.name == self.name):
                 paired.append(c)
         if len(paired) > 1:
             raise ValueError(
