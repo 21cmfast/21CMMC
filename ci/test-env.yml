@@ -20,6 +20,7 @@ dependencies:
   - zeus-mcmc
   - pip
   - 21cmFAST
+  - tensorflow
   - pip:
     - powerbox
     - cached_property
