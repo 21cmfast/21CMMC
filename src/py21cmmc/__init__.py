@@ -8,6 +8,7 @@ from .core import (
     CoreForest,
     CoreLightConeModule,
     CoreLuminosityFunction,
+    Core21cmEMU,
     NotAChain,
     NotSetupError,
 )
@@ -24,5 +25,7 @@ from .likelihood import (
     LikelihoodNeutralFraction,
     LikelihoodPlanck,
     LikelihoodPlanckPowerSpectra,
+    Likelihood1DPowerLightconeUpper,
 )
 from .mcmc import build_computation_chain, run_mcmc
+from .emulator import p21cmEMU

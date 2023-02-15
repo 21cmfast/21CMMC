@@ -12,7 +12,7 @@ import py21cmfast as p21
 import warnings
 from os import path
 from scipy.interpolate import interp1d
-
+from .emulator import p21cmEMU
 from . import _utils as ut
 
 logger = logging.getLogger("21cmFAST")
@@ -1151,3 +1151,120 @@ class CoreCMB(CoreBase):
             elif key in ["tp", "ep"]:
                 cl[key] *= T * 1.0e6
         return cl
+
+class Core21cmEMU(CoreBase):
+    r"""A Core Module that loads 21cmEMU and uses it to obtain 21cmFAST summaries 
+
+    Notes
+    -----
+    This core calls 21cmEMU and uses it to evaluate 21cmFAST summaries (power spectrum, global signal, neutral fraction, spin temperature)
+    given a set of astro_params.
+
+    Parameters
+    ----------
+    redshift : float or array_like
+         The redshift(s) at which to evaluate the summary statistics.
+    user_params : dict or :class:`~py21cmfast.UserParams`
+        Parameters affecting the overall dimensions of the cubes.
+    astro_params : dict or :class:`~py21cmfast.AstroParams`
+        Astrophysical parameters of reionization.
+
+        .. note:: None of the parameters provided here affect the *MCMC* as such; they
+              merely provide a background model on which the MCMC will be performed.
+              Thus for example, passing ``HII_EFF_FACTOR=30`` in ``astro_params`` here
+              will be over-written per-iteration if ``HII_EFF_FACTOR`` is also passed as
+              a ``parameter`` to an MCMC routine using this core module.
+
+    cosmo_params : dict or :class:`~py21cmfast.CosmoParams`
+        Cosmological parameters of the simulations. Like ``astro_params``, these
+        are the *fiducial* parameters, but may be updated during an MCMC.
+    """
+    def __init__(
+        self,
+        redshift=None,
+        k=None,
+        name = "",
+        user_params=None,
+        flag_options=None,
+        astro_params=None,
+        cosmo_params=None,
+        global_params=None,
+        ctx_variables=("brightness_temp", "brightness_temp_err",
+                       "spin_temp", "spin_temp_err", "xHI","redshifts", "ps_redshifts",
+                       "xHI_err", "delta", "Muv", "lfunc", "uv_lfs_redshifts",
+                       "delta_err", "k", "tau_e", "tau_e_err"),
+        write=None,
+        emu_path=None,
+        *args, **kwargs
+    ):
+
+        super().__init__(*args, **kwargs)
+        self.name = str(name)
+        self.ctx_variables = ctx_variables
+        #if not hasattr(self.redshift, "__len__"):
+        #    self.redshift = [self.redshift]
+
+
+        self.astro_params = p21.AstroParams(astro_params)
+        self.cosmo_params = p21.CosmoParams(cosmo_params)
+
+        self.global_params = global_params or {}
+        
+        self.emu_path = emu_path
+        
+        self.io_options = {
+                "write": write} # If not None, emulator outputs will be written to this folder
+    
+    def _update_params(self, params):
+        """
+        Update all the parameter structures which get passed to the driver, for one iteration.
+
+        Parameters
+        ----------
+        params :
+            Parameter object from cosmoHammer
+        """
+        ap_dict = copy.copy(self.astro_params.self)
+        cp_dict = copy.copy(self.cosmo_params.self)
+
+        ap_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.astro_params.defining_dict
+            }
+        )
+        cp_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.cosmo_params.defining_dict
+            }
+        )
+
+        return p21.AstroParams(**ap_dict), p21.CosmoParams(**cp_dict)
+
+
+    def build_model_data(self, ctx):
+        """Compute all data defined by this core and add it to the context."""
+        # Update parameters
+        logger.debug(f"Updating parameters: {ctx.getParams()}")
+        astro_params, cosmo_params = self._update_params(ctx.getParams())
+        logger.debug(f"AstroParams: {astro_params}")
+        logger.debug(f"CosmoParams: {cosmo_params}")
+        ## TODO check that cosmo_params = default params (wtv Yuxiang used) and if they are not, return err msg
+
+        # Call 21cmEMU wrapper which returns a dict
+        all_summaries = p21cmEMU(emu_path=self.emu_path,
+                                 fname=self.io_options["write"]).predict(
+                                 params=astro_params,    
+        )
+        logger.debug(f"Adding {self.ctx_variables} to context data")
+        for key in self.ctx_variables:
+            try:
+                ctx.add(key  + self.name, all_summaries[key])
+            except AttributeError:
+                raise ValueError(f"ctx_variable {key} not an attribute of Coeval")
+                
+
+
