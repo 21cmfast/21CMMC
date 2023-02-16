@@ -161,7 +161,6 @@ class p21cmEMU():
         Tb_pred = self.Tb_mean + self.Tb_std * Tb_pred_normed # Tb[mK]
 
 
-        errors = self.get_errors(theta)
         if theta.shape[0] == 1:
             log.info('If only one theta was supplied, flatten all outputs.')
             summaries = {'delta': 10**PS_pred[0,...], 'k': self.ks_cut, 'brightness_temp': Tb_pred[0,...], 
@@ -171,7 +170,7 @@ class p21cmEMU():
             summaries = {'delta': 10**PS_pred, 'k': self.ks_cut, 'brightness_temp': Tb_pred, 
                      'spin_temp': 10**Ts_pred, 'tau_e': tau, 'Muv': uvlfs[:,0,:,:], 'lfunc': uvlfs[:,-1,:,:], 'uv_lfs_redshifts':self.uv_lf_zs,
                      'ps_redshifts':self.zs_cut, 'redshifts': self.zs, 'xHI': xHI_pred_fix}
-
+        errors = self.get_errors(summaries, theta)
         # Put the summaries and errors in one single dict
         output = summaries.copy()
         for k in errors.keys():
@@ -183,15 +182,15 @@ class p21cmEMU():
 
         return output
 
-    def get_errors(self, theta : np.ndarray = None):
+    def get_errors(self, summaries : dict, theta : np.ndarray = None):
         r"""
         Calculate the emulator error on its outputs.
         Returns the mean error on the test set (i.e. independent of theta).
         """
 
         # For now, we return the mean emulator error (obtained from the test set) for each summary.
-
-        output = {'delta_err': self.PS_err, 'brightness_temp_err': self.Tb_err, 'xHI_err': self.xHI_err,
-                      'spin_temp_err': self.Ts_err, 'tau_e_err': self.tau_err}
+        # Some errors are fractional => actual error = fractional error * value
+        output = {'delta_err': self.PS_err/100. * summaries['delta'], 'brightness_temp_err': self.Tb_err, 'xHI_err': self.xHI_err,
+                      'spin_temp_err': self.Ts_err, 'tau_e_err': self.tau_err/100. * summaries['tau_e']}
         return output
 
