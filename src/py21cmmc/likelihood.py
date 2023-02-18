@@ -8,6 +8,7 @@ from os import path, rename
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
 from scipy.interpolate import InterpolatedUnivariateSpline, interp1d
+from scipy.stats import norm
 
 from . import core
 
@@ -1790,6 +1791,12 @@ class LikelihoodForest(LikelihoodBaseFile):
 
         bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
         tau_lower_bins = np.digitize(self.data[0], bins) - 1
+
+        kernel = norm(loc=0, scale=self.hist_bin_width * 2).pdf(
+            bins[1:] - 0.5 * self.hist_bin_width
+        )
+        pdf = np.convolve(pdf, kernel, "same") / self.hist_bin_width
+
         log_probs = np.log(pdf[tau_lower_bins])  # using tau_lower
         for i_nodetection in self.data[1]:  # non detection always has the highest P
             log_probs[i_nodetection] = np.max(pdf[tau_lower_bins[i_nodetection] :])
