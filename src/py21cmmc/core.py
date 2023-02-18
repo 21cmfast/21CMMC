@@ -981,17 +981,16 @@ class CoreForest(CoreLightConeModule):
 
             # hard boundary for the KDE
             if filling_factor <= 0.7:
-                lntau_GPs = np.log(tau_GPs)  # lntau gives the best results
-                lntau_hydros = np.copy(lntau_GPs)
-                for ii, lntau_GP in enumerate(lntau_GPs):
+                inverse_tau_GPs = tau_GPs**-1  # inverse tau gives the best results
+                inverse_tau_hydros = np.copy(inverse_tau_GPs)
+                for ii, inverse_tau_GP in enumerate(inverse_tau_GPs):
                     try:
-
-                        lntau_hydros[ii] = self.kde.sample(
+                        inverse_tau_hydros[ii] = self.kde.sample(
                             inherent_conditionals={
                                 "z": self.redshift[0],
                                 "xHI": filling_factor,
                             },
-                            conditionals={"tau_GP": lntau_GP},
+                            conditionals={"inversetau_GP": inverse_tau_GP},
                             n_samples=1,
                             keep_dims=False,
                         )[0][0]
@@ -999,7 +998,7 @@ class CoreForest(CoreLightConeModule):
                         # This is basically saying tau_hydro = tau_GP for those not captured by Sherwood
                         pass
 
-                tau_hydros = np.exp(lntau_hydros)
+                tau_hydros = inverse_tau_hydros**-1
                 n, bin_edges = np.histogram(
                     tau_hydros, bins=self.hist_bin_size, range=self.tau_range
                 )
