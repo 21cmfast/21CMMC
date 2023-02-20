@@ -1792,8 +1792,11 @@ class LikelihoodForest(LikelihoodBaseFile):
         bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
         tau_lower_bins = np.digitize(self.data[0], bins) - 1
 
-        kernel = norm(loc=0, scale=self.hist_bin_width * 2).pdf(
-            bins[1:] - 0.5 * self.hist_bin_width
+        kernel = (
+            norm(loc=0, scale=self.hist_bin_width * 2).pdf(
+                bins[1:] - 0.5 * self.hist_bin_width
+            )
+            * self.hist_bin_width
         )
         pdf = np.convolve(pdf, kernel, "same") / self.hist_bin_width
 
