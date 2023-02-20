@@ -1700,6 +1700,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         self.hist_bin_size = int(
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
         )
+        self.kernel = np.exp(-(np.arange(-10*self.hist_bin_width, 10*self.hist_bin_width, self.hist_bin_width) /2/self.hist_bin_width)**2/2) / 2 / self.hist_bin_width / (2*np.pi)**0.5  #sigma=2*hist_bin_width
 
     def setup(self):
         """Setup instance."""
@@ -1792,15 +1793,9 @@ class LikelihoodForest(LikelihoodBaseFile):
         bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
         tau_lower_bins = np.digitize(self.data[0], bins) - 1
 
-        kernel = (
-            norm(loc=0, scale=self.hist_bin_width * 2).pdf(
-                bins[1:] - 0.5 * self.hist_bin_width
-            )
-            * self.hist_bin_width
-        )
-        log_pdf = np.log(np.convolve(pdf, kernel, "same") / self.hist_bin_width)
-
+        log_pdf = np.log(np.convolve(pdf, self.kernel, mode="same") * self.hist_bin_width)
         log_probs = log_pdf[tau_lower_bins]  # using tau_lower
+
         for i_nodetection in self.data[1]:  # non detection always has the highest P
             log_probs[i_nodetection] = np.max(log_pdf[tau_lower_bins[i_nodetection] :])
 
