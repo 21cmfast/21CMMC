@@ -1798,11 +1798,11 @@ class LikelihoodForest(LikelihoodBaseFile):
             )
             * self.hist_bin_width
         )
-        pdf = np.convolve(pdf, kernel, "same") / self.hist_bin_width
+        log_pdf = np.log(np.convolve(pdf, kernel, "same") / self.hist_bin_width)
 
-        log_probs = np.log(pdf[tau_lower_bins])  # using tau_lower
+        log_probs = log_pdf[tau_lower_bins]  # using tau_lower
         for i_nodetection in self.data[1]:  # non detection always has the highest P
-            log_probs[i_nodetection] = np.max(pdf[tau_lower_bins[i_nodetection] :])
+            log_probs[i_nodetection] = np.max(log_pdf[tau_lower_bins[i_nodetection] :])
 
         filename = ctx.get("filename")
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
