@@ -14,7 +14,6 @@ from . import core
 
 loaded_cliks = {}
 logger = logging.getLogger("21cmFAST")
-
 np.seterr(invalid="ignore", divide="ignore")
 
 
@@ -940,13 +939,13 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
             )
 
 
+
+
 class LikelihoodPlanck(LikelihoodBase):
     """
     A likelihood which utilises Planck optical depth data.
-
     In practice, any optical depth measurement (or mock measurement) may be used, by
     defining the class variables ``tau_mean`` and ``tau_sigma``.
-
     Parameters
     ----------
     tau_mean : float
@@ -987,40 +986,28 @@ class LikelihoodPlanck(LikelihoodBase):
     def computeLikelihood(self, model):
         """
         Compute the likelihood.
-
         This is the likelihood arising from Planck (2016) (https://arxiv.org/abs/1605.03507).
-
         Parameters
         ----------
         model : list of dicts
             Exactly the output of :meth:`simulate`.
-
         Returns
         -------
         lnl : float
             The log-likelihood for the given model.
         """
-        if self._is_emu:
-            if model['tau'] > self.tau_mean:
-                tau_sig = self.tau_sigma_u
-            else:
-                tau_sig = self.tau_sigma_l
-            lnl = (
-                -0.5
-                * np.square(self.tau_mean - model["tau"])
-                / ( tau_sig**2 + model['tau_err']**2
-                )
+        tau_sigma_u = np.sqrt(self.tau_sigma_u**2 + 0.5*model['tau_err']**2)
+        tau_sigma_l = np.sqrt(self.tau_sigma_l**2 + 0.5*model['tau_err']**2)
+        
+        lnl = (
+            -0.5
+            * np.square(self.tau_mean - model["tau"])
+            / (
+                tau_sigma_u * tau_sigma_l
+                + (tau_sigma_u - tau_sigma_l) * (model["tau"] - self.tau_mean)
             )
-        else:        
-            lnl = (
-                -0.5
-                * np.square(self.tau_mean - model["tau"])
-                / (
-                    self.tau_sigma_u * self.tau_sigma_l
-                    + (self.tau_sigma_u - self.tau_sigma_l) * (model["tau"] - self.tau_mean)
-                )
-            )
-
+        )
+        logger.debug("Planck Likelihood computed: {lnl}".format(lnl=lnl))
         return lnl
     
     @property
@@ -1033,7 +1020,6 @@ class LikelihoodPlanck(LikelihoodBase):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a model.
-
         Returns
         -------
         dict :
@@ -1043,22 +1029,20 @@ class LikelihoodPlanck(LikelihoodBase):
         # Extract relevant info from the context.
 
         if self._is_emu:
-            redshifts = ctx.get('redshifts')
-            xHI = ctx.get('xHI')
             tau_err = ctx.get('tau_e_err')
             tau_value = ctx.get('tau_e')
 
-        if self._is_lightcone:
-
+        elif self._is_lightcone:
             lc = ctx.get("lightcone")
 
             redshifts = lc.node_redshifts
             xHI = lc.global_xHI
+            tau_err = 0.
             
         else:
-            
             redshifts = self.core_primary.redshift
             xHI = [np.mean(x.xH_box) for x in ctx.get("xHI")]
+            tau_err = 0.
 
         if not self._is_emu:
             if len(redshifts) < 3:
@@ -1091,10 +1075,7 @@ class LikelihoodPlanck(LikelihoodBase):
                 global_xHI=xHI,
             )
 
-        if self._is_emu:
-            return {"tau": tau_value, 'tau_err': tau_err}
-        else:
-            return {"tau": tau_value}
+        return {"tau": tau_value, 'tau_err': tau_err}
 
 
 class LikelihoodNeutralFraction(LikelihoodBase):
@@ -1259,7 +1240,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 )
             else:
                 lnprob += self.lnprob(model_spline(z), data, sigma_t)
-
+        logger.debug("Neutral fraction Likelihood computed: {lnl}".format(lnl=lnprob))
         return lnprob
 
     def lnprob(self, model, data, sigma):
@@ -1561,7 +1542,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     / self.noise["sigma"][i] ** 2
                 )[self.data["Muv"][i] > self.mag_brightest]
             )
-
+        logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))
         return lnl
 
     def define_noise(self, ctx, model):
@@ -1996,11 +1977,12 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                     error_val = np.sqrt(PS_limit_vars + (0.2*ModelPS_val_afterWF)**2 + (mean_err)**2 )
                 else:
                     error_val = np.sqrt(PS_limit_vars + (0.2 * ModelPS_val_afterWF)**2)
-                print('old', np.sqrt(PS_limit_vars + (0.2 * ModelPS_val_afterWF)**2))
+                
                 likelihood = 0.5 + 0.5 * erf( ( PS_limit_vals - ModelPS_val_afterWF ) / (np.sqrt(2) * error_val) ) # another way to write likelihood for 1-side Gaussian
                 likelihood[likelihood <= 0.0] = 1e-50
                 lnl += np.nansum(np.log(likelihood))
-                
+                logger.debug("HERA PS upper Likelihood computed: {lnl}".format(lnl=np.nansum(np.log(likelihood))))
+        logger.debug("Total HERA PS upper Likelihood computed: {lnl}".format(lnl=lnl))
         return lnl
     
     @cached_property

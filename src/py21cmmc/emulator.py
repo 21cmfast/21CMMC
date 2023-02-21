@@ -18,8 +18,17 @@ class p21cmEMU():
     """
     def __init__(self,
                  emu_path : str = None,
-                 fname : str = None,
+                 io_options : dict = None,
                      ):
+        """
+        Parameters
+        ----------
+        emu_path : str
+            Path of the emulator folder location including the folder name e.g. ./folder/21cmEMU
+            If not set, default is in the current directory i.e. output of pwd
+        
+        
+        """
         log.info('Init emulator...')
         if emu_path is None:
             log.warning('No emulator path was supplied. Trying to find the emulator folder in the current working directory.')
@@ -42,7 +51,7 @@ class p21cmEMU():
             raise ValueError('Wrong file path to emulator:', emu_path,' Remember to include the emulator folder name in the path.', e)
 
         self.model = emu
-        self.fname = fname
+        self.io_options = io_options
         log.info('Find emulator_constants npz file.')
         if len(os.path.dirname(emu_path)) > 1:
             all_emulator_numbers = np.load(os.path.dirname(emu_path) + '/emulator_constants.npz')
@@ -66,37 +75,37 @@ class p21cmEMU():
         self.Ts_err = all_emulator_numbers['Ts_err']
         self.xHI_err = all_emulator_numbers['xHI_err']
         self.tau_err = all_emulator_numbers['tau_err']
-        log.info('Finished emulator init sucessfully.')
+        #log.info('Finished emulator init sucessfully.')
 
-    def predict(self, params):
+    def predict(self, astro_params):
         r"""
         Call the emulator, evaluate it at the given parameters, restore dimensions.
     
         Parameters
         ----------
-        theta : p21.AstroParams or np.ndarray
-        An array with the nine astro_params input all $\in [0,1]$.
+        astro_params : p21.AstroParams or np.ndarray or dict
+            An array with the nine astro_params input all $\in [0,1]$ OR in the p21.AstroParams input units.
         """
         log.info('Beginning prediction...')
-        if isinstance(params, p21.AstroParams) or type(params) == dict:
+        if isinstance(astro_params, p21.AstroParams) or type(astro_params) == dict:
             log.info('Must convert input params from AstroParams or dict into array.')
-            param_keys = ['F_STAR10','ALPHA_STAR','F_ESC10','ALPHA_ESC','M_TURN', 
+            astro_param_keys = ['F_STAR10','ALPHA_STAR','F_ESC10','ALPHA_ESC','M_TURN', 
                't_STAR','L_X','NU_X_THRESH','X_RAY_SPEC_INDEX']
-            theta = np.zeros(len(param_keys))
-            for i, key in enumerate(param_keys):
-                if isinstance(params, p21.AstroParams):
-                    theta[i] = params.defining_dict[key]
+            theta = np.zeros(len(astro_param_keys))
+            for i, key in enumerate(astro_param_keys):
+                if isinstance(astro_params, p21.AstroParams):
+                    theta[i] = astro_params.defining_dict[key]
                 else:
-                    theta[i] = params[key]
-        elif type(params) == np.ndarray:
-            theta = params.copy()
+                    theta[i] = astro_params[key]
+        elif type(astro_params) == np.ndarray:
+            theta = astro_params.copy()
         else:
             raise TypeError('theta is in the wrong format. Should be AstroParams object or nine astrophysical parameters in same order as param_keys.')
         if len(theta.shape) == 1:
             theta = theta.reshape([1,-1])
         normed = True
         # Check that theta is normalized, if not, normalise it.
-        if isinstance(params, p21.AstroParams) or max(theta.ravel()) > 1 or min(theta.ravel()) < 0:
+        if isinstance(astro_params, p21.AstroParams) or max(theta.ravel()) > 1 or min(theta.ravel()) < 0:
             log.info('Theta is not normalized.')
             normed = False # to indicate that input params was not normalised
             for i in range(theta.shape[-1]):
@@ -111,11 +120,11 @@ class p21cmEMU():
         emu_pred = self.model.predict(theta, verbose = False)
         log.info('End emulator prediction.')
 
-        Tb_pred_normed = emu_pred[:,:84]
-        xHI_pred = emu_pred[:,84:84*2]
-        Ts_pred_normed = emu_pred[:,2*84:84*3]
-        Ts_undefined_pred = emu_pred[:,84*3]
-        PS_pred_normed = emu_pred[:,84*3+1:].reshape((theta.shape[0], 60,12))
+        Tb_pred_normed = emu_pred[:,:84] #First 84 numbers of emu prediction are Tb
+        xHI_pred = emu_pred[:,84:84*2] # Next 84 numbers are xHI
+        Ts_pred_normed = emu_pred[:,2*84:84*3] # Next 84 numbers are Ts
+        Ts_undefined_pred = emu_pred[:,84*3] # Right after Ts is the redshift at which Ts becomes undefined
+        PS_pred_normed = emu_pred[:,84*3+1:].reshape((theta.shape[0], 60,12)) # The rest is PS
 
         # Set the xHI < z(Ts undefined) to 0
         xHI_pred_fix = np.zeros(xHI_pred.shape)
@@ -134,8 +143,8 @@ class p21cmEMU():
             log.info('Tau computation completed successfully.')
 
             # Build astro_params array from theta \in [0,1]
-            if (isinstance(params, p21.AstroParams) or type(params) == dict) and not normed:
-                uvlfs[i,...] = np.array(p21.wrapper.compute_luminosity_function(redshifts = self.uv_lf_zs, astro_params=params))
+            if (isinstance(astro_params, p21.AstroParams) or type(astro_params) == dict) and not normed:
+                uvlfs[i,...] = np.array(p21.wrapper.compute_luminosity_function(redshifts = self.uv_lf_zs, astro_params=astro_params))
             else:
                 # Restore dimensions i.e. undo the limits
                 log.info('Restore dimensions to theta to calculate UV LF.')
@@ -176,8 +185,16 @@ class p21cmEMU():
         for k in errors.keys():
             output[k] = errors[k]
 
-        if self.fname is not None:
-            np.savez(fname, output)
+        if self.io_options is not None and self.io_options['cache_dir'] is not None and len(self.io_options['store']) > 0:
+            if isinstance(astro_params, p21.AstroParams) or isinstance(astro_params, dict):
+                ap = astro_params.defining_dict
+                fname = '_'.join([str(np.round(ap[i], 5)) for i in ap.keys()])
+            else:
+                fname = '_'.join([str(np.round(astro_params[i], 5)) for i in range(len(theta))])
+            to_save = {}
+            for i in self.io_options['store']:
+                to_save[i] = output[i]
+            np.savez(fname, to_save)
             log.info('Successfully wrote data to disk.')
 
         return output
@@ -186,6 +203,13 @@ class p21cmEMU():
         r"""
         Calculate the emulator error on its outputs.
         Returns the mean error on the test set (i.e. independent of theta).
+        
+        Parameters
+        ----------
+        summaries : dict
+            Dict containing the emulator predictions, defined in p21cmEMU.predict
+        theta : dict
+            Dict containing the normalized parameters, also defined in p21cmEMU.predict
         """
 
         # For now, we return the mean emulator error (obtained from the test set) for each summary.

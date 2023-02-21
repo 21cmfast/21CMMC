@@ -1165,35 +1165,33 @@ class Core21cmEMU(CoreBase):
     redshift : float or array_like
          The redshift(s) at which to evaluate the summary statistics.
     user_params : dict or :class:`~py21cmfast.UserParams`
-        Parameters affecting the overall dimensions of the cubes.
+        Parameters affecting the 21cmFAST simulation model 
     astro_params : dict or :class:`~py21cmfast.AstroParams`
-        Astrophysical parameters of reionization.
-
-        .. note:: None of the parameters provided here affect the *MCMC* as such; they
-              merely provide a background model on which the MCMC will be performed.
-              Thus for example, passing ``HII_EFF_FACTOR=30`` in ``astro_params`` here
-              will be over-written per-iteration if ``HII_EFF_FACTOR`` is also passed as
-              a ``parameter`` to an MCMC routine using this core module.
-
+        Astrophysical parameters of reionization model according to Park+19 parametrization.
     cosmo_params : dict or :class:`~py21cmfast.CosmoParams`
-        Cosmological parameters of the simulations. Like ``astro_params``, these
-        are the *fiducial* parameters, but may be updated during an MCMC.
+        Cosmological parameters of the simulation model.
+    flag_options : dict or :class:`~py21cmfast.FlagOptions`
+        Flag options that modify the 21cmFAST model.
+
+        .. note:: `user_params`, `cosmo_params` and `flag_options` do not, currently, affect the emulator prediction.
+                  They may, however, raise an error, if the parameters provided do not match with the ones used during the emulator training.
     """
     def __init__(
         self,
+        astro_params=None,
         redshift=None,
         k=None,
         name = "",
         user_params=None,
         flag_options=None,
-        astro_params=None,
         cosmo_params=None,
         global_params=None,
         ctx_variables=("brightness_temp", "brightness_temp_err",
                        "spin_temp", "spin_temp_err", "xHI","redshifts", "ps_redshifts",
                        "xHI_err", "delta", "Muv", "lfunc", "uv_lfs_redshifts",
                        "delta_err", "k", "tau_e", "tau_e_err"),
-        write=None,
+        cache_dir=None,
+        store=[],
         emu_path=None,
         *args, **kwargs
     ):
@@ -1204,21 +1202,53 @@ class Core21cmEMU(CoreBase):
         #if not hasattr(self.redshift, "__len__"):
         #    self.redshift = [self.redshift]
 
-
-        self.astro_params = p21.AstroParams(astro_params)
-        self.cosmo_params = p21.CosmoParams(cosmo_params)
+        if isinstance(astro_params, p21.AstroParams):
+            self.astro_params = astro_params
+        else:
+            self.astro_params = p21.AstroParams(astro_params)
+            
+        if cosmo_params is not None:
+            if isinstance(cosmo_params, p21.CosmoParams):
+                self.cosmo_params = cosmo_params
+            else:
+                self.cosmo_params = p21.CosmoParams(cosmo_params)
+        
+            ## Check that given cosmo params match emulator training data cosmo params
+            ## if they do not, raise error and exit
+            emu_cosmo_params = dict(SIGMA_8=0.82, hlittle=0.6774, OMm=0.3075, 
+                                           OMb=0.0486, POWER_INDEX=0.97)
+            for key in emu_cosmo_params.keys():
+                if self.cosmo_params.defining_dict[key] != emu_cosmo_params[key]:
+                    raise ValueError('Input cosmo_params do not match the emulator cosmo_params. The emulator can only be used with a single set of cosmo params:', emu_cosmo_params)
+        else:
+            self.cosmo_params = p21.CosmoParams(cosmo_params)
+                    
+        if flag_options is not None:
+            if isinstance(flag_options, p21.FlagOptions):
+                self.flag_options = flag_options
+            else:
+                self.flag_options = p21.FlagOptions(flag_options)
+        
+            ## Check that given flag options match emulator training data flag options
+            ## if they do not, raise error and exit
+            for key in self.flag_options.defining_dict.keys():
+                if self.flag_options.defining_dict[key] != False:
+                    raise ValueError('Input cosmo_params do not match the emulator cosmo_params. The emulator can only be used with a single set of cosmo params:', emu_cosmo_params)
+        
+        ## TODO Same as for astro_params but for user params
+        
 
         self.global_params = global_params or {}
         
         self.emu_path = emu_path
         
-        self.io_options = {
-                "write": write} # If not None, emulator outputs will be written to this folder
+        self.io_options = {"store": store, # which summaries to store
+                           "cache_dir": cache_dir, # where the stored data will be written
+                          }
     
     def _update_params(self, params):
         """
         Update all the parameter structures which get passed to the driver, for one iteration.
-
         Parameters
         ----------
         params :
@@ -1252,12 +1282,11 @@ class Core21cmEMU(CoreBase):
         astro_params, cosmo_params = self._update_params(ctx.getParams())
         logger.debug(f"AstroParams: {astro_params}")
         logger.debug(f"CosmoParams: {cosmo_params}")
-        ## TODO check that cosmo_params = default params (wtv Yuxiang used) and if they are not, return err msg
 
         # Call 21cmEMU wrapper which returns a dict
         all_summaries = p21cmEMU(emu_path=self.emu_path,
-                                 fname=self.io_options["write"]).predict(
-                                 params=astro_params,    
+                                 io_options=self.io_options).predict(
+                                 astro_params=astro_params,    
         )
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
@@ -1266,5 +1295,4 @@ class Core21cmEMU(CoreBase):
             except AttributeError:
                 raise ValueError(f"ctx_variable {key} not an attribute of Coeval")
                 
-
 
