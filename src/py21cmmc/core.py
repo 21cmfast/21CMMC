@@ -803,7 +803,7 @@ class CoreForest(CoreLightConeModule):
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
         )
         self.cpdf = np.load(
-            path.join(path.dirname(__file__), "data/Forests/Bosman21/kde.npy"),
+            path.join(path.dirname(__file__), "data/Forests/Bosman21/tau_mapping.npy"),
             allow_pickle=True,
         ).item()
 
