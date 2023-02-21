@@ -518,7 +518,6 @@ class CoreLightConeModule(CoreCoevalModule):
                 "Gamma12_box",
                 "density",
                 "MFP_box",
-                "temp_kinetic_all_gas",
                 "Nion_box",
                 "Nrec_box",
             )
@@ -556,7 +555,6 @@ class CoreLightConeModule(CoreCoevalModule):
             "Gamma12_box",
             "density",
             "MFP_box",
-            "temp_kinetic_all_gas",
             "Nion_box",
             "Nrec_box",
         )
