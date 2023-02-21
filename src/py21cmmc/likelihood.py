@@ -14,6 +14,7 @@ from . import core
 
 loaded_cliks = {}
 logger = logging.getLogger("21cmFAST")
+logger.setLevel(logging.DEBUG)
 np.seterr(invalid="ignore", divide="ignore")
 
 
@@ -1189,7 +1190,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
 
     def reduce_data(self, ctx):
         """Return a dictionary of model quantities from the context."""
-        err = None
+        err = 0
         if self._use_coeval:
             xHI = np.array([np.mean(x) for x in ctx.get("xHI")])
             redshifts = self.redshifts
@@ -1209,10 +1210,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 xHI = ctx.get("lightcone").global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts
         redshifts, xHI = np.sort([redshifts, xHI])
-        if err is None:
-            return {"xHI": xHI, "redshifts": redshifts}
-        else:
-            return {"xHI": xHI, "redshifts": redshifts, 'err': err}
+        return {"xHI": xHI, "redshifts": redshifts, 'err': err}
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
@@ -1223,14 +1221,14 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             model_spline = InterpolatedUnivariateSpline(
                 model["redshifts"], model["xHI"], k=1
             )
-            if 'err' in model.keys():
+            if np.sum(model["err"]) > 0:
                 err_spline = InterpolatedUnivariateSpline(
                 model["redshifts"], model["err"], k=1
             )
             
 
         for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
-            if 'err' in model.keys():
+            if np.sum(model["err"]) > 0:
                 sigma_t = np.sqrt(sigma**2 + err_spline(z)**2)
             else:
                 sigma_t = sigma
@@ -1338,10 +1336,14 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
     """Chi^2 likelihood of Global Signal, where global signal is in mK as a function of MHz."""
 
     required_cores = ((core.CoreLightConeModule,core.Core21cmEMU),)
-
+    
+    @property
+    def _is_emu(self):
+        return isinstance(self.core_primary, core.Core21cmEMU)
+    
     def reduce_data(self, ctx):
         """Reduce data to model."""
-        if isinstance(self._cores[0], core.Core21cmEMU):
+        if self._is_emu:
             return {
                 "frequencies": 1420.4
                 / (self._cores[0].redshift + 1.0),
@@ -1420,17 +1422,17 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def setup(self):
         """Setup instance."""
         if isinstance(self.paired_core, core.Core21cmEMU):
+            if self.z is None:
+                raise ValueError('Must specify which z bin out of [6, 7, 8, 10] the likelihood is comparing to the data.')
             self.i = np.argmin(abs(np.array([6,7,8,10]) - int(self.z)))
-        else:
-            self.i = 0
+            
         if not self._simulate:
             if self.datafile is None:
-                if len(self.redshifts) != 1 and isinstance(self.paired_core, core.CoreLuminosityFunction):
+                if len(self.redshifts) != 1:
                     raise ValueError(
                         "to use the provided LFs, a separate core/likelihood instance pair for each redshift is required!"
                     )
-                if self.redshifts[0] not in [6, 7, 8, 10] and (isinstance(self.paired_core, core.CoreLuminosityFunction)
-                    or isinstance(self.paired_core, core.Core21cmEMU)):
+                if self.redshifts[0] not in [6, 7, 8, 10]:
                     raise ValueError(
                         "only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
                     )
@@ -1498,13 +1500,10 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def redshifts(self):
         """Redshifts at which luminosity function is defined."""
         if isinstance(self.paired_core, core.Core21cmEMU):
-            if self.z is not None:
-                if hasattr(self.z, "__len__"):
-                    return self.z
-                else:
-                    return np.array([self.z])
+            if hasattr(self.z, "__len__"):
+                return self.z
             else:
-                return np.array([np.array([6,7,8,10])[self.i]])
+                return np.array([self.z])
         else:
             return self.paired_core.redshift
 
@@ -1866,12 +1865,12 @@ class LikelihoodForest(LikelihoodBaseFile):
 
 class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     r"""
-    Likelihood based on Chi^2 comparison to luminosity function data.
+    Likelihood based on Chi^2 comparison of a 21 cm PS model to HERA H1C upper limit data.
 
     Parameters
     ----------
     datafile : str, optional
-        Input data should be in a `.npz` file, and contain the arrays:
+        Input data should be in a `.npz` file, and contain the following fields:
         * ``z_bands``: the redshift of the observation bands
         * ``bandx``: the power spectrum upper limits at redshift x
         * ``wfbandx``: the window function for band x
@@ -1879,20 +1878,25 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     """
 
     def __init__(self, datafile="", data = None, name="", 
-                 redshifts = np.array([10.37213048, 7.92876298]),
-                 k=None, *args, **kwargs):
+                 redshifts = np.array([10.37213048, 7.92876298]),*args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = name
         self.redshifts = redshifts
-        if k is not None:
-            self.k = k
-            self.k_len = len(k)
+        
+        if not hasattr(self.redshifts, '__len__'):
+            self.redshifts = np.array([self.redshifts])
+        if len(self.redshifts) > 2:
+            raise ValueError ('The HERA H1C data only contains two redshift bands. You supplied %s redshift bands.' % str(len(self.redshifts)))
+        for i in self.redshifts:
+            if np.min(abs(i - np.array([10.37213048, 7.92876298]))) > 1:
+                raise ValueError('The upper limit likelihood can only be evaluated for models with redshifts around those of HERA i.e. around 10.87 and 7.92. You supplied redshifts: %f' % i)
+            
         if datafile is not None:
             self.datafile = [datafile]
             self.data = dict(np.load(datafile))
-            if k is None:
-                self.k = [self.data['kwfband10'], self.data['kwfband8']]
-                self.k_len = max(len(i) for i in self.k)
+
+        self.k = [self.data['kwfband10'], self.data['kwfband8']]
+        self.k_len = max(len(i) for i in self.k)
             
 
     @classmethod
@@ -1935,11 +1939,11 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         -------
         lnl : float
             Log likelihood for the provided model.
-        Data shape = 5 fields, 37 kbins, 4 = [kval, power, lower, upper limit error], 2 (band1=10 band2=8)
+        Data shape = 5 fields, 37 kbins, 4 = [kval, power, variance], 2 (band1=10 band2=8)
         """
 
         lnl = 0
-        for band in self.data[0]['z_bands']:
+        for band in self.redshifts:
             for field in range(self.data[0]['band8'].shape[0]):
                 PS_limit_ks = self.data[0]['band' + str(round(band))][field,:,0]
                 PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
@@ -1950,16 +1954,14 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                 kwf_limit_vals = self.data[0]['kwfband' + str(round(band))]
                 Nkwfbins = len(kwf_limit_vals)
                 PS_limit_wfcs = self.data[0]['wfband' + str(round(band))][field,:Nkbins,:]
-                mask = ~np.isnan(PS_limit_wfcs)
-                PS_limit_wfcs = PS_limit_wfcs[mask].reshape([Nkbins, Nkwfbins])
+
+                PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
                 
                 model_ks = model[0]["k"]
                 model_zs = self.redshifts
                 zbin = np.argmin(abs(band - model_zs))
                 ModelPS_val = model[0]["delta"][zbin,:Nkwfbins]
-
-                if np.sum(np.isnan(PS_limit_wfcs)) != 0:
-                    mask1 = ~np.isnan(PS_limit_wfcs)                    
+                 
 
                 ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
                 # Include emulator error term if present

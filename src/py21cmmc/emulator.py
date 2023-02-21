@@ -157,6 +157,7 @@ class p21cmEMU():
                 astro_params = {'F_STAR10':theta_wdims[i,0], 'ALPHA_STAR': theta_wdims[i,1], 'F_ESC10': theta_wdims[i,2], 
                                 'ALPHA_ESC': theta_wdims[i,3], 'M_TURN': theta_wdims[i,4], 't_STAR': theta_wdims[i,5], 
                                 'L_X': theta_wdims[i,6], 'NU_X_THRESH': theta_wdims[i,7], 'X_RAY_SPEC_INDEX':theta_wdims[i,8]}
+                log.debug('Restored dimensions are now: ', astro_params)
                 log.info('Begin UV LF computation...')
                 uvlfs[i,...] = np.array(p21.wrapper.compute_luminosity_function(redshifts = self.uv_lf_zs, astro_params=astro_params))
                 if np.sum(np.isnan(uvlfs[i,-1,:,:])) > 300:
