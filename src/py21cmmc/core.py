@@ -802,7 +802,7 @@ class CoreForest(CoreLightConeModule):
         self.hist_bin_size = int(
             (self.tau_range[1] - self.tau_range[0]) / self.hist_bin_width
         )
-        self.kde = np.load(
+        self.cpdf = np.load(
             path.join(path.dirname(__file__), "data/Forests/Bosman21/kde.npy"),
             allow_pickle=True,
         ).item()
@@ -972,24 +972,16 @@ class CoreForest(CoreLightConeModule):
 
             # hard boundary for the KDE
             if filling_factor <= 0.7:
-                inverse_tau_GPs = tau_GPs**-1  # inverse tau gives the best results
-                inverse_tau_hydros = np.copy(inverse_tau_GPs)
-                for ii, inverse_tau_GP in enumerate(inverse_tau_GPs):
-                    try:
-                        inverse_tau_hydros[ii] = self.kde.sample(
-                            inherent_conditionals={
-                                "z": self.redshift[0],
-                                "xHI": filling_factor,
-                            },
-                            conditionals={"inversetau_GP": inverse_tau_GP},
-                            n_samples=1,
-                            keep_dims=False,
-                        )[0][0]
-                    except:
-                        # This is basically saying tau_hydro = tau_GP for those not captured by Sherwood
-                        pass
+                tau_hydros = self.cpdf.sample(
+                    inherent_conditionals={
+                        "z": self.redshift[0],
+                        "xHI": filling_factor,
+                    },
+                    conditionals={"inversetau_GP": tau_GPs**-1},
+                    n_samples=1,
+                    keep_dims=False,
+                ).flatten()**-1
 
-                tau_hydros = inverse_tau_hydros**-1
                 n, bin_edges = np.histogram(
                     tau_hydros, bins=self.hist_bin_size, range=self.tau_range
                 )
