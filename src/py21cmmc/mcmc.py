@@ -534,6 +534,7 @@ def run_mcmc(
 
                 else:
                     p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
+            return p
 
         sampler = ultranest.ReactiveNestedSampler(
             params.keys,
