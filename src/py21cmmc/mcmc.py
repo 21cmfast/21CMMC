@@ -68,6 +68,7 @@ def run_mcmc(
     sampler_cls=CosmoHammerSampler,
     use_multinest=False,
     use_zeus=False,
+    use_ultranest=False,
     **mcmc_options,
 ) -> CosmoHammerSampler:
     r"""Run an MCMC chain.
@@ -105,6 +106,8 @@ def run_mcmc(
         If true, use the MultiNest sampler instead.
     use_zeus : bool, optional
         If true, use the zeus sampler instead.
+    use_ultranest : bool, optional
+        If true, use the UltraNest sampler instead.
 
     Other Parameters
     ----------------
@@ -167,6 +170,93 @@ def run_mcmc(
         If True (default is False) then no expansions are performed after the tuning phase.
         This can significantly reduce the number of log likelihood evaluations but works best in target distributions that are apprroximately Gaussian.
 
+        If use_ultranest, parameters required by UltraNest as shown below should be
+        provided here.
+    log_dir: str
+        where to store output files
+    resume: 'resume', 'resume-similar', 'overwrite' or 'subfolder'
+        If 'overwrite', overwrite previous data.
+        If 'subfolder', create a fresh subdirectory in log_dir.
+        If 'resume' or True, continue previous run if available.
+        Only works when dimensionality, transform or likelihood are consistent.
+        If 'resume-similar', continue previous run if available.
+        Only works when dimensionality and transform are consistent.
+        If a likelihood difference is detected, the existing likelihoods
+        are updated until the live point order differs.
+        Otherwise, behaves like resume.
+    run_num: int or None
+        If resume=='subfolder', this is the subfolder number.
+        Automatically increments if set to None.
+    num_test_samples: int
+        test transform and likelihood with this number of
+        random points for errors first. Useful to catch bugs.
+    vectorized: bool
+        If true, loglike and transform function can receive arrays
+        of points.
+    draw_multiple: bool
+        If efficiency goes down, dynamically draw more points
+        from the region between `ndraw_min` and `ndraw_max`.
+        If set to False, few points are sampled at once.
+    ndraw_min: int
+        Minimum number of points to simultaneously propose.
+        Increase this if your likelihood makes vectorization very cheap.
+    ndraw_max: int
+        Maximum number of points to simultaneously propose.
+        Increase this if your likelihood makes vectorization very cheap.
+        Memory allocation may be slow for extremely high values.
+    num_bootstraps: int
+        number of logZ estimators and MLFriends region
+        bootstrap rounds.
+    warmstart_max_tau: float
+        Maximum disorder to accept when resume='resume-similar';
+        Live points are reused as long as the live point order
+        is below this normalised Kendall tau distance.
+        Values from 0 (highly conservative) to 1 (extremely negligent).
+
+    update_interval_volume_fraction: float
+        Update region when the volume shrunk by this amount.
+    log_interval: int
+        Update stdout status line every log_interval iterations.
+    show_status: bool
+        Show integration progress as a status line.
+        If no output desired, set to False.
+    dlogz: float
+        Target evidence uncertainty. This is the std
+        between bootstrapped logz integrators.
+    dKL: float
+        Target posterior uncertainty. This is the
+        Kullback-Leibler divergence in nat between bootstrapped integrators.
+    frac_remain: float
+        Integrate until this fraction of the integral is left in the remainder.
+        Set to a low number (1e-2 ... 1e-5) to make sure peaks are discovered.
+        Set to a higher number (0.5) if you know the posterior is simple.
+    Lepsilon: float
+        Terminate when live point likelihoods are all the same,
+        within Lepsilon tolerance. Increase this when your likelihood
+        function is inaccurate, to avoid unnecessary search.
+    min_ess: int
+        Target number of effective posterior samples.
+    max_iters: int
+        maximum number of integration iterations.
+    max_ncalls: int
+        stop after this many likelihood evaluations.
+    max_num_improvement_loops: int
+        run() tries to assess iteratively where more samples are needed.
+        This number limits the number of improvement loops.
+    min_num_live_points: int
+        minimum number of live points throughout the run
+    cluster_num_live_points: int
+        require at least this many live points per detected cluster
+    insertion_test_zscore_threshold: float
+        z-score used as a threshold for the insertion order test.
+        Set to infinity to disable.
+    insertion_test_window: int
+        Number of iterations after which the insertion order test is reset.
+    region_class: `MLFriends` or `RobustEllipsoidRegion` or `SimpleRegion`
+        Whether to use MLFriends+ellipsoidal+tellipsoidal region (better for multi-modal problems)
+        or just ellipsoidal sampling (faster for high-dimensional, gaussian-like problems)
+        or a axis-aligned ellipsoid (fastest, to be combined with slice sampling).
+
     Returns
     -------
     sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
@@ -177,8 +267,8 @@ def run_mcmc(
     file_prefix = path.join(datadir, model_name)
 
     # check that only one sampler is specified
-    if use_multinest and use_zeus:
-        raise ValueError("You cannot use_multinest and use_zeus at the same time!")
+    if sum([use_multinest, use_ultranest, use_zeus]) > 1:
+        raise ValueError("You cannot use more than one sampler at the time!")
 
     if use_multinest:
         n_live_points = mcmc_options.get("n_live_points", 100)
@@ -241,6 +331,44 @@ def run_mcmc(
         except ImportError:
             raise ImportError("You need to install zeus to use this function!")
 
+    if use_ultranest:
+        try:
+            import ultranest
+        except ImportError:
+            raise ImportError("You need to install ultranest to use this function!")
+
+        log_dir = mcmc_options.get("log_dir", None)
+        resume = mcmc_options.get("resume", "subfolder")
+        run_num = mcmc_options.get("run_num", None)
+        num_test_samples = mcmc_options.get("num_test_samples", 2)
+        vectorized = mcmc_options.get("vectorized", False)
+        draw_multiple = mcmc_options.get("draw_multiple", True)
+        ndraw_min = mcmc_options.get("ndraw_min", 128)
+        ndraw_max = mcmc_options.get("ndraw_max", 65536)
+        num_bootstraps = mcmc_options.get("num_bootstraps", 30)
+        warmstart_max_tau = mcmc_options.get("warmstart_max_tau", -1)
+
+        update_interval_volume_fraction = mcmc_options.get(
+            "update_interval_volume_fraction", 0.8
+        )
+        log_interval = mcmc_options.get("log_interval", None)
+        show_status = mcmc_options.get("show_status", True)
+        dlogz = mcmc_options.get("dlogz", 0.5)
+        dKL = mcmc_options.get("dKL", 0.5)
+        frac_remain = mcmc_options.get("frac_remain", 0.01)
+        Lepsilon = mcmc_options.get("Lepsilon", 0.001)
+        min_ess = mcmc_options.get("min_ess", 400)
+        max_iters = mcmc_options.get("max_iters", None)
+        max_ncalls = mcmc_options.get("max_ncalls", None)
+        max_num_improvement_loops = mcmc_options.get("max_num_improvement_loops", -1)
+        min_num_live_points = mcmc_options.get("min_num_live_points", 400)
+        cluster_num_live_points = mcmc_options.get("cluster_num_live_points", 40)
+        insertion_test_zscore_threshold = mcmc_options.get(
+            "insertion_test_zscore_threshold", 4
+        )
+        insertion_test_window = mcmc_options.get("insertion_test_window", 10)
+        region_class = mcmc_options.get("region_class", ultranest.mlfriends.MLFriends)
+
     # Setup parameters.
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
@@ -249,7 +377,7 @@ def run_mcmc(
         core_modules, likelihood_modules, params, setup=False
     )
 
-    if continue_sampling and not (use_multinest or use_zeus):
+    if continue_sampling and not (use_multinest or use_zeus or use_ultranest):
         try:
             with open(file_prefix + ".LCC.yml", "r") as f:
                 old_chain = yaml.load(f)
@@ -379,6 +507,68 @@ def run_mcmc(
         )  # Initialise the sampler
         sampler.run_mcmc(start, nsteps)  # Run sampling
         return sampler
+
+    elif use_ultranest:
+
+        def likelihood(p, ndim, nparams):
+            if vectorized:
+                return chain.computeLikelihoods(
+                    chain.build_model_data(
+                        Params(*[(k, v) for k, v in zip(params.keys, p.T)])
+                    )
+                )
+            else:
+                try:
+                    return chain.computeLikelihoods(
+                        chain.build_model_data(
+                            Params(*[(k, v) for k, v in zip(params.keys, p)])
+                        )
+                    )
+                except ParameterError:
+                    return -np.inf
+
+        def prior(p):
+            for i in range(ndim):
+                if vectorized:
+                    p[:, i] = params[i][1] + p[:, i] * (params[i][2] - params[i][1])
+
+                else:
+                    p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
+
+        sampler = ultranest.ReactiveNestedSampler(
+            params.keys,
+            loglike=likelihood,
+            transform=prior,
+            resume=resume,
+            run_num=run_num,
+            log_dir=log_dir,
+            num_test_samples=num_test_samples,
+            draw_multiple=draw_multiple,
+            num_bootstraps=num_bootstraps,
+            vectorized=vectorized,
+            ndraw_min=ndraw_min,
+            ndraw_max=ndraw_max,
+            warmstart_max_tau=warmstart_max_tau,
+        )
+        result = sampler.run(
+            update_interval_volume_fraction=update_interval_volume_fraction,
+            log_interval=log_interval,
+            show_status=show_status,
+            dlogz=dlogz,
+            dKL=dKL,
+            frac_remain=frac_remain,
+            Lepsilon=Lepsilon,
+            min_ess=min_ess,
+            max_iters=max_iters,
+            max_ncalls=max_ncalls,
+            max_num_improvement_loops=max_num_improvement_loops,
+            min_num_live_points=min_num_live_points,
+            cluster_num_live_points=cluster_num_live_points,
+            insertion_test_window=insertion_test_window,
+            insertion_test_zscore_threshold=insertion_test_zscore_threshold,
+            region_class=region_class,
+        )
+        return sampler, result
 
     else:
         pool = mcmc_options.pop(
