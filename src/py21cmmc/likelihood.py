@@ -1943,17 +1943,21 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         """
 
         lnl = 0
+        if 'band8' in self.data.keys():
+            hera_data = self.data
+        else:
+            hera_data = self.data[0]
         for band in self.redshifts:
-            for field in range(self.data[0]['band8'].shape[0]):
-                PS_limit_ks = self.data[0]['band' + str(round(band))][field,:,0]
+            for field in range(hera_data['band8'].shape[0]):
+                PS_limit_ks = hera_data['band' + str(round(band))][field,:,0]
                 PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
                 Nkbins = len(PS_limit_ks)
-                PS_limit_vals = self.data[0]['band' + str(round(band))][field,:Nkbins,1] 
-                PS_limit_vars = self.data[0]['band' + str(round(band))][field,:Nkbins,2]  
+                PS_limit_vals = hera_data['band' + str(round(band))][field,:Nkbins,1] 
+                PS_limit_vars = hera_data['band' + str(round(band))][field,:Nkbins,2]  
 
-                kwf_limit_vals = self.data[0]['kwfband' + str(round(band))]
+                kwf_limit_vals = hera_data['kwfband' + str(round(band))]
                 Nkwfbins = len(kwf_limit_vals)
-                PS_limit_wfcs = self.data[0]['wfband' + str(round(band))][field,:Nkbins,:]
+                PS_limit_wfcs = hera_data['wfband' + str(round(band))][field,:Nkbins,:]
 
                 PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
                 

@@ -12,7 +12,7 @@ import py21cmfast as p21
 import warnings
 from os import path
 from scipy.interpolate import interp1d
-from .emulator import p21cmEMU
+from py21cmemu import Emulator
 from . import _utils as ut
 
 logger = logging.getLogger("21cmFAST")
@@ -1172,7 +1172,8 @@ class Core21cmEMU(CoreBase):
         Cosmological parameters of the simulation model.
     flag_options : dict or :class:`~py21cmfast.FlagOptions`
         Flag options that modify the 21cmFAST model.
-
+    version : str, optional
+        Emulator version to use, defaults to 'latest'.
         .. note:: `user_params`, `cosmo_params` and `flag_options` do not, currently, affect the emulator prediction.
                   They may, however, raise an error, if the parameters provided do not match with the ones used during the emulator training.
     """
@@ -1191,8 +1192,8 @@ class Core21cmEMU(CoreBase):
                        "xHI_err", "delta", "Muv", "lfunc", "uv_lfs_redshifts",
                        "delta_err", "k", "tau_e", "tau_e_err"),
         cache_dir=None,
+        version='latest',
         store=[],
-        emu_path=None,
         *args, **kwargs
     ):
 
@@ -1202,24 +1203,17 @@ class Core21cmEMU(CoreBase):
         #if not hasattr(self.redshift, "__len__"):
         #    self.redshift = [self.redshift]
 
-        if isinstance(astro_params, p21.AstroParams):
-            self.astro_params = astro_params
-        else:
-            self.astro_params = p21.AstroParams(astro_params)
+        if astro_params is not None:
+            if isinstance(astro_params, p21.AstroParams):
+                self.astro_params = astro_params
+            else:
+                self.astro_params = p21.AstroParams(astro_params)
             
         if cosmo_params is not None:
             if isinstance(cosmo_params, p21.CosmoParams):
                 self.cosmo_params = cosmo_params
             else:
-                self.cosmo_params = p21.CosmoParams(cosmo_params)
-        
-            ## Check that given cosmo params match emulator training data cosmo params
-            ## if they do not, raise error and exit
-            emu_cosmo_params = dict(SIGMA_8=0.82, hlittle=0.6774, OMm=0.3075, 
-                                           OMb=0.0486, POWER_INDEX=0.97)
-            for key in emu_cosmo_params.keys():
-                if self.cosmo_params.defining_dict[key] != emu_cosmo_params[key]:
-                    raise ValueError('Input cosmo_params do not match the emulator cosmo_params. The emulator can only be used with a single set of cosmo params:', emu_cosmo_params)
+                self.cosmo_params = p21.CosmoParams(cosmo_params)        
         else:
             self.cosmo_params = p21.CosmoParams(cosmo_params)
                     
@@ -1228,23 +1222,21 @@ class Core21cmEMU(CoreBase):
                 self.flag_options = flag_options
             else:
                 self.flag_options = p21.FlagOptions(flag_options)
-        
-            ## Check that given flag options match emulator training data flag options
-            ## if they do not, raise error and exit
-            for key in self.flag_options.defining_dict.keys():
-                if self.flag_options.defining_dict[key] != False:
-                    raise ValueError('Input cosmo_params do not match the emulator cosmo_params. The emulator can only be used with a single set of cosmo params:', emu_cosmo_params)
-        
-        ## TODO Same as for astro_params but for user params
-        
+     
+        if user_params is not None:
+            if isinstance(user_params, p21.UserParams):
+                self.user_params = user_params
+            else:
+                self.user_params = p21.UserParams(user_params)
 
         self.global_params = global_params or {}
         
-        self.emu_path = emu_path
-        
-        self.io_options = {"store": store, # which summaries to store
+        io_options = {"store": store, # which summaries to store
                            "cache_dir": cache_dir, # where the stored data will be written
                           }
+        self.emulator = Emulator(emu_path=emu_path,
+                                 version=version,
+                                 io_options=io_options)
     
     def _update_params(self, params):
         """
@@ -1284,9 +1276,8 @@ class Core21cmEMU(CoreBase):
         logger.debug(f"CosmoParams: {cosmo_params}")
 
         # Call 21cmEMU wrapper which returns a dict
-        all_summaries = p21cmEMU(emu_path=self.emu_path,
-                                 io_options=self.io_options).predict(
-                                 astro_params=astro_params,    
+        all_summaries = self.emulator.predict(
+                                 astro_params=astro_params, cosmo_params=cosmo_params   
         )
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:

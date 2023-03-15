@@ -21,6 +21,7 @@ dependencies:
   - pip
   - 21cmFAST
   - tensorflow
+  - py21cmemu
   - pip:
     - powerbox
     - cached_property
