@@ -75,6 +75,7 @@ setup(
         "21cmFAST",
         "pymultinest",
         "py21cmemu>=1.0.3",
+        "astropy>=5.2.1",
     ],
     extras_require={
         "samplers": ["pymultinest"],
