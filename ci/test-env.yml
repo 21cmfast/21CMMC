@@ -12,7 +12,6 @@ dependencies:
   - pyyaml
   - cffi>=1.0
   - scipy<1.11
-  - astropy>=5
   - h5py>=2.8.0
   - matplotlib
   - multinest
@@ -26,3 +25,4 @@ dependencies:
     - cached_property
     - pre-commit
     - py21cmemu
+    - astropy>=5.2.1
