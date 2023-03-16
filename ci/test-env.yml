@@ -25,4 +25,4 @@ dependencies:
     - powerbox
     - cached_property
     - pre-commit
-    - 21cmEMU
+    - py21cmemu
