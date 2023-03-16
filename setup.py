@@ -67,7 +67,7 @@ setup(
         "click",
         "numpy",
         "cosmoHammer",
-        "scipy",
+        "scipy<1.11",  # Astropy<5.2.1 breaks for scipy>=1.11. Can remove this later.
         "matplotlib>=2.1",
         "emcee<3",
         "powerbox>=0.5.7",
@@ -75,7 +75,7 @@ setup(
         "21cmFAST",
         "pymultinest",
         "py21cmemu>=1.0.3",
-        "astropy>=5.2.1",
+        "astropy>5",
     ],
     extras_require={
         "samplers": ["pymultinest"],

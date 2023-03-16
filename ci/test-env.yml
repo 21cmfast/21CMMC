@@ -11,8 +11,8 @@ dependencies:
   - numpy
   - pyyaml
   - cffi>=1.0
-  - scipy
-  - astropy>=5.2.1
+  - scipy<1.11
+  - astropy>=5
   - h5py>=2.8.0
   - matplotlib
   - multinest
