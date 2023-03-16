@@ -8,11 +8,12 @@ import copy
 import inspect
 import logging
 import numpy as np
+import py21cmemu as emu
 import py21cmfast as p21
 import warnings
 from os import path
 from scipy.interpolate import interp1d
-from py21cmemu import Emulator
+
 from . import _utils as ut
 
 logger = logging.getLogger("21cmFAST")
@@ -1152,8 +1153,9 @@ class CoreCMB(CoreBase):
                 cl[key] *= T * 1.0e6
         return cl
 
+
 class Core21cmEMU(CoreBase):
-    r"""A Core Module that loads 21cmEMU and uses it to obtain 21cmFAST summaries 
+    r"""A Core Module that loads 21cmEMU and uses it to obtain 21cmFAST summaries.
 
     Notes
     -----
@@ -1164,90 +1166,77 @@ class Core21cmEMU(CoreBase):
     ----------
     redshift : float or array_like
          The redshift(s) at which to evaluate the summary statistics.
-    user_params : dict or :class:`~py21cmfast.UserParams`
-        Parameters affecting the 21cmFAST simulation model 
     astro_params : dict or :class:`~py21cmfast.AstroParams`
         Astrophysical parameters of reionization model according to Park+19 parametrization.
-    cosmo_params : dict or :class:`~py21cmfast.CosmoParams`
-        Cosmological parameters of the simulation model.
-    flag_options : dict or :class:`~py21cmfast.FlagOptions`
-        Flag options that modify the 21cmFAST model.
     version : str, optional
         Emulator version to use, defaults to 'latest'.
-        .. note:: `user_params`, `cosmo_params` and `flag_options` do not, currently, affect the emulator prediction.
-                  They may, however, raise an error, if the parameters provided do not match with the ones used during the emulator training.
     """
+
     def __init__(
         self,
         astro_params=None,
         redshift=None,
         k=None,
-        name = "",
-        user_params=None,
-        flag_options=None,
-        cosmo_params=None,
+        name="",
         global_params=None,
-        ctx_variables=("brightness_temp", "brightness_temp_err",
-                       "spin_temp", "spin_temp_err", "xHI","redshifts", "ps_redshifts",
-                       "xHI_err", "delta", "Muv", "lfunc", "uv_lfs_redshifts",
-                       "delta_err", "k", "tau_e", "tau_e_err"),
+        ctx_variables=(
+            "brightness_temp",
+            "brightness_temp_err",
+            "spin_temp",
+            "spin_temp_err",
+            "xHI",
+            "redshifts",
+            "ps_redshifts",
+            "xHI_err",
+            "delta",
+            "Muv",
+            "lfunc",
+            "uv_lfs_redshifts",
+            "delta_err",
+            "k",
+            "tau_e",
+            "tau_e_err",
+        ),
         cache_dir=None,
-        version='latest',
+        version="latest",
         store=[],
-        *args, **kwargs
+        *args,
+        **kwargs,
     ):
 
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.ctx_variables = ctx_variables
-        #if not hasattr(self.redshift, "__len__"):
-        #    self.redshift = [self.redshift]
 
         if astro_params is not None:
             if isinstance(astro_params, p21.AstroParams):
                 self.astro_params = astro_params
             else:
                 self.astro_params = p21.AstroParams(astro_params)
-            
-        if cosmo_params is not None:
-            if isinstance(cosmo_params, p21.CosmoParams):
-                self.cosmo_params = cosmo_params
-            else:
-                self.cosmo_params = p21.CosmoParams(cosmo_params)        
         else:
-            self.cosmo_params = p21.CosmoParams(cosmo_params)
-                    
-        if flag_options is not None:
-            if isinstance(flag_options, p21.FlagOptions):
-                self.flag_options = flag_options
-            else:
-                self.flag_options = p21.FlagOptions(flag_options)
-     
-        if user_params is not None:
-            if isinstance(user_params, p21.UserParams):
-                self.user_params = user_params
-            else:
-                self.user_params = p21.UserParams(user_params)
+            self.astro_params = p21.AstroParams()
 
+        self.cosmo_params = p21.CosmoParams(emu.emulator.COSMO_PARAMS)
+        self.flag_options = p21.FlagOptions(emu.emulator.FLAG_OPTIONS)
+        self.user_params = p21.UserParams(emu.emulator.USER_PARAMS)
         self.global_params = global_params or {}
-        
-        io_options = {"store": store, # which summaries to store
-                           "cache_dir": cache_dir, # where the stored data will be written
-                          }
-        self.emulator = Emulator(emu_path=emu_path,
-                                 version=version,
-                                 io_options=io_options)
-    
+
+        io_options = {
+            "store": store,  # which summaries to store
+            "cache_dir": cache_dir,  # where the stored data will be written
+        }
+        self.emulator = emu.Emulator(version=version, io_options=io_options)
+
     def _update_params(self, params):
         """
-        Update all the parameter structures which get passed to the driver, for one iteration.
+        Update all the parameter structures which get passed to the driver.
+
         Parameters
         ----------
         params :
             Parameter object from cosmoHammer
         """
         ap_dict = copy.copy(self.astro_params.self)
-        cp_dict = copy.copy(self.cosmo_params.self)
 
         ap_dict.update(
             **{
@@ -1256,34 +1245,21 @@ class Core21cmEMU(CoreBase):
                 if k in self.astro_params.defining_dict
             }
         )
-        cp_dict.update(
-            **{
-                k: getattr(params, k)
-                for k, v in params.items()
-                if k in self.cosmo_params.defining_dict
-            }
-        )
 
-        return p21.AstroParams(**ap_dict), p21.CosmoParams(**cp_dict)
-
+        return p21.AstroParams(**ap_dict)
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
         logger.debug(f"Updating parameters: {ctx.getParams()}")
-        astro_params, cosmo_params = self._update_params(ctx.getParams())
+        astro_params = self._update_params(ctx.getParams())
         logger.debug(f"AstroParams: {astro_params}")
-        logger.debug(f"CosmoParams: {cosmo_params}")
 
         # Call 21cmEMU wrapper which returns a dict
-        all_summaries = self.emulator.predict(
-                                 astro_params=astro_params, cosmo_params=cosmo_params   
-        )
+        all_summaries = self.emulator.predict(astro_params=astro_params)
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
             try:
-                ctx.add(key  + self.name, all_summaries[key])
+                ctx.add(key + self.name, all_summaries[key])
             except AttributeError:
                 raise ValueError(f"ctx_variable {key} not an attribute of Coeval")
-                
-
