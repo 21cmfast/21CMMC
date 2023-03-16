@@ -91,6 +91,10 @@ jobs:
       #     export PATH="$HOME/miniconda/bin:$PATH"
       #     source activate $ENV_NAME
       #     CC=gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+      - name: List Environment
+        run: |
+          conda list
+
       - name: Run Tests
         run: |
           python -m pytest --cov=py21cmmc --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
