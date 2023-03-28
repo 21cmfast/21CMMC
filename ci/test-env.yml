@@ -11,8 +11,7 @@ dependencies:
   - numpy
   - pyyaml
   - cffi>=1.0
-  - scipy
-  - astropy>=2.0
+  - scipy<1.11
   - h5py>=2.8.0
   - matplotlib
   - multinest
@@ -20,7 +19,10 @@ dependencies:
   - zeus-mcmc
   - pip
   - 21cmFAST
+  - tensorflow
   - pip:
     - powerbox
     - cached_property
     - pre-commit
+    - py21cmemu
+    - astropy>=5.2.1

@@ -78,7 +78,7 @@ class HDFStorage:
                 ),
             )
             g.create_dataset(
-                "accepted", (0, nwalkers), maxshape=(None, nwalkers), dtype=np.int
+                "accepted", (0, nwalkers), maxshape=(None, nwalkers), dtype=int
             )
             g.create_dataset(
                 "chain",
