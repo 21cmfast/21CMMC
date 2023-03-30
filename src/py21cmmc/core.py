@@ -1266,7 +1266,7 @@ class Core21cmEMU(CoreBase):
             for t in zip(*astro_params.values):
                 a = dict(zip(astro_params.keys, t))
                 print(a)
-                ap.append(a)
+                ap.append(self._update_params(a))
             astro_params = ap
 
             astro_params = np.array(astro_params, dtype=object)
