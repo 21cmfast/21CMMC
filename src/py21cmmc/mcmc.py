@@ -510,7 +510,7 @@ def run_mcmc(
 
     elif use_ultranest:
 
-        def likelihood(p, ndim, nparams):
+        def likelihood(p):
             if vectorized:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
@@ -528,7 +528,7 @@ def run_mcmc(
                     return -np.inf
 
         def prior(p):
-            for i in range(ndim):
+            for i in range(p.shape[-1]):
                 if vectorized:
                     p[:, i] = params[i][1] + p[:, i] * (params[i][2] - params[i][1])
 
