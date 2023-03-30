@@ -1262,8 +1262,8 @@ class Core21cmEMU(CoreBase):
                     "For vectorized case, all parameters should have the same length."
                 )
             astro_params = [
-                self._update_params(dict(zip(astro_params.keys(), t)))
-                for t in zip(*astro_params.values())
+                self._update_params(dict(zip(astro_params.keys, t)))
+                for t in zip(*astro_params.values)
             ]
             astro_params = np.array(astro_params, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
