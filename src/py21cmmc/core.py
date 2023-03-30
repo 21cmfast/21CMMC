@@ -100,7 +100,6 @@ class ModuleBase:
         args = tuple(set(args))
 
         for arg in args + self._extra_defining_attributes:
-
             if arg == "self" or arg in self._ignore_attributes:
                 continue
 
@@ -670,7 +669,6 @@ class CoreLuminosityFunction(CoreCoevalModule):
             try:
                 lfunc[i] += np.random.normal(loc=0, scale=s(muv), size=len(lfunc[i]))
             except TypeError:
-
                 lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
 
 
@@ -942,7 +940,6 @@ class CoreCMB(CoreBase):
         global_params=None,
         **io_options,
     ):
-
         super().__init__(io_options.get("store", None))
 
         if not use_21cmfast:
@@ -1203,7 +1200,6 @@ class Core21cmEMU(CoreBase):
         *args,
         **kwargs,
     ):
-
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.ctx_variables = ctx_variables
@@ -1265,7 +1261,10 @@ class Core21cmEMU(CoreBase):
             ap = []
             for t in zip(*astro_params.values):
                 a = dict(zip(astro_params.keys, t))
+                print()
                 print(a)
+                print(self._update_params(a))
+                print()
                 ap.append(self._update_params(a))
             astro_params = ap
 
