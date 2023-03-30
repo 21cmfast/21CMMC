@@ -1253,6 +1253,19 @@ class Core21cmEMU(CoreBase):
         # Update parameters
         logger.debug(f"Updating parameters: {ctx.getParams()}")
         astro_params = ctx.getParams()
+        if all([isinstance(v, (int, float)) for v in astro_params.values]):
+            astro_params = self._update_params(astro_params)
+        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values]):
+            lengths = [len(v) for v in astro_params.values]
+            if lengths.count(lengths[0]) != len(lengths):
+                raise ValueError(
+                    "For vectorized case, all parameters should have the same length."
+                )
+            astro_params = [
+                self._update_params(dict(zip(astro_params.keys(), t)))
+                for t in zip(*astro_params.values())
+            ]
+            astro_params = np.array(astro_params, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
 
         # Call 21cmEMU wrapper which returns a dict
