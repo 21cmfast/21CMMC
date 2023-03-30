@@ -1252,7 +1252,7 @@ class Core21cmEMU(CoreBase):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
         logger.debug(f"Updating parameters: {ctx.getParams()}")
-        astro_params = self._update_params(ctx.getParams())
+        astro_params = ctx.getParams()
         logger.debug(f"AstroParams: {astro_params}")
 
         # Call 21cmEMU wrapper which returns a dict
