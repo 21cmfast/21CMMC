@@ -15,6 +15,7 @@ from os import path
 from scipy.interpolate import interp1d
 
 from . import _utils as ut
+from .cosmoHammer import Params
 
 logger = logging.getLogger("21cmFAST")
 
@@ -1263,9 +1264,17 @@ class Core21cmEMU(CoreBase):
                 a = dict(zip(astro_params.keys, t))
                 print()
                 print(a)
-                print(self._update_params(a))
+                print(
+                    self._update_params(
+                        Params(*[(k, v) for k, v in zip(astro_params.keys, t)])
+                    )
+                )
                 print()
-                ap.append(self._update_params(a))
+                ap.append(
+                    self._update_params(
+                        Params(*[(k, v) for k, v in zip(astro_params.keys, t)])
+                    )
+                )
             astro_params = ap
 
             astro_params = np.array(astro_params, dtype=object)
