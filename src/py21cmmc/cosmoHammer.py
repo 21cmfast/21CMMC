@@ -454,7 +454,6 @@ class HDFStorage:
         return tuple(last)
 
     def _check(self, coords, log_prob, blobs, accepted):
-
         self._check_blobs(blobs[0])
         nwalkers, ndim = self.shape
 
@@ -670,7 +669,7 @@ class LikelihoodComputationChain(_Chain):
 
         logger.debug(f"Computing Likelihood for {module.__class__.__name__}...")
         lnl = module.computeLikelihood(model)
-        logger.debug(f"... done computing likelihood (lnl = {lnl:.3e}")
+        logger.debug(f"... done computing likelihood (lnl = {lnl}")
         return lnl
 
     def __call__(self, p):
