@@ -528,7 +528,7 @@ def run_mcmc(
                     return -np.inf
 
         def prior(p):
-            t = np.empty(p.shape, dtype=np.float32)
+            t = np.empty(p.shape, dtype=p.dtype)
             for i in range(p.shape[-1]):
                 if vectorized:
                     t[:, i] = params[i][1] + p[:, i] * (params[i][2] - params[i][1])
