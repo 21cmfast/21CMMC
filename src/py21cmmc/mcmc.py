@@ -528,13 +528,14 @@ def run_mcmc(
                     return -np.inf
 
         def prior(p):
+            t = np.empty(p.shape, dtype=np.float32)
             for i in range(p.shape[-1]):
                 if vectorized:
-                    p[:, i] = params[i][1] + p[:, i] * (params[i][2] - params[i][1])
+                    t[:, i] = params[i][1] + p[:, i] * (params[i][2] - params[i][1])
 
                 else:
-                    p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
-            return p
+                    t[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
+            return t
 
         sampler = ultranest.ReactiveNestedSampler(
             params.keys,
