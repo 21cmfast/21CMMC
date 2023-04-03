@@ -369,6 +369,14 @@ def run_mcmc(
         insertion_test_window = mcmc_options.get("insertion_test_window", 10)
         region_class = mcmc_options.get("region_class", ultranest.mlfriends.MLFriends)
 
+        # logging setup
+        log_level_ultranest = (
+            log_level_21CMMC if log_level_21CMMC is not None else "INFO"
+        )
+        ultranest_logger = logging.getLogger("ultranest")
+        ultranest_logger.addHandler(logging.NullHandler())
+        ultranest_logger.setLevel(log_level_ultranest)
+
     # Setup parameters.
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
