@@ -14,6 +14,7 @@ import warnings
 from hashlib import md5
 from os import path
 from scipy.interpolate import interp1d
+from sklearn.neighbors import KernelDensity
 
 from . import _utils as ut
 
@@ -986,6 +987,7 @@ class CoreForest(CoreLightConeModule):
                     },
                     conditionals={"inversetau_GP": tau_GPs**-1},
                     n_samples=1,
+                    random_state=None, #TODO: maybe fix the seed here?
                     keep_dims=False,
                 ).flatten()**-1
 
@@ -1001,7 +1003,7 @@ class CoreForest(CoreLightConeModule):
                         dtype="float",
                     )
 
-                # add 10% continum uncertainties
+                # add sysmtemaiics
                 tau_hydros -= np.log(
                     np.random.normal(loc=1, scale=self.err_sys, size=tau_hydros.shape)
                 )
@@ -1016,9 +1018,19 @@ class CoreForest(CoreLightConeModule):
                         dtype="float",
                     )
 
-                ctx.add(self.name + "tau_hydro_pdf", pdf)
+                # smooth with a gaussian
+                kde = KernelDensity(kernel="gaussian", bandwidth=self.hist_bin_size).fit(tau_hydros[:, np.newaxis])
+                log_pdf = kde.score_samples(bin_edges[:-1, np.newaxis]+0.5*(bin_edges[1]-bin_edges[0]))
+                with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+                    f.create_dataset(
+                        self.name + "tau_kde_pdf",
+                        data=np.exp(log_pdf),
+                        dtype="float",
+                    )
+
+                ctx.add(self.name + "log_tau_pdf", log_pdf)
             else:
-                ctx.add(self.name + "tau_hydro_pdf", None)
+                ctx.add(self.name + "log_tau_pdf", None)
 
 
 class CoreCMB(CoreBase):
