@@ -560,6 +560,7 @@ class CoreLightConeModule(CoreCoevalModule):
         )
 
         params = ctx.getParams()
+        print(str(params).replace("\n", "").encode())
         filename = md5(str(params).replace("\n", "").encode()).hexdigest()
         if path.exists("output/run_%s.hdf5" % filename):
             i_duplicate = 1
@@ -781,6 +782,10 @@ class CoreForest(CoreLightConeModule):
     bin_size : float
         The redshift bin size for calculating effective optical depth, default is 0.1.
 
+    err_sys : float
+        Systematic error in Lyman alpha transmission in the measurement (e.g. continuum reconstruction).
+        Default is 30%.
+
     Other Parameters
     ----------------
     \*\*kwargs :
@@ -792,11 +797,13 @@ class CoreForest(CoreLightConeModule):
         name="",
         observation="xqr30",
         bin_size=0.1,
+        err_sys=0.3,
         **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
         self.bin_size = bin_size
+        self.err_sys = err_sys
         self.tau_range = [0, 8]
         self.hist_bin_width = 0.1
         self.hist_bin_size = int(
@@ -996,7 +1003,7 @@ class CoreForest(CoreLightConeModule):
 
                 # add 10% continum uncertainties
                 tau_hydros -= np.log(
-                    np.random.normal(loc=1, scale=0.1, size=tau_hydros.shape)
+                    np.random.normal(loc=1, scale=self.err_sys, size=tau_hydros.shape)
                 )
                 n, bin_edges = np.histogram(
                     tau_hydros, bins=self.hist_bin_size, range=self.tau_range

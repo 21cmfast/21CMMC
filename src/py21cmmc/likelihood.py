@@ -1793,7 +1793,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
         tau_lower_bins = np.digitize(self.data[0], bins) - 1
 
-        log_pdf = np.log(np.convolve(pdf, self.kernel, mode="same") * self.hist_bin_width)
+        log_pdf = np.log(np.convolve(pdf, self.kernel, mode="same"))
         log_probs = log_pdf[tau_lower_bins]  # using tau_lower
 
         for i_nodetection in self.data[1]:  # non detection always has the highest P
