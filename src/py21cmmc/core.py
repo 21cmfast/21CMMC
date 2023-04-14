@@ -990,6 +990,7 @@ class CoreForest(CoreLightConeModule):
                     random_state=None, #TODO: maybe fix the seed here?
                     keep_dims=False,
                 ).flatten()**-1
+                tau_hydros[tau_hydros<0] = 0
 
                 n, bin_edges = np.histogram(
                     tau_hydros, bins=self.hist_bin_size, range=self.tau_range
@@ -1007,6 +1008,8 @@ class CoreForest(CoreLightConeModule):
                 tau_hydros -= np.log(
                     np.random.normal(loc=1, scale=self.err_sys, size=tau_hydros.shape)
                 )
+                tau_hydros[tau_hydros<0] = 0
+                tau_hydros[np.isnan(tau_hydros)] = 99
                 n, bin_edges = np.histogram(
                     tau_hydros, bins=self.hist_bin_size, range=self.tau_range
                 )
@@ -1019,18 +1022,18 @@ class CoreForest(CoreLightConeModule):
                     )
 
                 # smooth with a gaussian
-                kde = KernelDensity(kernel="gaussian", bandwidth=self.hist_bin_size).fit(tau_hydros[:, np.newaxis])
-                log_pdf = kde.score_samples(bin_edges[:-1, np.newaxis]+0.5*(bin_edges[1]-bin_edges[0]))
+                kde = KernelDensity(kernel="gaussian", bandwidth=2*self.hist_bin_size).fit(tau_hydros[:, np.newaxis]) !
+                pdf = np.exp(kde.score_samples(bin_edges[:-1, np.newaxis]+0.5*(bin_edges[1]-bin_edges[0])))
                 with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                     f.create_dataset(
                         self.name + "tau_kde_pdf",
-                        data=np.exp(log_pdf),
+                        data=pdf,
                         dtype="float",
                     )
 
-                ctx.add(self.name + "log_tau_pdf", log_pdf)
+                ctx.add(self.name + "kde_tau_pdf", kde)
             else:
-                ctx.add(self.name + "log_tau_pdf", None)
+                ctx.add(self.name + "kde_tau_pdf", None)
 
 
 class CoreCMB(CoreBase):

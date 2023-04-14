@@ -1782,19 +1782,18 @@ class LikelihoodForest(LikelihoodBaseFile):
                 "The Forest can only work with lightcone at the moment"
             )
 
-        np.random.seed(self.core_primary.initial_conditions_seed)
-        log_pdf = ctx.get(self.name + "log_tau_pdf")
+        kde_pdf = ctx.get(self.name + "kde_tau_pdf")
 
-        if log_pdf is None:
+        if kde_pdf is None:
             return {"forest_%s" % self.name: None}
 
-        bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
-        tau_lower_bins = np.digitize(self.data[0], bins) - 1
-
-        log_probs = log_pdf[tau_lower_bins]  # using tau_lower
-
-        for i_nodetection in self.data[1]:  # non detection always has the highest P
-            log_probs[i_nodetection] = np.max(log_pdf[tau_lower_bins[i_nodetection] :])
+        log_probs = kde_pdf.score_samples(self.data[0][:,np.newaxis])
+        if len(self.data[1]) > 0:
+            bins = np.linspace(self.tau_range[0], self.tau_range[1], self.hist_bin_size + 1)
+            tau_lower_bins = np.digitize(self.data[0], bins) - 1
+            log_dens = kde_pdf.score_samples(bins[:-1, np.newaxis]+0.5*(bins[1]-bins[0]))
+            for i_nodetection in self.data[1]:  # non detection always has the highest P
+                log_probs[i_nodetection] = np.max(log_dens[tau_lower_bins[i_nodetection] :])
 
         filename = ctx.get("filename")
         with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
