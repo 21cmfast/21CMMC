@@ -1022,7 +1022,7 @@ class CoreForest(CoreLightConeModule):
                     )
 
                 # smooth with a gaussian
-                kde = KernelDensity(kernel="gaussian", bandwidth=2*self.hist_bin_size).fit(tau_hydros[:, np.newaxis])
+                kde = KernelDensity(kernel="gaussian", bandwidth=2*self.hist_bin_width).fit(tau_hydros[:, np.newaxis])
                 pdf = np.exp(kde.score_samples(bin_edges[:-1, np.newaxis]+0.5*(bin_edges[1]-bin_edges[0])))
                 with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                     f.create_dataset(
