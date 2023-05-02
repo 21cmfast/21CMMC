@@ -787,6 +787,10 @@ class CoreForest(CoreLightConeModule):
         Systematic error in Lyman alpha transmission in the measurement (e.g. continuum reconstruction).
         Default is 30%.
 
+    mean_flux : float
+        The mean flux (usually from observation) used to rescale the modelling results.
+        If provided, log10_f_rescale and f_rescale_slope will be ignored.
+
     Other Parameters
     ----------------
     \*\*kwargs :
@@ -799,12 +803,14 @@ class CoreForest(CoreLightConeModule):
         observation="xqr30",
         bin_size=0.1,
         err_sys=0.3,
+        mean_flux=None,
         **kwargs,
     ):
         self.name = str(name)
         self.observation = str(observation)
         self.bin_size = bin_size
         self.err_sys = err_sys
+        self.mean_flux = mean_flux
         self.tau_range = [0, 8]
         self.hist_bin_width = 0.1
         self.hist_bin_size = int(
@@ -896,6 +902,23 @@ class CoreForest(CoreLightConeModule):
             * residual_xHI
         )
 
+    def find_n_rescale(self, tau, mean_fluxave_target):
+        """Find the rescaling factor so that the mean transmission equal to observations."""
+        # Newton-Raphson method
+        x = 1
+        Ntry = 0
+        while np.abs(np.mean(np.exp(-tau * x)) / mean_fluxave_target - 1) > 1e-2:
+            f_x = np.mean(np.exp(-tau * x)) - mean_fluxave_target
+            f_prime_x = np.min([-1e-10, np.mean(-tau * np.exp(-tau * x))])
+            x -= f_x / f_prime_x
+            if x < 0:
+                x = 0
+            Ntry += 1
+            if Ntry > 1e3:
+                break
+                raise RuntimeError("I've tried too many times...", x, f_x, f_prime_x)
+        return x
+
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         astro_params, cosmo_params = self._update_params(ctx.getParams())
@@ -931,17 +954,6 @@ class CoreForest(CoreLightConeModule):
             ) + lc.global_xH[index - 1] * (self.redshift[0] - lc.node_redshifts[index])
             filling_factor /= lc.node_redshifts[index - 1] - lc.node_redshifts[index]
 
-            if not hasattr(ctx.getParams(), "log10_f_rescale"):
-                f_rescale = 1.0
-            else:
-                f_rescale = 10 ** ctx.getParams().log10_f_rescale
-
-            if hasattr(ctx.getParams(), "f_rescale_slope"):
-                f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
-
-            if f_rescale < 0:
-                f_rescale = 0
-
             gamma_bg = lc.Gamma12_box[:, :, index_left_lc:index_right_lc].reshape(
                 [total_los, index_right_lc - index_left_lc]
             )
@@ -964,6 +976,21 @@ class CoreForest(CoreLightConeModule):
                 temp,
                 lightcone_redshifts[index_left_lc:index_right_lc],
             )
+
+
+            if not self.mean_flux:
+                if not hasattr(ctx.getParams(), "log10_f_rescale"):
+                    f_rescale = 1.0
+                else:
+                    f_rescale = 10 ** ctx.getParams().log10_f_rescale
+
+                if hasattr(ctx.getParams(), "f_rescale_slope"):
+                    f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
+            else:
+                f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
+
+            if f_rescale < 0:
+                f_rescale = 0
 
             tau_GPs = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
             n, bin_edges = np.histogram(
