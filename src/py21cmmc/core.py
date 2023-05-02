@@ -1004,6 +1004,7 @@ class CoreForest(CoreLightConeModule):
                     dtype="float",
                 )
                 dset.attrs["filling_factor"] = filling_factor
+                dset.attrs["f_rescale"] = f_rescale
 
             # hard boundary for the KDE
             if filling_factor <= 0.7:
