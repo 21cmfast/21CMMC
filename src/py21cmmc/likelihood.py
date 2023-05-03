@@ -504,7 +504,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             #  as -0.5 log(sigma^2) term below.
             lnl += -0.5 * np.sum(
                 (m["delta"][mask] - pd(m["k"][mask])) ** 2
-                / (moduncert ** 2 + noise ** 2)
+                / (moduncert**2 + noise**2)
             )
         logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
@@ -525,7 +525,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 ignore_kpar_zero=self.ignore_kpar_zero,
                 ignore_kperp_zero=self.ignore_kperp_zero,
             )
-            data.append({"k": k, "delta": power * k ** 3 / (2 * np.pi ** 2)})
+            data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
 
         return data
 
@@ -672,7 +672,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 ignore_kpar_zero=self.ignore_kpar_zero,
                 ignore_k_zero=self.ignore_k_zero,
             )
-            data.append({"k": k, "delta": power * k ** 3 / (2 * np.pi ** 2)})
+            data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
 
         return data
 

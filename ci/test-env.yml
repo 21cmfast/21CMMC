@@ -1,5 +1,7 @@
+name: tests
 channels:
   - conda-forge
+  - conda-forge/label/cf201901
   - defaults
 dependencies:
   - pytest>=5.0
@@ -15,7 +17,9 @@ dependencies:
   - matplotlib
   - multinest
   - pymultinest
+  - zeus-mcmc
   - pip
+  - 21cmFAST
   - pip:
     - powerbox
     - cached_property

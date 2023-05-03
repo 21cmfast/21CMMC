@@ -17,3 +17,4 @@ v1.0.0dev
 - New likelihood to use Bosman+18 Lyman-alpha forest data (2101.09033)
 - New likelihood to use Planck18 EE PS (2006.16828)
 - Update default LikelihoodPlanck to use Planck18 tau_e derived in 2006.16828
+- Update CoreLuminosityFunction to work with models USE_MINI_HALOS

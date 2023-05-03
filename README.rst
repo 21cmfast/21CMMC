@@ -3,10 +3,10 @@
 ======
 
 .. start-badges
-.. image:: https://travis-ci.org/21cmFAST/21CMMC.svg
-    :target: https://travis-ci.org/21cmFAST/21CMMC
-.. image:: https://coveralls.io/repos/github/21cmfast/21CMMC/badge.svg?branch=master
-    :target: https://coveralls.io/github/21cmfast/21CMMC?branch=master
+.. image:: https://github.com/21cmfast/21CMMC/actions/workflows/test_suite.yaml/badge.svg
+    :target: https://github.com/21cmfast/21CMMC/actions/workflows/test_suite.yaml
+.. image:: https://codecov.io/gh/21cmfast/21CMMC/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/21cmfast/21CMMC
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/ambv/black
 .. image:: https://readthedocs.org/projects/21cmmc/badge/?version=latest
@@ -27,7 +27,15 @@ Features
 
 * Seamless integration with ``emcee``-based MCMC.
 * Supports the ``MultiNest`` sampler.
+* Supports the ``zeus`` sampler.
 * MCMC is easily extensible via the addition of different likelihoods using the same underlying data.
+
+Scalability
+===========
+
+.. image:: docs/multinest_scalability.jpg
+    :width: 866
+This plot shows the number of test models (see details `here <https://github.com/21cmfast/21CMMC/issues/50/#issuecomment-1091391508>`_) performed using the MultiNest sampler as a function of thread number, illustrating an almost ideal scalability where #model per human hour scales linearly with #thread. There are three runs for each thread number, which are indicated by the filled circles with errorbar. The double sided arrows show the relative (w.r.t. the 24-thread case) loss when scaling up the calculation. Note that a typical inference study, working with more complex models and therefore performing much fewer models per human hour, is expected to remain the same level of scalability.
 
 Documentation
 =============
