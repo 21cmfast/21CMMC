@@ -978,33 +978,23 @@ class CoreForest(CoreLightConeModule):
             )
 
 
-            if not self.mean_flux:
-                if not hasattr(ctx.getParams(), "log10_f_rescale"):
-                    f_rescale = 1.0
-                else:
-                    f_rescale = 10 ** ctx.getParams().log10_f_rescale
-
-                if hasattr(ctx.getParams(), "f_rescale_slope"):
-                    f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
-            else:
-                f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
-
-            if f_rescale < 0:
-                f_rescale = 0
-
-            tau_GPs = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
+            tau_GPs = -np.log(np.mean(np.exp(-tau_lyman_alpha), axis=1))
             n, bin_edges = np.histogram(
                 tau_GPs, bins=self.hist_bin_size, range=self.tau_range
             )
             pdf = n / np.array(np.diff(bin_edges), float) / len(tau_GPs)
+        
             with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                 dset = f.create_dataset(
                     self.name + "tau_GP_pdf",
                     data=pdf,
                     dtype="float",
                 )
-                dset.attrs["filling_factor"] = filling_factor
-                dset.attrs["f_rescale"] = f_rescale
+                f.create_dataset(
+                    "filling_factor",
+                    data=[filling_factor,],
+                    dtype="float",
+                )
 
             # hard boundary for the KDE
             if filling_factor <= 0.7:
@@ -1038,6 +1028,29 @@ class CoreForest(CoreLightConeModule):
                 )
                 tau_hydros[tau_hydros<0] = 0
                 tau_hydros[np.isnan(tau_hydros)] = 99
+
+                if not self.mean_flux:
+                    if not hasattr(ctx.getParams(), "log10_f_rescale"):
+                        f_rescale = 1.0
+                    else:
+                        f_rescale = 10 ** ctx.getParams().log10_f_rescale
+
+                    if hasattr(ctx.getParams(), "f_rescale_slope"):
+                        f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
+                else:
+                    f_rescale = self.find_n_rescale(tau_hydros, self.mean_flux)
+
+                if f_rescale < 0:
+                    f_rescale = 0
+
+                f.create_dataset(
+                    "f_rescale",
+                    data=[f_rescale,],
+                    dtype="float",
+                )
+
+                tau_hydros *= f_rescale
+
                 n, bin_edges = np.histogram(
                     tau_hydros, bins=self.hist_bin_size, range=self.tau_range
                 )
