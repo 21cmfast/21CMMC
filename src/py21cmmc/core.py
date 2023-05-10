@@ -986,7 +986,7 @@ class CoreForest(CoreLightConeModule):
             pdf = n / np.array(np.diff(bin_edges), float) / len(tau_GPs)
         
             with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
-                dset = f.create_dataset(
+                f.create_dataset(
                     self.name + "tau_GP_pdf",
                     data=pdf,
                     dtype="float",
@@ -1040,12 +1040,14 @@ class CoreForest(CoreLightConeModule):
                         f_rescale += (self.redshift[0] - 5.7) * ctx.getParams().f_rescale_slope
                 else:
                     if hasattr(self.mean_flux, "__len__"):
-                        _mean_flux = np.random.normal(loc=0, scale=1.0, size=1)
-                        if _mean_flux<0 and len(self.mean_flux) == 3:
-                            _mean_flux *= self.mean_flux[2]
-                        else:
-                            _mean_flux *= self.mean_flux[1]
-                        _mean_flux += self.mean_flux[0]
+                        _mean_flux = -1
+                        while _mean_flux<=0:
+                            _mean_flux = np.random.normal()
+                            if _mean_flux<0 and len(self.mean_flux) == 3:
+                                _mean_flux *= self.mean_flux[2]
+                            else:
+                                _mean_flux *= self.mean_flux[1]
+                            _mean_flux += self.mean_flux[0]
                     else:
                         _mean_flux = self.mean_flux
 
@@ -1055,10 +1057,7 @@ class CoreForest(CoreLightConeModule):
                             data=[_mean_flux,],
                             dtype="float",
                         )
-                        f_rescale = self.find_n_rescale(tau_hydros, _mean_flux)
-
-                if f_rescale < 0:
-                    f_rescale = 0
+                    f_rescale = self.find_n_rescale(tau_hydros, _mean_flux)
 
                 with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                     f.create_dataset(
