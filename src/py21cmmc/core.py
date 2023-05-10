@@ -992,7 +992,7 @@ class CoreForest(CoreLightConeModule):
                     dtype="float",
                 )
                 f.create_dataset(
-                    "filling_factor",
+                    self.name + "filling_factor",
                     data=[filling_factor,],
                     dtype="float",
                 )
@@ -1053,7 +1053,7 @@ class CoreForest(CoreLightConeModule):
 
                     with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                         f.create_dataset(
-                            "mean_flux",
+                            self.name + "mean_flux",
                             data=[_mean_flux,],
                             dtype="float",
                         )
@@ -1061,7 +1061,7 @@ class CoreForest(CoreLightConeModule):
 
                 with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
                     f.create_dataset(
-                        "f_rescale",
+                        self.name + "f_rescale",
                         data=[f_rescale,],
                         dtype="float",
                     )
