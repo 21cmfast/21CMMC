@@ -8,7 +8,6 @@ import copy
 import inspect
 import logging
 import numpy as np
-import py21cmemu as emu
 import py21cmfast as p21
 import warnings
 from os import path
@@ -1180,22 +1179,23 @@ class Core21cmEMU(CoreBase):
         name="",
         global_params=None,
         ctx_variables=(
-            "brightness_temp",
-            "brightness_temp_err",
-            "spin_temp",
-            "spin_temp_err",
+            "Tb",
+            "Tb_err",
+            "Ts",
+            "Ts_err",
             "xHI",
-            "redshifts",
-            "ps_redshifts",
             "xHI_err",
-            "delta",
+            "redshifts",
+            "PS_redshifts",
+            "PS",
+            "PS_err",
             "Muv",
-            "lfunc",
-            "uv_lfs_redshifts",
-            "delta_err",
+            "UVLFs",
+            "UVLFs_err",
+            "UVLF_redshifts",
             "k",
-            "tau_e",
-            "tau_e_err",
+            "tau",
+            "tau_err"
         ),
         cache_dir=None,
         version="latest",
@@ -1207,7 +1207,12 @@ class Core21cmEMU(CoreBase):
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.ctx_variables = ctx_variables
-
+        
+        try:
+            from py21cmemu import Emulator, properties
+        except:
+            print("Could not load py21cmemu. Make sure it is installed properly.")
+            
         if astro_params is not None:
             if isinstance(astro_params, p21.AstroParams):
                 self.astro_params = astro_params
@@ -1216,16 +1221,22 @@ class Core21cmEMU(CoreBase):
         else:
             self.astro_params = p21.AstroParams()
 
-        self.cosmo_params = p21.CosmoParams(emu.emulator.COSMO_PARAMS)
-        self.flag_options = p21.FlagOptions(emu.emulator.FLAG_OPTIONS)
-        self.user_params = p21.UserParams(emu.emulator.USER_PARAMS)
+        self.cosmo_params = p21.CosmoParams(properties.COSMO_PARAMS)
+        self.flag_options = p21.FlagOptions(properties.FLAG_OPTIONS)
+        self.user_params = p21.UserParams(properties.USER_PARAMS)
         self.global_params = global_params or {}
+        if self.io_options is not None:
+            self.io_options.update({
+                "store": store,  # which summaries to store
+                "cache_dir": cache_dir,  # where the stored data will be written
+            })
+        else:
+            self.io_options  = {
+                "store": store,  # which summaries to store
+                "cache_dir": cache_dir,  # where the stored data will be written
+            }
 
-        io_options = {
-            "store": store,  # which summaries to store
-            "cache_dir": cache_dir,  # where the stored data will be written
-        }
-        self.emulator = emu.Emulator(version=version, io_options=io_options)
+        self.emulator = Emulator(version=version)
 
     def _update_params(self, params):
         """
@@ -1256,10 +1267,17 @@ class Core21cmEMU(CoreBase):
         logger.debug(f"AstroParams: {astro_params}")
 
         # Call 21cmEMU wrapper which returns a dict
-        all_summaries = self.emulator.predict(astro_params=astro_params)
+        theta, outputs, errors = self.emulator.predict(astro_params=astro_params.defining_dict)
+        if self.io_options['cache_dir'] is not None:
+            outputs.write(fname = self.io_options['cache_dir'],#Does this include the fname as well?
+                          theta = theta, 
+                          store = self.io_options['store'])
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
             try:
-                ctx.add(key + self.name, all_summaries[key])
+                ctx.add(key + self.name, getattr(outputs, key))
             except AttributeError:
-                raise ValueError(f"ctx_variable {key} not an attribute of Coeval")
+                try:
+                    ctx.add(key + self.name, getattr(errors, key))
+                except:
+                    raise ValueError(f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict.")

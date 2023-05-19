@@ -1541,10 +1541,10 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def reduce_data(self, ctx):
         """Reduce simulated model data."""
         if isinstance(self.paired_core, core.Core21cmEMU):
-            keys = ["lfunc", "Muv"]
             final_data = {}
-            for key in keys:
-                final_data[key] = ctx.get(key)[self.i, :].reshape([1, -1])
+            # Emulator undoes the log10 so we need to redo it here
+            final_data["lfunc"] = np.log10(ctx.get("UVLFs"))[self.i, :].reshape([1, -1])
+            final_data["Muv"] = ctx.get("Muv").reshape([1, -1])
             return final_data
         else:
             lfunc = ctx.get("luminosity_function" + self.name)
@@ -1559,10 +1559,8 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """Compute the likelihood."""
         lnl = 0
         for i, z in enumerate(self.redshifts):
-            # mask to remove possible NaNs returned by p21.wrapper.compute_luminosity_function()
-            mask = ~np.isnan(model["lfunc"][i][::-1])
             model_spline = InterpolatedUnivariateSpline(
-                model["Muv"][i][::-1][mask], model["lfunc"][i][::-1][mask]
+                model["Muv"][i][::-1], model["lfunc"][i][::-1]
             )
 
             lnl += -0.5 * np.sum(
@@ -1959,7 +1957,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         for i in range(self.redshifts.shape[0]):
             interp_ks = self.k[i]
             final_PS[i, : len(interp_ks)] = interp2d(
-                ctx.get("k"), ctx.get("ps_redshifts"), ctx.get("delta")
+                ctx.get("k"), ctx.get("PS_redshifts"), ctx.get("PS")
             )(interp_ks, self.redshifts[i])
         final_data = {
             "k": self.k,
@@ -1971,7 +1969,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
             for i in range(self.redshifts.shape[0]):
                 interp_ks = self.k[i]
                 final_PS_err[i, : len(interp_ks)] = interp2d(
-                    ctx.get("k"), ctx.get("ps_redshifts"), ctx.get("delta_err")
+                    ctx.get("k"), ctx.get("PS_redshifts"), ctx.get("PS_err")
                 )(interp_ks, self.redshifts[i])
             final_data["delta_err"] = final_PS_err
         except:
