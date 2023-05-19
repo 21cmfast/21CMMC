@@ -1225,16 +1225,10 @@ class Core21cmEMU(CoreBase):
         self.flag_options = p21.FlagOptions(properties.FLAG_OPTIONS)
         self.user_params = p21.UserParams(properties.USER_PARAMS)
         self.global_params = global_params or {}
-        if self.io_options is not None:
-            self.io_options.update({
+        self.io_options  = {
                 "store": store,  # which summaries to store
                 "cache_dir": cache_dir,  # where the stored data will be written
-            })
-        else:
-            self.io_options  = {
-                "store": store,  # which summaries to store
-                "cache_dir": cache_dir,  # where the stored data will be written
-            }
+        }
 
         self.emulator = Emulator(version=version)
 
