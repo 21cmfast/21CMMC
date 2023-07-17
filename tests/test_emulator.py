@@ -5,7 +5,7 @@ def test_emulator_install():
 
     import tensorflow as tf
     from py21cmemu.config import CONFIG
-    m = tf.keras.load_model(CONFIG.data_path / '21cmEMU')
+    m = tf.keras.models.load_model(CONFIG.data_path / '21cmEMU')
     #emu = Emulator()
 
 def test_emulator_runs():
