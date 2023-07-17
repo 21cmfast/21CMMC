@@ -11,7 +11,7 @@ def test_emulator_install():
 
     m = tf.keras.models.load_model(CONFIG.data_path / '21cmEMU'/'21cmEMU')
 
-    #emu = Emulator()
+    emu = Emulator()
 
 def test_emulator_runs():
     from py21cmemu import Emulator
