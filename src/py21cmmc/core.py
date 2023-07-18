@@ -1268,7 +1268,7 @@ class Core21cmEMU(CoreBase):
         astro_params = self._update_params(ctx.getParams())
         logger.debug(f"AstroParams: {astro_params}")
         # Take only needed AstroParams
-        input_dict = {k: getattr(astro_params.defining_dict, k)
+        input_dict = {k: getattr(astro_params, k)
                 for k in self.astro_param_keys}
 
         # Call 21cmEMU wrapper which returns a dict
