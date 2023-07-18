@@ -8,6 +8,7 @@ from .core import (
     CoreForest,
     CoreLightConeModule,
     CoreLuminosityFunction,
+    Core21cmEMU,
     NotAChain,
     NotSetupError,
 )
