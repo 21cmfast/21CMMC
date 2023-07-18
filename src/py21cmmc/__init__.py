@@ -25,6 +25,6 @@ from .likelihood import (
     LikelihoodNeutralFraction,
     LikelihoodPlanck,
     LikelihoodPlanckPowerSpectra,
-    Likelihood1DPowerLightconeUpper,
+    Likelihood1DPowerLightconeUpper
 )
 from .mcmc import build_computation_chain, run_mcmc
