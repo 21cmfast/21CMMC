@@ -1283,6 +1283,6 @@ class Core21cmEMU(CoreBase):
                 ctx.add(key + self.name, getattr(outputs, key))
             except AttributeError:
                 try:
-                    ctx.add(key + self.name, getattr(errors, key))
+                    ctx.add(key + self.name, errors[key])
                 except:
                     raise ValueError(f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict.")
