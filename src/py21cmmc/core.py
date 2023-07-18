@@ -1212,7 +1212,15 @@ class Core21cmEMU(CoreBase):
             from py21cmemu import Emulator, properties
         except:
             print("Could not load py21cmemu. Make sure it is installed properly.")
-            
+        self.astro_param_keys = ("F_STAR10",
+                                "ALPHA_STAR",
+                                "F_ESC10",
+                                "ALPHA_ESC",
+                                "M_TURN",
+                                "t_STAR",
+                                "L_X",
+                                "NU_X_THRESH",
+                                "X_RAY_SPEC_INDEX")
         if astro_params is not None:
             if isinstance(astro_params, p21.AstroParams):
                 self.astro_params = astro_params
@@ -1259,9 +1267,12 @@ class Core21cmEMU(CoreBase):
         logger.debug(f"Updating parameters: {ctx.getParams()}")
         astro_params = self._update_params(ctx.getParams())
         logger.debug(f"AstroParams: {astro_params}")
+        # Take only needed AstroParams
+        input_dict = {k: getattr(astro_params.defining_dict, k)
+                for k in self.astro_param_keys}
 
         # Call 21cmEMU wrapper which returns a dict
-        theta, outputs, errors = self.emulator.predict(astro_params=astro_params.defining_dict)
+        theta, outputs, errors = self.emulator.predict(astro_params=input_dict)
         if self.io_options['cache_dir'] is not None:
             outputs.write(fname = self.io_options['cache_dir'],#Does this include the fname as well?
                           theta = theta, 
