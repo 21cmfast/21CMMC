@@ -73,6 +73,7 @@ setup(
         "powerbox>=0.5.7",
         "cached_property",
         "21cmFAST",
+        "py21cmemu>=1.0.8",
         "pymultinest",
     ],
     extras_require={
