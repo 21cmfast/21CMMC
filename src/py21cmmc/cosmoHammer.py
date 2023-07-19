@@ -454,7 +454,6 @@ class HDFStorage:
         return tuple(last)
 
     def _check(self, coords, log_prob, blobs, accepted):
-
         self._check_blobs(blobs[0])
         nwalkers, ndim = self.shape
 

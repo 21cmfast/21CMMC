@@ -94,7 +94,7 @@ jobs:
       - name: List Environment
         run: |
           conda list
-          
+
       - name: Run Tests
         run: |
           python -m pytest --cov=py21cmmc --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25

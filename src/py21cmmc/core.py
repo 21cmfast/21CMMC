@@ -99,7 +99,6 @@ class ModuleBase:
         args = tuple(set(args))
 
         for arg in args + self._extra_defining_attributes:
-
             if arg == "self" or arg in self._ignore_attributes:
                 continue
 
@@ -669,7 +668,6 @@ class CoreLuminosityFunction(CoreCoevalModule):
             try:
                 lfunc[i] += np.random.normal(loc=0, scale=s(muv), size=len(lfunc[i]))
             except TypeError:
-
                 lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
 
 
@@ -941,7 +939,6 @@ class CoreCMB(CoreBase):
         global_params=None,
         **io_options,
     ):
-
         super().__init__(io_options.get("store", None))
 
         if not use_21cmfast:
@@ -1195,7 +1192,7 @@ class Core21cmEMU(CoreBase):
             "UVLF_redshifts",
             "k",
             "tau",
-            "tau_err"
+            "tau_err",
         ),
         cache_dir=None,
         version="latest",
@@ -1203,24 +1200,25 @@ class Core21cmEMU(CoreBase):
         *args,
         **kwargs,
     ):
-
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.ctx_variables = ctx_variables
-        
+
         try:
             from py21cmemu import Emulator, properties
         except:
             print("Could not load py21cmemu. Make sure it is installed properly.")
-        self.astro_param_keys = ("F_STAR10",
-                                "ALPHA_STAR",
-                                "F_ESC10",
-                                "ALPHA_ESC",
-                                "M_TURN",
-                                "t_STAR",
-                                "L_X",
-                                "NU_X_THRESH",
-                                "X_RAY_SPEC_INDEX")
+        self.astro_param_keys = (
+            "F_STAR10",
+            "ALPHA_STAR",
+            "F_ESC10",
+            "ALPHA_ESC",
+            "M_TURN",
+            "t_STAR",
+            "L_X",
+            "NU_X_THRESH",
+            "X_RAY_SPEC_INDEX",
+        )
         if astro_params is not None:
             if isinstance(astro_params, p21.AstroParams):
                 self.astro_params = astro_params
@@ -1233,9 +1231,9 @@ class Core21cmEMU(CoreBase):
         self.flag_options = p21.FlagOptions(properties.FLAG_OPTIONS)
         self.user_params = p21.UserParams(properties.USER_PARAMS)
         self.global_params = global_params or {}
-        self.io_options  = {
-                "store": store,  # which summaries to store
-                "cache_dir": cache_dir,  # where the stored data will be written
+        self.io_options = {
+            "store": store,  # which summaries to store
+            "cache_dir": cache_dir,  # where the stored data will be written
         }
 
         self.emulator = Emulator(version=version)
@@ -1268,17 +1266,18 @@ class Core21cmEMU(CoreBase):
         astro_params = self._update_params(ctx.getParams())
         logger.debug(f"AstroParams: {astro_params}")
         # Take only needed AstroParams
-        input_dict = {k: getattr(astro_params, k)
-                for k in self.astro_param_keys}
+        input_dict = {k: getattr(astro_params, k) for k in self.astro_param_keys}
 
         # Call 21cmEMU wrapper which returns a dict
         theta, outputs, errors = self.emulator.predict(astro_params=input_dict)
-        if self.io_options['cache_dir'] is not None:
-            par_vals = ['{:0.3e}'.format(i) for i in list(input_dict.values())]
-            name = '_'.join(par_vals)
-            outputs.write(fname = self.io_options['cache_dir'] + name,
-                          theta = theta, 
-                          store = self.io_options['store'])
+        if self.io_options["cache_dir"] is not None:
+            par_vals = ["{:0.3e}".format(i) for i in list(input_dict.values())]
+            name = "_".join(par_vals)
+            outputs.write(
+                fname=self.io_options["cache_dir"] + name,
+                theta=theta,
+                store=self.io_options["store"],
+            )
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
             try:
@@ -1287,4 +1286,6 @@ class Core21cmEMU(CoreBase):
                 try:
                     ctx.add(key + self.name, errors[key])
                 except:
-                    raise ValueError(f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict.")
+                    raise ValueError(
+                        f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict."
+                    )

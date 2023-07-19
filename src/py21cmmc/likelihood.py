@@ -1322,7 +1322,6 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
             nf_qso = redshifts.index(self.qso_redshift)
 
         elif len(redshifts) > 2:
-
             # Check the redshift range input by the user to determine whether to
             # interpolate or extrapolate the IGM neutral fraction to the QSO redshift
             if self.qso_redshift < np.min(redshifts):
@@ -1930,9 +1929,9 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     def setup(self):
         """Setup the object."""
         super().setup()
-        self.redshifts = self.data[0]['z_bands']
+        self.redshifts = self.data[0]["z_bands"]
         all_keys = np.array(list(self.data[0].keys()))
-        m = ['kwf' in i for i in all_keys]
+        m = ["kwf" in i for i in all_keys]
         all_kwfs_keys = all_keys[m]
         self.k = [self.data[0][j] for j in all_kwfs_keys]
         self.k_len = max(len(i) for i in self.k)
@@ -1984,7 +1983,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         hera_data = self.data[0]
         all_band_keys = []
         for key in list(hera_data.keys()):
-            if 'band' in key and 'wf' not in key and 'k' not in key:
+            if "band" in key and "wf" not in key and "k" not in key:
                 all_band_keys.append(key)
 
         for band, band_key in zip(self.redshifts, all_band_keys):
@@ -1998,9 +1997,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
 
                 kwf_limit_vals = hera_data["kwf" + band_key]
                 Nkwfbins = len(kwf_limit_vals)
-                PS_limit_wfcs = hera_data["wf" + band_key][
-                    field, :Nkbins, :
-                ]
+                PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
 
                 PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 

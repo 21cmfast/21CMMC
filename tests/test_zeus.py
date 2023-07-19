@@ -6,7 +6,6 @@ from py21cmmc import mcmc
 
 
 def test_zeus():
-
     core = p21mc.CoreCoevalModule(
         redshift=[7, 8, 9],
         user_params=dict(HII_DIM=50, BOX_LEN=125.0),
