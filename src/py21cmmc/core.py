@@ -1274,7 +1274,9 @@ class Core21cmEMU(CoreBase):
         # Call 21cmEMU wrapper which returns a dict
         theta, outputs, errors = self.emulator.predict(astro_params=input_dict)
         if self.io_options['cache_dir'] is not None:
-            outputs.write(fname = self.io_options['cache_dir'],#Does this include the fname as well?
+            par_vals = ['{:0.3e}'.format(i) for i in list(input_dict.values())]
+            name = '_'.join(par_vals)
+            outputs.write(fname = self.io_options['cache_dir'] + name,
                           theta = theta, 
                           store = self.io_options['store'])
         logger.debug(f"Adding {self.ctx_variables} to context data")
