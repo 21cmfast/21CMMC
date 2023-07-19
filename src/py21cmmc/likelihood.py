@@ -1931,7 +1931,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         """Setup the object."""
         super().setup()
         self.redshifts = self.data[0]['z_bands']
-        all_keys = list(self.data[0].keys())
+        all_keys = np.array(list(self.data[0].keys()))
         m = ['kwf' in i for i in all_keys]
         all_kwfs_keys = all_keys[m]
         self.k = [self.data[0][j] for j in all_kwfs_keys]
