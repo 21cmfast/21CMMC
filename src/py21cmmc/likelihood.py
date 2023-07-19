@@ -14,7 +14,7 @@ from . import core
 
 loaded_cliks = {}
 logger = logging.getLogger("21cmFAST")
-logger.setLevel(logging.DEBUG)
+
 np.seterr(invalid="ignore", divide="ignore")
 
 
@@ -1431,7 +1431,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     required_cores = ((core.CoreLuminosityFunction, core.Core21cmEMU),)
 
-    def __init__(self, *args, name="", mag_brightest=-20.0, z=None, **kwargs):
+    def __init__(self, *args, name="", mag_brightest=-20.0, z_idx=None, **kwargs):
         super().__init__(*args, **kwargs)
         if self.datafile is not None and len(self.datafile) != 1:
             raise ValueError(
@@ -1442,18 +1442,18 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 "can only pass a single noisefile to LikelihoodLuminosityFunction!"
             )
         # This argument is for the emulator to know which z bin this likelihood is for.
-        self.z = z
+        self.z_idx = z_idx
         self.name = str(name)
         self.mag_brightest = mag_brightest
 
     def setup(self):
         """Setup instance."""
         if isinstance(self.paired_core, core.Core21cmEMU):
-            if self.z is None:
+            if self.z_idx is None:
                 raise ValueError(
                     "Must specify which z bin out of [6, 7, 8, 10] the likelihood is comparing to the data."
                 )
-            self.i = np.argmin(abs(np.array([6, 7, 8, 10]) - int(self.z)))
+            self.i = np.argmin(abs(np.array([6, 7, 8, 10]) - int(self.z_idx)))
 
         if not self._simulate:
             if self.datafile is None:
@@ -1531,10 +1531,10 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def redshifts(self):
         """Redshifts at which luminosity function is defined."""
         if isinstance(self.paired_core, core.Core21cmEMU):
-            if hasattr(self.z, "__len__"):
-                return self.z
+            if hasattr(self.z_idx, "__len__"):
+                return self.z_idx
             else:
-                return np.array([self.z])
+                return np.array([self.z_idx])
         else:
             return self.paired_core.redshift
 
@@ -1912,27 +1912,11 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         datafile="",
         data=None,
         name="",
-        redshifts=np.array([10.37213048, 7.92876298]),
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.name = name
-        self.redshifts = redshifts
-
-        if not hasattr(self.redshifts, "__len__"):
-            self.redshifts = np.array([self.redshifts])
-        if len(self.redshifts) > 2:
-            raise ValueError(
-                "The HERA H1C data only contains two redshift bands. You supplied %s redshift bands."
-                % str(len(self.redshifts))
-            )
-        for i in self.redshifts:
-            if np.min(abs(i - np.array([10.37213048, 7.92876298]))) > 1:
-                raise ValueError(
-                    "The upper limit likelihood can only be evaluated for models with redshifts around those of HERA i.e. around 10.87 and 7.92. You supplied redshifts: %f"
-                    % i
-                )
 
         self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
 
@@ -1946,8 +1930,11 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     def setup(self):
         """Setup the object."""
         super().setup()
-
-        self.k = [self.data[0]["kwfband10"], self.data[0]["kwfband8"]]
+        self.redshifts = self.data[0]['z_bands']
+        all_keys = list(self.data[0].keys())
+        m = ['kwf' in i for i in all_keys]
+        all_kwfs_keys = all_keys[m]
+        self.k = [self.data[0][j] for j in all_kwfs_keys]
         self.k_len = max(len(i) for i in self.k)
 
     def reduce_data(self, ctx):
@@ -1990,22 +1977,28 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         -------
         lnl : float
             Log likelihood for the provided model.
-            Data shape = 5 fields, 37 kbins, 4 = [kval, power, variance],
+            For H1C: Data shape = 5 fields, 37 kbins, 4 = [kval, power, variance],
             2 (band1=10 band2=8)
         """
         lnl = 0
         hera_data = self.data[0]
-        for band in self.redshifts:
-            for field in range(hera_data["band8"].shape[0]):
-                PS_limit_ks = hera_data["band" + str(round(band))][field, :, 0]
+        all_band_keys = []
+        for key in list(hera_data.keys()):
+            if 'band' in key and 'wf' not in key and 'k' not in key:
+                all_band_keys.append(key)
+
+        for band, band_key in zip(self.redshifts, all_band_keys):
+            nfields = hera_data[band_key].shape[0]
+            for field in range(nfields):
+                PS_limit_ks = hera_data[band_key][field, :, 0]
                 PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
                 Nkbins = len(PS_limit_ks)
-                PS_limit_vals = hera_data["band" + str(round(band))][field, :Nkbins, 1]
-                PS_limit_vars = hera_data["band" + str(round(band))][field, :Nkbins, 2]
+                PS_limit_vals = hera_data[band_key][field, :Nkbins, 1]
+                PS_limit_vars = hera_data[band_key][field, :Nkbins, 2]
 
-                kwf_limit_vals = hera_data["kwfband" + str(round(band))]
+                kwf_limit_vals = hera_data["kwf" + band_key]
                 Nkwfbins = len(kwf_limit_vals)
-                PS_limit_wfcs = hera_data["wfband" + str(round(band))][
+                PS_limit_wfcs = hera_data["wf" + band_key][
                     field, :Nkbins, :
                 ]
 
