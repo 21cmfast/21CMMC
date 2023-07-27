@@ -93,7 +93,6 @@ def test_multinest_samples(astro_params, prior):
 
 
 def test_multinest():
-
     model_name = "LuminosityLikelihood"
     redshifts = [6, 7, 8, 10]
     F_STAR10 = [-1.3, -3, 0, 1.0]
