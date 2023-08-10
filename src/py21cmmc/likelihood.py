@@ -664,36 +664,43 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
-        brightness_temp = ctx.get("lightcone")
-        data = []
-        chunk_indices = list(
-            range(
-                0,
-                brightness_temp.n_slices,
-                round(brightness_temp.n_slices / self.nchunks),
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            all_zs = ctx.get("PS_redshifts")
+            for z in self.redshift:
+                z_idx = np.argmin(abs(z - all_zs))
+                k = ctx.get("k")
+                data.append({"k": k, "delta": ctx.get("PS")[z_idx,:] * k**3 / (2 * np.pi**2)})
+        else:
+            brightness_temp = ctx.get("lightcone")
+            data = []
+            chunk_indices = list(
+                range(
+                    0,
+                    brightness_temp.n_slices,
+                    round(brightness_temp.n_slices / self.nchunks),
+                )
             )
-        )
 
-        if len(chunk_indices) > self.nchunks:
-            chunk_indices = chunk_indices[:-1]
+            if len(chunk_indices) > self.nchunks:
+                chunk_indices = chunk_indices[:-1]
 
-        chunk_indices.append(brightness_temp.n_slices)
+            chunk_indices.append(brightness_temp.n_slices)
 
-        for i in range(self.nchunks):
-            start = chunk_indices[i]
-            end = chunk_indices[i + 1]
-            chunklen = (end - start) * brightness_temp.cell_size
+            for i in range(self.nchunks):
+                start = chunk_indices[i]
+                end = chunk_indices[i + 1]
+                chunklen = (end - start) * brightness_temp.cell_size
 
-            power, k = self.compute_power(
-                brightness_temp.brightness_temp[:, :, start:end],
-                (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
-                self.n_psbins,
-                log_bins=self.logk,
-                ignore_kperp_zero=self.ignore_kperp_zero,
-                ignore_kpar_zero=self.ignore_kpar_zero,
-                ignore_k_zero=self.ignore_k_zero,
-            )
-            data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
+                power, k = self.compute_power(
+                    brightness_temp.brightness_temp[:, :, start:end],
+                    (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
+                    self.n_psbins,
+                    log_bins=self.logk,
+                    ignore_kperp_zero=self.ignore_kperp_zero,
+                    ignore_kpar_zero=self.ignore_kpar_zero,
+                    ignore_k_zero=self.ignore_k_zero,
+                )
+                data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
 
         return data
 
@@ -702,6 +709,21 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         # add the power to the written data
         for i, m in enumerate(model):
             storage.update({k + "_%s" % i: v for k, v in m.items()})
+    
+    @cached_property
+    def paired_core(self):
+        """The PS core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if (isinstance(c, core.CoreLightConeModule) and c.name == self.name) or (
+                isinstance(c, core.Core21cmEMU) and c.name == self.name
+            ):
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreLightConeModule / Core21cmEMU with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
 
 
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
