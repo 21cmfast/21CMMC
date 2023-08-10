@@ -7,7 +7,7 @@ from os import path, rename
 from pathlib import Path
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
-from scipy.interpolate import InterpolatedUnivariateSpline, interp1d, interp2d
+from scipy.interpolate import InterpolatedUnivariateSpline, interp1d, RectBivariateSpline
 from scipy.special import erf
 
 from . import core
@@ -335,7 +335,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     method.
     """
 
-    required_cores = (core.CoreCoevalModule,)
+    required_cores = ((core.CoreCoevalModule, core.Core21cmEMU),)
 
     def __init__(
         self,
@@ -533,20 +533,29 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift)."""
-        brightness_temp = ctx.get("brightness_temp")
-        data = []
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            all_zs = ctx.get("PS_redshifts")
+            for z in self.redshift:
+                z_idx = np.argmin(abs(z - all_zs))
+                k = ctx.get("k")
+                data.append({"k": k, 
+                             "delta": ctx.get("PS")[z_idx,:] * k**3 / (2 * np.pi**2),
+                             "delta_err": ctx.get("PS_err")[z_idx,:]})
+        else:
+            brightness_temp = ctx.get("brightness_temp")
+            data = []
 
-        for bt in brightness_temp:
-            power, k = self.compute_power(
-                bt,
-                self.user_params.BOX_LEN,
-                self.n_psbins,
-                log_bins=self.logk,
-                ignore_k_zero=self.ignore_k_zero,
-                ignore_kpar_zero=self.ignore_kpar_zero,
-                ignore_kperp_zero=self.ignore_kperp_zero,
-            )
-            data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
+            for bt in brightness_temp:
+                power, k = self.compute_power(
+                    bt,
+                    self.user_params.BOX_LEN,
+                    self.n_psbins,
+                    log_bins=self.logk,
+                    ignore_k_zero=self.ignore_k_zero,
+                    ignore_kpar_zero=self.ignore_kpar_zero,
+                    ignore_kperp_zero=self.ignore_kperp_zero,
+                )
+                data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
 
         return data
 
@@ -559,6 +568,21 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         # add the power to the written data
         for i, m in enumerate(model):
             storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
+    
+    @cached_property
+    def paired_core(self):
+        """The PS core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if (isinstance(c, core.CoreCoevalModule) and c.name == self.name) or (
+                isinstance(c, core.Core21cmEMU) and c.name == self.name
+            ):
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
 
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
@@ -1964,9 +1988,9 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         final_PS = np.zeros((len(self.redshifts), self.k_len))
         for i in range(self.redshifts.shape[0]):
             interp_ks = self.k[i]
-            final_PS[i, : len(interp_ks)] = interp2d(
-                ctx.get("k"), ctx.get("PS_redshifts"), ctx.get("PS")
-            )(interp_ks, self.redshifts[i])
+            final_PS[i, : len(interp_ks)] = RectBivariateSpline(
+                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+            )(self.redshifts[i], interp_ks)
         final_data = {
             "k": self.k,
             "delta": final_PS,
@@ -1976,9 +2000,9 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
             final_PS_err = np.zeros((len(self.redshifts), self.k_len))
             for i in range(self.redshifts.shape[0]):
                 interp_ks = self.k[i]
-                final_PS_err[i, : len(interp_ks)] = interp2d(
-                    ctx.get("k"), ctx.get("PS_redshifts"), ctx.get("PS_err")
-                )(interp_ks, self.redshifts[i])
+                final_PS_err[i, : len(interp_ks)] = RectBivariateSpline(
+                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
+                )(self.redshifts[i], interp_ks)
             final_data["delta_err"] = final_PS_err
         except:
             pass
