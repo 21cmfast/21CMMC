@@ -337,6 +337,7 @@ class CoreCoevalModule(CoreBase):
         if not hasattr(self.redshift, "__len__"):
             self.redshift = [self.redshift]
 
+        self.name = name
         self.user_params = p21.UserParams(user_params)
         self.flag_options = p21.FlagOptions(flag_options)
         self.astro_params = p21.AstroParams(astro_params)
