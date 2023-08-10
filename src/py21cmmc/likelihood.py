@@ -352,6 +352,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         ignore_kperp_zero=True,
         ignore_kpar_zero=False,
         ignore_k_zero=False,
+        name="",
         *args,
         **kwargs,
     ):
@@ -376,6 +377,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         self.ignore_k_zero = ignore_k_zero
         self.ignore_kperp_zero = ignore_kperp_zero
         self.ignore_kpar_zero = ignore_kpar_zero
+        self.name = name
 
     def _check_data_format(self):
         for i, d in enumerate(self.data):
