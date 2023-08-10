@@ -324,6 +324,7 @@ class CoreCoevalModule(CoreBase):
         astro_params=None,
         cosmo_params=None,
         regenerate=True,
+        name="",
         change_seed_every_iter=False,
         ctx_variables=("brightness_temp", "xH_box"),
         initial_conditions_seed=None,
