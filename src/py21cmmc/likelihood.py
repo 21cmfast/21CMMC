@@ -693,7 +693,12 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             for z in self.redshift:
                 z_idx = np.argmin(abs(z - all_zs))
                 k = ctx.get("k")
-                data.append({"k": k, "delta": ctx.get("PS")[z_idx,:] * k**3 / (2 * np.pi**2)})
+                data.append(
+                    {
+                        "k": k,
+                        "delta": ctx.get("PS")[z_idx, :] * k**3 / (2 * np.pi**2),
+                    }
+                )
         else:
             brightness_temp = ctx.get("lightcone")
             data = []
@@ -733,7 +738,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         # add the power to the written data
         for i, m in enumerate(model):
             storage.update({k + "_%s" % i: v for k, v in m.items()})
-    
+
     @cached_property
     def paired_core(self):
         """The PS core that is paired with this likelihood."""
