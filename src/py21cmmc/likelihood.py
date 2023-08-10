@@ -7,7 +7,11 @@ from os import path, rename
 from pathlib import Path
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
-from scipy.interpolate import InterpolatedUnivariateSpline, interp1d, RectBivariateSpline
+from scipy.interpolate import (
+    InterpolatedUnivariateSpline,
+    RectBivariateSpline,
+    interp1d,
+)
 from scipy.special import erf
 
 from . import core
@@ -538,9 +542,13 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             for z in self.redshift:
                 z_idx = np.argmin(abs(z - all_zs))
                 k = ctx.get("k")
-                data.append({"k": k, 
-                             "delta": ctx.get("PS")[z_idx,:] * k**3 / (2 * np.pi**2),
-                             "delta_err": ctx.get("PS_err")[z_idx,:]})
+                data.append(
+                    {
+                        "k": k,
+                        "delta": ctx.get("PS")[z_idx, :] * k**3 / (2 * np.pi**2),
+                        "delta_err": ctx.get("PS_err")[z_idx, :],
+                    }
+                )
         else:
             brightness_temp = ctx.get("brightness_temp")
             data = []
@@ -568,7 +576,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         # add the power to the written data
         for i, m in enumerate(model):
             storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
-    
+
     @cached_property
     def paired_core(self):
         """The PS core that is paired with this likelihood."""
