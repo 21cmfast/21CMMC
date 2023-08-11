@@ -794,7 +794,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
             # Interpolate the data onto the HERA bands and ks
-            if len(ctx.get("delta").shape) > 2:
+            if len(ctx.get("PS").shape) > 2:
                 for j in range(ctx.get("delta").shape[0]):
                     tmp_data = []
                     for i in range(self.redshift.shape[0]):
