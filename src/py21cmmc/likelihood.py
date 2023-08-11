@@ -524,7 +524,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 if "band" in key and "wf" not in key and "k" not in key:
                     all_band_keys.append(key)
 
-            for band, band_key in zip(self.redshifts, all_band_keys):
+            for band, band_key in zip(self.redshift, all_band_keys):
                 nfields = hera_data[band_key].shape[0]
                 for field in range(nfields):
                     PS_limit_ks = hera_data[band_key][field, :, 0]
@@ -539,7 +539,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
                     PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
-                    model_zs = self.redshifts
+                    model_zs = self.redshift
                     zbin = np.argmin(abs(band - model_zs))
                     ModelPS_val = model[0]["delta"][zbin, :Nkwfbins]
 
