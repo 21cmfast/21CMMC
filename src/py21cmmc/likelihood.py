@@ -577,17 +577,15 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                                 PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
                             )
                         if N > 1:
-                            lnl[i] += (
-                                -0.5
-                                * np.sum((ModelPS_val_afterWF - PS_limit_vals) ** 2
-                                / (error_val**2))
+                            lnl[i] += -0.5 * np.sum(
+                                (ModelPS_val_afterWF - PS_limit_vals) ** 2
+                                / (error_val**2)
                             )
 
                         else:
-                            lnl += (
-                                -0.5
-                                * np.sum((ModelPS_val_afterWF - PS_limit_vals) ** 2
-                                / (error_val**2))
+                            lnl += -0.5 * np.sum(
+                                (ModelPS_val_afterWF - PS_limit_vals) ** 2
+                                / (error_val**2)
                             )
         else:
             lnl = 0
