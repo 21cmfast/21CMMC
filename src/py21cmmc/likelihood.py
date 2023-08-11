@@ -517,7 +517,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             :meth:'reduce_data`.
         """
         if isinstance(self.paired_core, core.Core21cmEMU):
-            N = model[0]['delta'].shape[0]
+            N = model[0]["delta"].shape[0]
             if N > 1:
                 lnl = np.zeros(N)
             else:
@@ -560,8 +560,10 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                             # The upper and lower errors are very similar usually, so we can just take the mean and use that.
                             mean_err = np.mean(
                                 [
-                                    ModelPS_val_1sigma_upper_afterWF - ModelPS_val_afterWF,
-                                    ModelPS_val_afterWF - ModelPS_val_1sigma_lower_afterWF,
+                                    ModelPS_val_1sigma_upper_afterWF
+                                    - ModelPS_val_afterWF,
+                                    ModelPS_val_afterWF
+                                    - ModelPS_val_1sigma_lower_afterWF,
                                 ],
                                 axis=0,
                             )
@@ -2101,12 +2103,14 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         """Get the computed core data in nice form."""
         # Interpolate the data onto the HERA bands and ks
         if len(ctx.get("delta").shape) > 2:
-            final_PS = np.zeros((ctx.get("delta").shape[0],len(self.redshifts), self.k_len))
+            final_PS = np.zeros(
+                (ctx.get("delta").shape[0], len(self.redshifts), self.k_len)
+            )
             for j in range(ctx.get("delta").shape[0]):
                 for i in range(self.redshifts.shape[0]):
                     interp_ks = self.k[i]
-                    final_PS[j,i, : len(interp_ks)] = RectBivariateSpline(
-                        ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")[j,...]
+                    final_PS[j, i, : len(interp_ks)] = RectBivariateSpline(
+                        ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")[j, ...]
                     )(self.redshifts[i], interp_ks)
             final_data = {
                 "k": self.k,
@@ -2154,7 +2158,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
             For H1C: Data shape = 5 fields, 37 kbins, 4 = [kval, power, variance],
             2 (band1=10 band2=8)
         """
-        N = model[0]['delta'].shape[0]
+        N = model[0]["delta"].shape[0]
         if N > 1:
             lnl = np.zeros(N)
         else:
@@ -2166,8 +2170,12 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                     PS_limit_ks = hera_data["band" + str(round(band))][field, :, 0]
                     PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
                     Nkbins = len(PS_limit_ks)
-                    PS_limit_vals = hera_data["band" + str(round(band))][field, :Nkbins, 1]
-                    PS_limit_vars = hera_data["band" + str(round(band))][field, :Nkbins, 2]
+                    PS_limit_vals = hera_data["band" + str(round(band))][
+                        field, :Nkbins, 1
+                    ]
+                    PS_limit_vars = hera_data["band" + str(round(band))][
+                        field, :Nkbins, 2
+                    ]
 
                     kwf_limit_vals = hera_data["kwfband" + str(round(band))]
                     Nkwfbins = len(kwf_limit_vals)
@@ -2179,7 +2187,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
 
                     model_zs = self.redshifts
                     zbin = np.argmin(abs(band - model_zs))
-                    ModelPS_val = model[0]["delta"][i,zbin, :Nkwfbins]
+                    ModelPS_val = model[0]["delta"][i, zbin, :Nkwfbins]
 
                     ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
                     # Include emulator error term if present
