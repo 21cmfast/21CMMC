@@ -755,8 +755,8 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         """The PS core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-            if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or 
-            (isinstance(c, core.CoreLightConeModule) and c.name == self.name
+            if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or (
+            isinstance(c, core.CoreLightConeModule) and c.name == self.name
             ):
                 paired.append(c)
         if len(paired) > 1:
