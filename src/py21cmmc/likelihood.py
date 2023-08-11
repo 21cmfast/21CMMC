@@ -750,6 +750,22 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         for i, m in enumerate(model):
             storage.update({k + "_%s" % i: v for k, v in m.items()})
 
+    @cached_property
+    def paired_core(self):
+        """The PS core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or 
+            (isinstance(c, core.CoreLightConeModule) and c.name == self.name
+            ):
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
+
+
 
 
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
