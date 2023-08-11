@@ -524,11 +524,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 if "band" in key and "wf" not in key and "k" not in key:
                     all_band_keys.append(key)
 
-<<<<<<< HEAD
             for i, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
-=======
-            for i, band, band_key in enumerate(zip(self.redshift, all_band_keys)):
->>>>>>> 5f504ee2287281c1e1d1d91cdfb2716c4b2d4b67
                 nfields = hera_data[band_key].shape[0]
                 for field in range(nfields):
                     PS_limit_ks = hera_data[band_key][field, :, 0]
