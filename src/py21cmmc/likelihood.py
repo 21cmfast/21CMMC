@@ -832,7 +832,6 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                     )
                 data.append(tmp_data)
 
-
         else:
             brightness_temp = ctx.get("lightcone")
             data = []
