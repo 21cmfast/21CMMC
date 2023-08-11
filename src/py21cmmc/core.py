@@ -479,7 +479,7 @@ class CoreLightConeModule(CoreCoevalModule):
     * ``lightcone``: a :class:`~py21cmfast.LightCone` instance.
     """
 
-    def __init__(self, *, name ="", max_redshift=None, **kwargs):
+    def __init__(self, *, name="", max_redshift=None, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn(
                 "ctx_variables does not apply to the lightcone module (at least not yet). It will "
