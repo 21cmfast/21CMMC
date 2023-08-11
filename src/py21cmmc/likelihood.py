@@ -524,7 +524,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 if "band" in key and "wf" not in key and "k" not in key:
                     all_band_keys.append(key)
 
-            for band, band_key in zip(self.redshift, all_band_keys):
+            for i,band, band_key in enumerate(zip(self.redshift, all_band_keys)):
                 nfields = hera_data[band_key].shape[0]
                 for field in range(nfields):
                     PS_limit_ks = hera_data[band_key][field, :, 0]
@@ -541,18 +541,18 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
                     model_zs = self.redshift
                     zbin = np.argmin(abs(band - model_zs))
-                    ModelPS_val = model[0]["delta"][zbin, :Nkwfbins]
+                    ModelPS_val = model[i]["delta"][zbin, :Nkwfbins]
 
                     ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
                     # Include emulator error term if present
-                    if "delta_err" in model[0].keys():
+                    if "delta_err" in model[i].keys():
                         ModelPS_val_1sigma_upper_afterWF = np.dot(
                             PS_limit_wfcs,
-                            ModelPS_val + model[0]["delta_err"][zbin, :Nkwfbins],
+                            ModelPS_val + model[i]["delta_err"][zbin, :Nkwfbins],
                         )
                         ModelPS_val_1sigma_lower_afterWF = np.dot(
                             PS_limit_wfcs,
-                            ModelPS_val - model[0]["delta_err"][zbin, :Nkwfbins],
+                            ModelPS_val - model[i]["delta_err"][zbin, :Nkwfbins],
                         )
                         # The upper and lower errors are very similar usually, so we can just take the mean and use that.
                         mean_err = np.mean(
@@ -779,6 +779,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
+        data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
             # Interpolate the data onto the HERA bands and ks
             final_PS = np.zeros((len(self.redshift), self.k_len))
@@ -787,17 +788,15 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 final_PS[i, : len(interp_ks)] = RectBivariateSpline(
                     ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
                 )(self.redshift[i], interp_ks)
-            data = {
-                "k": self.k,
-                "delta": final_PS,
-            }
-            final_PS_err = np.zeros((len(self.redshift), self.k_len))
-            for i in range(self.redshift.shape[0]):
-                interp_ks = self.k[i]
-                final_PS_err[i, : len(interp_ks)] = RectBivariateSpline(
+                data.append({
+                    "k": self.k,
+                    "delta": RectBivariateSpline(
+                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+                )(self.redshift[i], interp_ks),
+                    "delta_err": RectBivariateSpline(
                     ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
                 )(self.redshift[i], interp_ks)
-            data["delta_err"] = final_PS_err
+                })
 
         else:
             brightness_temp = ctx.get("lightcone")
@@ -837,7 +836,10 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         """Store the model into backend storage."""
         # add the power to the written data
         for i, m in enumerate(model):
-            storage.update({k + "_%s" % i: v for k, v in m.items()})
+            if isinstance(self.paired_core, core.Core21cmEMU):
+                storage.update({k + "_%s" % i: v for k, v in m.items()})
+            else:
+                storage.update({k + "_%s" % i: v for k, v in m.items()})
 
     @cached_property
     def paired_core(self):
