@@ -819,16 +819,20 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             else:
                 for i in range(self.redshift.shape[0]):
                     interp_ks = self.k[i]
-                    data.append([
-                        {
-                            "k": interp_ks,
-                            "delta": RectBivariateSpline(
-                                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-                            )(self.redshift[i], interp_ks)[0],
-                            "delta_err": RectBivariateSpline(
-                                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
-                            )(self.redshift[i], interp_ks)[0],
-                        }]
+                    data.append(
+                        [
+                            {
+                                "k": interp_ks,
+                                "delta": RectBivariateSpline(
+                                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+                                )(self.redshift[i], interp_ks)[0],
+                                "delta_err": RectBivariateSpline(
+                                    ctx.get("PS_redshifts"),
+                                    ctx.get("k"),
+                                    ctx.get("PS_err"),
+                                )(self.redshift[i], interp_ks)[0],
+                            }
+                        ]
                     )
 
         else:
