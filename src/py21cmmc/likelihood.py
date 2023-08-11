@@ -517,64 +517,75 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             :meth:'reduce_data`.
         """
         if isinstance(self.paired_core, core.Core21cmEMU):
-            lnl = 0
+            N = model[0]['delta'].shape[0]
+            if N > 1:
+                lnl = np.zeros(N)
+            else:
+                lnl = 0
             hera_data = self.data[0]
-            all_band_keys = []
-            for key in list(hera_data.keys()):
-                if "band" in key and "wf" not in key and "k" not in key:
-                    all_band_keys.append(key)
+            for i in range(N):
+                all_band_keys = []
+                for key in list(hera_data.keys()):
+                    if "band" in key and "wf" not in key and "k" not in key:
+                        all_band_keys.append(key)
 
-            for i, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
-                nfields = hera_data[band_key].shape[0]
-                for field in range(nfields):
-                    PS_limit_ks = hera_data[band_key][field, :, 0]
-                    PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
-                    Nkbins = len(PS_limit_ks)
-                    PS_limit_vals = hera_data[band_key][field, :Nkbins, 1]
-                    PS_limit_vars = hera_data[band_key][field, :Nkbins, 2]
+                for i, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
+                    nfields = hera_data[band_key].shape[0]
+                    for field in range(nfields):
+                        PS_limit_ks = hera_data[band_key][field, :, 0]
+                        PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
+                        Nkbins = len(PS_limit_ks)
+                        PS_limit_vals = hera_data[band_key][field, :Nkbins, 1]
+                        PS_limit_vars = hera_data[band_key][field, :Nkbins, 2]
 
-                    kwf_limit_vals = hera_data["kwf" + band_key]
-                    Nkwfbins = len(kwf_limit_vals)
-                    PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
+                        kwf_limit_vals = hera_data["kwf" + band_key]
+                        Nkwfbins = len(kwf_limit_vals)
+                        PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
 
-                    PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
+                        PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
-                    ModelPS_val = model[i]["delta"][:Nkwfbins]
+                        ModelPS_val = model[i]["delta"][:Nkwfbins]
 
-                    ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
-                    # Include emulator error term if present
-                    if "delta_err" in model[i].keys():
-                        ModelPS_val_1sigma_upper_afterWF = np.dot(
-                            PS_limit_wfcs,
-                            ModelPS_val + model[i]["delta_err"][:Nkwfbins],
-                        )
-                        ModelPS_val_1sigma_lower_afterWF = np.dot(
-                            PS_limit_wfcs,
-                            ModelPS_val - model[i]["delta_err"][:Nkwfbins],
-                        )
-                        # The upper and lower errors are very similar usually, so we can just take the mean and use that.
-                        mean_err = np.mean(
-                            [
-                                ModelPS_val_1sigma_upper_afterWF - ModelPS_val_afterWF,
-                                ModelPS_val_afterWF - ModelPS_val_1sigma_lower_afterWF,
-                            ],
-                            axis=0,
-                        )
-                        error_val = np.sqrt(
-                            PS_limit_vars
-                            + (0.2 * ModelPS_val_afterWF) ** 2
-                            + (mean_err) ** 2
-                        )
-                    else:
-                        error_val = np.sqrt(
-                            PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
-                        )
-
-                    lnl += (
-                        -0.5
-                        * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2
-                        / (error_val**2)
-                    )
+                        ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
+                        # Include emulator error term if present
+                        if "delta_err" in model[i].keys():
+                            ModelPS_val_1sigma_upper_afterWF = np.dot(
+                                PS_limit_wfcs,
+                                ModelPS_val + model[i]["delta_err"][:Nkwfbins],
+                            )
+                            ModelPS_val_1sigma_lower_afterWF = np.dot(
+                                PS_limit_wfcs,
+                                ModelPS_val - model[i]["delta_err"][:Nkwfbins],
+                            )
+                            # The upper and lower errors are very similar usually, so we can just take the mean and use that.
+                            mean_err = np.mean(
+                                [
+                                    ModelPS_val_1sigma_upper_afterWF - ModelPS_val_afterWF,
+                                    ModelPS_val_afterWF - ModelPS_val_1sigma_lower_afterWF,
+                                ],
+                                axis=0,
+                            )
+                            error_val = np.sqrt(
+                                PS_limit_vars
+                                + (0.2 * ModelPS_val_afterWF) ** 2
+                                + (mean_err) ** 2
+                            )
+                        else:
+                            error_val = np.sqrt(
+                                PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
+                            )
+                        if N > 1:
+                            lnl[i] += (
+                                -0.5
+                                * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2
+                                / (error_val**2)
+                            )
+                        else:
+                            lnl += (
+                                -0.5
+                                * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2
+                                / (error_val**2)
+                            )
         else:
             lnl = 0
             noise = 0
@@ -2089,16 +2100,30 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     def reduce_data(self, ctx):
         """Get the computed core data in nice form."""
         # Interpolate the data onto the HERA bands and ks
-        final_PS = np.zeros((len(self.redshifts), self.k_len))
-        for i in range(self.redshifts.shape[0]):
-            interp_ks = self.k[i]
-            final_PS[i, : len(interp_ks)] = RectBivariateSpline(
-                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-            )(self.redshifts[i], interp_ks)
-        final_data = {
-            "k": self.k,
-            "delta": final_PS,
-        }
+        if len(ctx.get("delta").shape) > 2:
+            final_PS = np.zeros((ctx.get("delta").shape[0],len(self.redshifts), self.k_len))
+            for j in range(ctx.get("delta").shape[0]):
+                for i in range(self.redshifts.shape[0]):
+                    interp_ks = self.k[i]
+                    final_PS[j,i, : len(interp_ks)] = RectBivariateSpline(
+                        ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")[j,...]
+                    )(self.redshifts[i], interp_ks)
+            final_data = {
+                "k": self.k,
+                "delta": final_PS,
+            }
+        else:
+            final_PS = np.zeros((1, len(self.redshifts), self.k_len))
+            for i in range(self.redshifts.shape[0]):
+                interp_ks = self.k[i]
+                final_PS[0, i, : len(interp_ks)] = RectBivariateSpline(
+                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+                )(self.redshifts[i], interp_ks)
+            final_data = {
+                "k": self.k,
+                "delta": final_PS,
+            }
+
         # If we are using the emualtor, include the error.
         try:
             final_PS_err = np.zeros((len(self.redshifts), self.k_len))
@@ -2129,71 +2154,76 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
             For H1C: Data shape = 5 fields, 37 kbins, 4 = [kval, power, variance],
             2 (band1=10 band2=8)
         """
-        lnl = 0
+        N = model[0]['delta'].shape[0]
+        if N > 1:
+            lnl = np.zeros(N)
+        else:
+            lnl = 0
         hera_data = self.data[0]
-        all_band_keys = []
-        for key in list(hera_data.keys()):
-            if "band" in key and "wf" not in key and "k" not in key:
-                all_band_keys.append(key)
+        for i in range(N):
+            for band in self.redshifts:
+                for field in range(hera_data["band" + str(round(band))].shape[0]):
+                    PS_limit_ks = hera_data["band" + str(round(band))][field, :, 0]
+                    PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
+                    Nkbins = len(PS_limit_ks)
+                    PS_limit_vals = hera_data["band" + str(round(band))][field, :Nkbins, 1]
+                    PS_limit_vars = hera_data["band" + str(round(band))][field, :Nkbins, 2]
 
-        for band, band_key in zip(self.redshifts, all_band_keys):
-            nfields = hera_data[band_key].shape[0]
-            for field in range(nfields):
-                PS_limit_ks = hera_data[band_key][field, :, 0]
-                PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
-                Nkbins = len(PS_limit_ks)
-                PS_limit_vals = hera_data[band_key][field, :Nkbins, 1]
-                PS_limit_vars = hera_data[band_key][field, :Nkbins, 2]
+                    kwf_limit_vals = hera_data["kwfband" + str(round(band))]
+                    Nkwfbins = len(kwf_limit_vals)
+                    PS_limit_wfcs = hera_data["wfband" + str(round(band))][
+                        field, :Nkbins, :
+                    ]
 
-                kwf_limit_vals = hera_data["kwf" + band_key]
-                Nkwfbins = len(kwf_limit_vals)
-                PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
+                    PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
-                PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
+                    model_zs = self.redshifts
+                    zbin = np.argmin(abs(band - model_zs))
+                    ModelPS_val = model[0]["delta"][i,zbin, :Nkwfbins]
 
-                model_zs = self.redshifts
-                zbin = np.argmin(abs(band - model_zs))
-                ModelPS_val = model[0]["delta"][zbin, :Nkwfbins]
+                    ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
+                    # Include emulator error term if present
+                    if "delta_err" in model[0].keys():
+                        ModelPS_val_1sigma_upper_afterWF = np.dot(
+                            PS_limit_wfcs,
+                            ModelPS_val + model[0]["delta_err"][zbin, :Nkwfbins],
+                        )
+                        ModelPS_val_1sigma_lower_afterWF = np.dot(
+                            PS_limit_wfcs,
+                            ModelPS_val - model[0]["delta_err"][zbin, :Nkwfbins],
+                        )
+                        # The upper and lower errors are very similar usually, so we can just take the mean and use that.
+                        mean_err = np.mean(
+                            [
+                                ModelPS_val_1sigma_upper_afterWF - ModelPS_val_afterWF,
+                                ModelPS_val_afterWF - ModelPS_val_1sigma_lower_afterWF,
+                            ],
+                            axis=0,
+                        )
 
-                ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
-                # Include emulator error term if present
-                if "delta_err" in model[0].keys():
-                    ModelPS_val_1sigma_upper_afterWF = np.dot(
-                        PS_limit_wfcs,
-                        ModelPS_val + model[0]["delta_err"][zbin, :Nkwfbins],
-                    )
-                    ModelPS_val_1sigma_lower_afterWF = np.dot(
-                        PS_limit_wfcs,
-                        ModelPS_val - model[0]["delta_err"][zbin, :Nkwfbins],
-                    )
-                    # The upper and lower errors are very similar usually, so we can just take the mean and use that.
-                    mean_err = np.mean(
-                        [
-                            ModelPS_val_1sigma_upper_afterWF - ModelPS_val_afterWF,
-                            ModelPS_val_afterWF - ModelPS_val_1sigma_lower_afterWF,
-                        ],
-                        axis=0,
-                    )
-                    error_val = np.sqrt(
-                        PS_limit_vars
-                        + (0.2 * ModelPS_val_afterWF) ** 2
-                        + (mean_err) ** 2
-                    )
-                else:
-                    error_val = np.sqrt(
-                        PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
-                    )
+                        error_val = np.sqrt(
+                            PS_limit_vars
+                            + (0.2 * ModelPS_val_afterWF) ** 2
+                            + (mean_err) ** 2
+                        )
+                    else:
+                        error_val = np.sqrt(
+                            PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
+                        )
 
-                likelihood = 0.5 + 0.5 * erf(
-                    (PS_limit_vals - ModelPS_val_afterWF) / (np.sqrt(2) * error_val)
-                )  # another way to write likelihood for 1-side Gaussian
-                likelihood[likelihood <= 0.0] = 1e-50
-                lnl += np.nansum(np.log(likelihood))
-                logger.debug(
-                    "HERA PS upper Likelihood computed: {lnl}".format(
-                        lnl=np.nansum(np.log(likelihood))
+                    likelihood = 0.5 + 0.5 * erf(
+                        (PS_limit_vals - ModelPS_val_afterWF) / (np.sqrt(2) * error_val)
+                    )  # another way to write likelihood for 1-side Gaussian
+                    likelihood[likelihood <= 0.0] = 1e-50
+                    if N > 1:
+                        lnl[i] += np.nansum(np.log(likelihood))
+                    else:
+                        lnl += np.nansum(np.log(likelihood))
+                    logger.debug(
+                        "HERA PS upper Likelihood computed: {lnl}".format(
+                            lnl=np.nansum(np.log(likelihood))
+                        )
                     )
-                )
         logger.debug("Total HERA PS upper Likelihood computed: {lnl}".format(lnl=lnl))
         return lnl
 
