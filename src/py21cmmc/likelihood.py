@@ -774,6 +774,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
+        data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
             all_zs = ctx.get("PS_redshifts")
             for z in self.redshift:
@@ -793,7 +794,6 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 )
         else:
             brightness_temp = ctx.get("lightcone")
-            data = []
             chunk_indices = list(
                 range(
                     0,
