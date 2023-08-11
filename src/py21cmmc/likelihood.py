@@ -524,7 +524,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 if "band" in key and "wf" not in key and "k" not in key:
                     all_band_keys.append(key)
 
-            for i,band, band_key in enumerate(zip(self.redshift, all_band_keys)):
+            for i, band, band_key in enumerate(zip(self.redshift, all_band_keys)):
                 nfields = hera_data[band_key].shape[0]
                 for field in range(nfields):
                     PS_limit_ks = hera_data[band_key][field, :, 0]
@@ -788,15 +788,17 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 final_PS[i, : len(interp_ks)] = RectBivariateSpline(
                     ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
                 )(self.redshift[i], interp_ks)
-                data.append({
-                    "k": self.k,
-                    "delta": RectBivariateSpline(
-                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-                )(self.redshift[i], interp_ks),
-                    "delta_err": RectBivariateSpline(
-                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
-                )(self.redshift[i], interp_ks)
-                })
+                data.append(
+                    {
+                        "k": self.k,
+                        "delta": RectBivariateSpline(
+                            ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+                        )(self.redshift[i], interp_ks),
+                        "delta_err": RectBivariateSpline(
+                            ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
+                        )(self.redshift[i], interp_ks),
+                    }
+                )
 
         else:
             brightness_temp = ctx.get("lightcone")
