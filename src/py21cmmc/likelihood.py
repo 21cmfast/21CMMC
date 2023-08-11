@@ -502,7 +502,10 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     @property
     def redshift(self):
         """The redshifts of coeval simulations."""
-        return self.core_primary.redshift
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            return self.data[0]["z_bands"]
+        else:
+            return self.core_primary.redshift
 
     def computeLikelihood(self, model):
         """Compute the likelihood given a model.
@@ -1959,8 +1962,6 @@ class LikelihoodForest(LikelihoodBaseFile):
             raise ValueError(
                 "You've got more than one CoreForest with the same name -- they will overwrite each other!"
             )
-        if len(paired) == 0:
-            paired.append(self.core_primary)
         return paired[0]
 
     @property

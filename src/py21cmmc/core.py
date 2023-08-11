@@ -704,11 +704,11 @@ class CoreForest(CoreLightConeModule):
         mean_flux=None,
         **kwargs,
     ):
-        self.name = str(name)
         self.observation = str(observation)
         self.n_realization = n_realization
         self.mean_flux = mean_flux
         super().__init__(**kwargs)
+        self.name = str(name)
 
         if (
             self.observation == "bosman_optimistic"
