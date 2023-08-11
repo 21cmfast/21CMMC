@@ -795,7 +795,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         if isinstance(self.paired_core, core.Core21cmEMU):
             # Interpolate the data onto the HERA bands and ks
             if len(ctx.get("PS").shape) > 2:
-                for j in range(ctx.get("delta").shape[0]):
+                for j in range(ctx.get("PS").shape[0]):
                     tmp_data = []
                     for i in range(self.redshift.shape[0]):
                         interp_ks = self.k[i]
@@ -819,7 +819,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             else:
                 for i in range(self.redshift.shape[0]):
                     interp_ks = self.k[i]
-                    data.append(
+                    data.append([
                         {
                             "k": interp_ks,
                             "delta": RectBivariateSpline(
@@ -828,7 +828,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                             "delta_err": RectBivariateSpline(
                                 ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
                             )(self.redshift[i], interp_ks)[0],
-                        }
+                        }]
                     )
 
         else:
