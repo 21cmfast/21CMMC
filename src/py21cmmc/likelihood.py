@@ -539,7 +539,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
                     PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
-                    model_zs = self.redshift
                     ModelPS_val = model[i]["delta"][:Nkwfbins]
 
                     ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
@@ -781,21 +780,17 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
             # Interpolate the data onto the HERA bands and ks
-            final_PS = np.zeros((len(self.redshift), self.k_len))
             for i in range(self.redshift.shape[0]):
                 interp_ks = self.k[i]
-                final_PS[i, : len(interp_ks)] = RectBivariateSpline(
-                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-                )(self.redshift[i], interp_ks)
                 data.append(
                     {
                         "k": self.k,
                         "delta": RectBivariateSpline(
                             ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-                        )(self.redshift[i], interp_ks),
+                        )(self.redshift[i], interp_ks)[0],
                         "delta_err": RectBivariateSpline(
                             ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
-                        )(self.redshift[i], interp_ks),
+                        )(self.redshift[i], interp_ks)[0],
                     }
                 )
 
