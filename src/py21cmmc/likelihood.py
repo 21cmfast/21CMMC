@@ -517,7 +517,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             :meth:'reduce_data`.
         """
         if isinstance(self.paired_core, core.Core21cmEMU):
-            N = model[0]['delta'].shape[0]
+            N = len(model)
             if N > 1:
                 lnl = np.zeros(N)
             else:
@@ -529,7 +529,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                     if "band" in key and "wf" not in key and "k" not in key:
                         all_band_keys.append(key)
 
-                for i, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
+                for j, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
                     nfields = hera_data[band_key].shape[0]
                     for field in range(nfields):
                         PS_limit_ks = hera_data[band_key][field, :, 0]
@@ -544,18 +544,18 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
                         PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
-                        ModelPS_val = model[i]["delta"][:Nkwfbins]
+                        ModelPS_val = model[i][j]["delta"][:Nkwfbins]
 
                         ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
                         # Include emulator error term if present
-                        if "delta_err" in model[i].keys():
+                        if "delta_err" in model[i][j].keys():
                             ModelPS_val_1sigma_upper_afterWF = np.dot(
                                 PS_limit_wfcs,
-                                ModelPS_val + model[i]["delta_err"][:Nkwfbins],
+                                ModelPS_val + model[i][j]["delta_err"][:Nkwfbins],
                             )
                             ModelPS_val_1sigma_lower_afterWF = np.dot(
                                 PS_limit_wfcs,
-                                ModelPS_val - model[i]["delta_err"][:Nkwfbins],
+                                ModelPS_val - model[i][j]["delta_err"][:Nkwfbins],
                             )
                             # The upper and lower errors are very similar usually, so we can just take the mean and use that.
                             mean_err = np.mean(
@@ -575,11 +575,8 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                                 PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
                             )
                         if N > 1:
-                            lnl[i] += (
-                                -0.5
-                                * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2
-                                / (error_val**2)
-                            )
+                            lnl[i] += -0.5 * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2 / (error_val**2)
+                            
                         else:
                             lnl += (
                                 -0.5
@@ -791,19 +788,35 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
             # Interpolate the data onto the HERA bands and ks
-            for i in range(self.redshift.shape[0]):
-                interp_ks = self.k[i]
-                data.append(
-                    {
-                        "k": self.k,
-                        "delta": RectBivariateSpline(
-                            ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+            if len(ctx.get("delta").shape) > 2:
+                for j in range(ctx.get("delta").shape[0]):
+                    tmp_data = []
+                    for i in range(self.redshift.shape[0]):
+                        interp_ks = self.k[i]
+                        tmp_data.append({
+                            "k": interp_ks,
+                            "delta": RectBivariateSpline(
+                            ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")[j,...]
                         )(self.redshift[i], interp_ks)[0],
-                        "delta_err": RectBivariateSpline(
-                            ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
-                        )(self.redshift[i], interp_ks)[0],
-                    }
-                )
+                        "delta_err":RectBivariateSpline(
+                                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
+                            )(self.redshift[i], interp_ks)[0]})
+                    data.append(tmp_data)
+
+            else:
+                for i in range(self.redshift.shape[0]):
+                    interp_ks = self.k[i]
+                    data.append(
+                        {
+                            "k": interp_ks,
+                            "delta": RectBivariateSpline(
+                                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+                            )(self.redshift[i], interp_ks)[0],
+                            "delta_err": RectBivariateSpline(
+                                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
+                            )(self.redshift[i], interp_ks)[0],
+                        }
+                    )
 
         else:
             brightness_temp = ctx.get("lightcone")
@@ -844,7 +857,9 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         # add the power to the written data
         for i, m in enumerate(model):
             if isinstance(self.paired_core, core.Core21cmEMU):
-                storage.update({k + "_%s" % i: v for k, v in m.items()})
+                if isinstance(m, list):
+                    for j, n in enumerate(m):
+                        storage.update({k + "_%s" % j: v for k, v in n.items()})
             else:
                 storage.update({k + "_%s" % i: v for k, v in m.items()})
 
@@ -2100,9 +2115,9 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     def reduce_data(self, ctx):
         """Get the computed core data in nice form."""
         # Interpolate the data onto the HERA bands and ks
-        if len(ctx.get("delta").shape) > 2:
-            final_PS = np.zeros((ctx.get("delta").shape[0],len(self.redshifts), self.k_len))
-            for j in range(ctx.get("delta").shape[0]):
+        if len(ctx.get("PS").shape) > 2:
+            final_PS = np.zeros((ctx.get("PS").shape[0],len(self.redshifts), self.k_len))
+            for j in range(ctx.get("PS").shape[0]):
                 for i in range(self.redshifts.shape[0]):
                     interp_ks = self.k[i]
                     final_PS[j,i, : len(interp_ks)] = RectBivariateSpline(
