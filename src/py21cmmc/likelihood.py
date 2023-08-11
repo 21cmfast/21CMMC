@@ -543,7 +543,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                         PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
 
                         PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
-
+                        print(len(model), len(model[i]), model[i][j]["delta"].shape)
                         ModelPS_val = model[i][j]["delta"][:Nkwfbins]
 
                         ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
