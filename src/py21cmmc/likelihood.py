@@ -646,7 +646,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             if isinstance(c, core.Core21cmEMU) and c.name == self.name:
                 paired.append(c)
             else:
-                if isinstance(c, core.CoreCoevalModule):
+                if isinstance(c, core.CoreCoevalModule) or isinstance(c, core.CoreCoevalModule):
                     paired.append(c)
         if len(paired) > 1:
             raise ValueError(
@@ -837,6 +837,8 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             raise ValueError(
                 "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
             )
+        if len(paired) == 0:
+            paired = [self.core_primary]
         return paired[0]
 
 
