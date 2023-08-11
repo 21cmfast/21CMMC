@@ -513,26 +513,86 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             A list of dictionaries, one for each redshift. Exactly the output of
             :meth:'reduce_data`.
         """
-        lnl = 0
-        noise = 0
-        for i, (m, pd) in enumerate(zip(model, self.data_spline)):
-            mask = np.logical_and(m["k"] <= self.max_k, m["k"] >= self.min_k)
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            lnl = 0
+            hera_data = self.data[0]
+            all_band_keys = []
+            for key in list(hera_data.keys()):
+                if "band" in key and "wf" not in key and "k" not in key:
+                    all_band_keys.append(key)
 
-            moduncert = (
-                self.model_uncertainty * pd(m["k"][mask])
-                if not self.error_on_model
-                else self.model_uncertainty * m["delta"][mask]
-            )
+            for band, band_key in zip(self.redshifts, all_band_keys):
+                nfields = hera_data[band_key].shape[0]
+                for field in range(nfields):
+                    PS_limit_ks = hera_data[band_key][field, :, 0]
+                    PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
+                    Nkbins = len(PS_limit_ks)
+                    PS_limit_vals = hera_data[band_key][field, :Nkbins, 1]
+                    PS_limit_vars = hera_data[band_key][field, :Nkbins, 2]
 
-            if self.noise_spline:
-                noise = self.noise_spline[i](m["k"][mask])
+                    kwf_limit_vals = hera_data["kwf" + band_key]
+                    Nkwfbins = len(kwf_limit_vals)
+                    PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
 
-            # TODO: if moduncert depends on model, not data, then it should appear
-            #  as -0.5 log(sigma^2) term below.
-            lnl += -0.5 * np.sum(
-                (m["delta"][mask] - pd(m["k"][mask])) ** 2
-                / (moduncert**2 + noise**2)
-            )
+                    PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
+
+                    model_zs = self.redshifts
+                    zbin = np.argmin(abs(band - model_zs))
+                    ModelPS_val = model[0]["delta"][zbin, :Nkwfbins]
+
+                    ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
+                    # Include emulator error term if present
+                    if "delta_err" in model[0].keys():
+                        ModelPS_val_1sigma_upper_afterWF = np.dot(
+                            PS_limit_wfcs,
+                            ModelPS_val + model[0]["delta_err"][zbin, :Nkwfbins],
+                        )
+                        ModelPS_val_1sigma_lower_afterWF = np.dot(
+                            PS_limit_wfcs,
+                            ModelPS_val - model[0]["delta_err"][zbin, :Nkwfbins],
+                        )
+                        # The upper and lower errors are very similar usually, so we can just take the mean and use that.
+                        mean_err = np.mean(
+                            [
+                                ModelPS_val_1sigma_upper_afterWF - ModelPS_val_afterWF,
+                                ModelPS_val_afterWF - ModelPS_val_1sigma_lower_afterWF,
+                            ],
+                            axis=0,
+                        )
+                        error_val = np.sqrt(
+                            PS_limit_vars
+                            + (0.2 * ModelPS_val_afterWF) ** 2
+                            + (mean_err) ** 2
+                        )
+                    else:
+                        error_val = np.sqrt(
+                            PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
+                        )
+
+                    lnl += -0.5 * np.sum(
+                    (ModelPS_val_afterWF - PS_limit_vals)) ** 2
+                    / (error_val ** 2)
+        else:
+            lnl = 0
+            noise = 0
+            for i, (m, pd) in enumerate(zip(model, self.data_spline)):
+                mask = np.logical_and(m["k"] <= self.max_k, m["k"] >= self.min_k)
+
+                moduncert = (
+                    self.model_uncertainty * pd(m["k"][mask])
+                    if not self.error_on_model
+                    else self.model_uncertainty * m["delta"][mask]
+                )
+
+                if self.noise_spline:
+                    noise = self.noise_spline[i](m["k"][mask])
+
+                # TODO: if moduncert depends on model, not data, then it should appear
+                #  as -0.5 log(sigma^2) term below.
+                lnl += -0.5 * np.sum(
+                    (m["delta"][mask] - pd(m["k"][mask])) ** 2
+                    / (moduncert**2 + noise**2)
+                )
         logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
         return lnl
@@ -605,9 +665,17 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     required_cores = ((core.CoreLightConeModule, core.Core21cmEMU),)
 
-    def __init__(self, *args, nchunks=1, **kwargs):
+    def __init__(self, *args, datafile = "", nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
         self.nchunks = nchunks
+        self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
+
+    @classmethod
+    def from_builtin_data(cls, datafile="", **kwargs):
+        """Create the class loading in built-in data."""
+        datafile = path.join(path.dirname(__file__), "data", datafile + ".npz")
+
+        return cls(datafile=datafile, **kwargs)
 
     def setup(self):
         """Perform post-init setup."""
@@ -702,12 +770,19 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         if isinstance(self.paired_core, core.Core21cmEMU):
             all_zs = ctx.get("PS_redshifts")
             for z in self.redshift:
-                z_idx = np.argmin(abs(z - all_zs))
                 k = ctx.get("k")
+                interped = RectBivariateSpline(
+                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+            )(z, k)
+                interped_err = RectBivariateSpline(
+                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
+            )(z, k)
                 data.append(
                     {
                         "k": k,
-                        "delta": ctx.get("PS")[z_idx, :] * k**3 / (2 * np.pi**2),
+                        "delta": interped * k**3 / (2 * np.pi**2),
+                        "delta_err": interped_err * k**3 / (2 * np.pi**2)
+
                     }
                 )
         else:
@@ -755,13 +830,8 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         """The PS core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-<<<<<<< HEAD
             if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or (
             isinstance(c, core.CoreLightConeModule) and c.name == self.name
-=======
-            if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or
-            (isinstance(c, core.CoreLightConeModule) and c.name == self.name
->>>>>>> 831e3ebfd8f15c410c8e321cf5c4471d13261e9a
             ):
                 paired.append(c)
         if len(paired) > 1:
