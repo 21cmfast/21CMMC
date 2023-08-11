@@ -569,8 +569,11 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                             PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
                         )
 
-                    lnl += -0.5 * np.sum(
-                    (ModelPS_val_afterWF - PS_limit_vals)) ** 2 / (error_val ** 2)
+                    lnl += (
+                        -0.5
+                        * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2
+                        / (error_val**2)
+                    )
         else:
             lnl = 0
             noise = 0
@@ -664,7 +667,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     required_cores = ((core.CoreLightConeModule, core.Core21cmEMU),)
 
-    def __init__(self, *args, datafile = "", nchunks=1, **kwargs):
+    def __init__(self, *args, datafile="", nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
         self.nchunks = nchunks
         self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
@@ -771,17 +774,16 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             for z in self.redshift:
                 k = ctx.get("k")
                 interped = RectBivariateSpline(
-                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-            )(z, k)
+                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+                )(z, k)
                 interped_err = RectBivariateSpline(
-                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
-            )(z, k)
+                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
+                )(z, k)
                 data.append(
                     {
                         "k": k,
                         "delta": interped * k**3 / (2 * np.pi**2),
-                        "delta_err": interped_err * k**3 / (2 * np.pi**2)
-
+                        "delta_err": interped_err * k**3 / (2 * np.pi**2),
                     }
                 )
         else:
@@ -830,7 +832,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         paired = []
         for c in self._cores:
             if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or (
-            isinstance(c, core.CoreLightConeModule) and c.name == self.name
+                isinstance(c, core.CoreLightConeModule) and c.name == self.name
             ):
                 paired.append(c)
         if len(paired) > 1:
@@ -840,7 +842,6 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         if len(paired) == 0:
             paired = [self.core_primary]
         return paired[0]
-
 
 
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
