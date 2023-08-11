@@ -540,19 +540,18 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                     PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
                     model_zs = self.redshift
-                    zbin = np.argmin(abs(band - model_zs))
-                    ModelPS_val = model[i]["delta"][zbin, :Nkwfbins]
+                    ModelPS_val = model[i]["delta"][:Nkwfbins]
 
                     ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
                     # Include emulator error term if present
                     if "delta_err" in model[i].keys():
                         ModelPS_val_1sigma_upper_afterWF = np.dot(
                             PS_limit_wfcs,
-                            ModelPS_val + model[i]["delta_err"][zbin, :Nkwfbins],
+                            ModelPS_val + model[i]["delta_err"][:Nkwfbins],
                         )
                         ModelPS_val_1sigma_lower_afterWF = np.dot(
                             PS_limit_wfcs,
-                            ModelPS_val - model[i]["delta_err"][zbin, :Nkwfbins],
+                            ModelPS_val - model[i]["delta_err"][:Nkwfbins],
                         )
                         # The upper and lower errors are very similar usually, so we can just take the mean and use that.
                         mean_err = np.mean(
