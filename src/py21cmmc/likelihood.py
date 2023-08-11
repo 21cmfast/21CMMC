@@ -649,7 +649,9 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             if isinstance(c, core.Core21cmEMU) and c.name == self.name:
                 paired.append(c)
             else:
-                if isinstance(c, core.CoreCoevalModule) or isinstance(c, core.CoreCoevalModule):
+                if isinstance(c, core.CoreCoevalModule) or isinstance(
+                    c, core.CoreCoevalModule
+                ):
                     paired.append(c)
         if len(paired) > 1:
             raise ValueError(
