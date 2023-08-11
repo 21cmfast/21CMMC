@@ -641,6 +641,24 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         for i, m in enumerate(model):
             storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
 
+    @cached_property
+    def paired_core(self):
+        """The PS core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if isinstance(c, core.Core21cmEMU) and c.name == self.name:
+                paired.append(c)
+            else:
+                if isinstance(c, core.CoreCoevalModule) or isinstance(
+                    c, core.CoreCoevalModule
+                ):
+                    paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
+
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     """
@@ -1941,6 +1959,8 @@ class LikelihoodForest(LikelihoodBaseFile):
             raise ValueError(
                 "You've got more than one CoreForest with the same name -- they will overwrite each other!"
             )
+        if len(paired) == 0:
+            paired.append(self.core_primary)
         return paired[0]
 
     @property
