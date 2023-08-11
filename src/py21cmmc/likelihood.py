@@ -751,7 +751,6 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             storage.update({k + "_%s" % i: v for k, v in m.items()})
 
 
-
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     r"""A likelihood template to use Planck power spectrum.
 
