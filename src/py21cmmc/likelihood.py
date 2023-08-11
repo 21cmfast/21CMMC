@@ -584,10 +584,11 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         """The PS core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-            if (isinstance(c, core.CoreCoevalModule) and c.name == self.name) or (
-                isinstance(c, core.Core21cmEMU) and c.name == self.name
-            ):
+            if isinstance(c, core.Core21cmEMU) and c.name == self.name:
                 paired.append(c)
+            else:
+                if isinstance(c, core.CoreCoevalModule):
+                    paired.append(c)
         if len(paired) > 1:
             raise ValueError(
                 "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
