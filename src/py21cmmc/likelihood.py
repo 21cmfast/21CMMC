@@ -579,15 +579,15 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                         if N > 1:
                             lnl[i] += (
                                 -0.5
-                                * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2
-                                / (error_val**2)
+                                * np.sum((ModelPS_val_afterWF - PS_limit_vals) ** 2
+                                / (error_val**2))
                             )
 
                         else:
                             lnl += (
                                 -0.5
-                                * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2
-                                / (error_val**2)
+                                * np.sum((ModelPS_val_afterWF - PS_limit_vals) ** 2
+                                / (error_val**2))
                             )
         else:
             lnl = 0
@@ -616,21 +616,52 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift)."""
+        data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
-            all_zs = ctx.get("PS_redshifts")
-            for z in self.redshift:
-                z_idx = np.argmin(abs(z - all_zs))
-                k = ctx.get("k")
-                data.append(
-                    {
-                        "k": k,
-                        "delta": ctx.get("PS")[z_idx, :] * k**3 / (2 * np.pi**2),
-                        "delta_err": ctx.get("PS_err")[z_idx, :],
-                    }
-                )
+            # Interpolate the data onto the HERA bands and ks
+            if len(ctx.get("PS").shape) > 2:
+                for j in range(ctx.get("PS").shape[0]):
+                    tmp_data = []
+                    for i in range(self.redshift.shape[0]):
+                        interp_ks = self.k[i]
+                        tmp_data.append(
+                            {
+                                "k": interp_ks,
+                                "delta": RectBivariateSpline(
+                                    ctx.get("PS_redshifts"),
+                                    ctx.get("k"),
+                                    ctx.get("PS")[j, ...],
+                                )(self.redshift[i], interp_ks)[0],
+                                "delta_err": RectBivariateSpline(
+                                    ctx.get("PS_redshifts"),
+                                    ctx.get("k"),
+                                    ctx.get("PS_err"),
+                                )(self.redshift[i], interp_ks)[0],
+                            }
+                        )
+                    data.append(tmp_data)
+
+            else:
+                for i in range(self.redshift.shape[0]):
+                    interp_ks = self.k[i]
+                    data.append(
+                        [
+                            {
+                                "k": interp_ks,
+                                "delta": RectBivariateSpline(
+                                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+                                )(self.redshift[i], interp_ks)[0],
+                                "delta_err": RectBivariateSpline(
+                                    ctx.get("PS_redshifts"),
+                                    ctx.get("k"),
+                                    ctx.get("PS_err"),
+                                )(self.redshift[i], interp_ks)[0],
+                            }
+                        ]
+                    )
+
         else:
             brightness_temp = ctx.get("brightness_temp")
-            data = []
 
             for bt in brightness_temp:
                 power, k = self.compute_power(
