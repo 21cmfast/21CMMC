@@ -528,7 +528,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 for key in list(hera_data.keys()):
                     if "band" in key and "wf" not in key and "k" not in key:
                         all_band_keys.append(key)
-
                 for j, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
                     nfields = hera_data[band_key].shape[0]
                     for field in range(nfields):
@@ -543,7 +542,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                         PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
 
                         PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
-                        print(len(model), len(model[i]), model[i][j]["delta"].shape)
+
                         ModelPS_val = model[i][j]["delta"][:Nkwfbins]
 
                         ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
@@ -618,45 +617,29 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         if isinstance(self.paired_core, core.Core21cmEMU):
             # Interpolate the data onto the HERA bands and ks
             if len(ctx.get("PS").shape) > 2:
-                for j in range(ctx.get("PS").shape[0]):
-                    tmp_data = []
-                    for i in range(self.redshift.shape[0]):
-                        interp_ks = self.k[i]
-                        tmp_data.append(
-                            {
-                                "k": interp_ks,
-                                "delta": RectBivariateSpline(
-                                    ctx.get("PS_redshifts"),
-                                    ctx.get("k"),
-                                    ctx.get("PS")[j, ...],
-                                )(self.redshift[i], interp_ks)[0],
-                                "delta_err": RectBivariateSpline(
-                                    ctx.get("PS_redshifts"),
-                                    ctx.get("k"),
-                                    ctx.get("PS_err"),
-                                )(self.redshift[i], interp_ks)[0],
-                            }
-                        )
-                    data.append(tmp_data)
-
+                N = ctx.get("PS").shape[0]
             else:
+                N = 1
+            for j in range(N):
+                tmp_data = []
                 for i in range(self.redshift.shape[0]):
                     interp_ks = self.k[i]
-                    data.append(
-                        [
-                            {
-                                "k": interp_ks,
-                                "delta": RectBivariateSpline(
-                                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-                                )(self.redshift[i], interp_ks)[0],
-                                "delta_err": RectBivariateSpline(
-                                    ctx.get("PS_redshifts"),
-                                    ctx.get("k"),
-                                    ctx.get("PS_err"),
-                                )(self.redshift[i], interp_ks)[0],
-                            }
-                        ]
+                    tmp_data.append(
+                        {
+                            "k": interp_ks,
+                            "delta": RectBivariateSpline(
+                                ctx.get("PS_redshifts"),
+                                ctx.get("k"),
+                                ctx.get("PS")[j, ...] if j > 1 else ctx.get("PS"),
+                            )(self.redshift[i], interp_ks)[0],
+                            "delta_err": RectBivariateSpline(
+                                ctx.get("PS_redshifts"),
+                                ctx.get("k"),
+                                ctx.get("PS_err"),
+                            )(self.redshift[i], interp_ks)[0],
+                        }
                     )
+                data.append(tmp_data)
 
         else:
             brightness_temp = ctx.get("brightness_temp")
@@ -824,45 +807,31 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         if isinstance(self.paired_core, core.Core21cmEMU):
             # Interpolate the data onto the HERA bands and ks
             if len(ctx.get("PS").shape) > 2:
-                for j in range(ctx.get("PS").shape[0]):
-                    tmp_data = []
-                    for i in range(self.redshift.shape[0]):
-                        interp_ks = self.k[i]
-                        tmp_data.append(
-                            {
-                                "k": interp_ks,
-                                "delta": RectBivariateSpline(
-                                    ctx.get("PS_redshifts"),
-                                    ctx.get("k"),
-                                    ctx.get("PS")[j, ...],
-                                )(self.redshift[i], interp_ks)[0],
-                                "delta_err": RectBivariateSpline(
-                                    ctx.get("PS_redshifts"),
-                                    ctx.get("k"),
-                                    ctx.get("PS_err"),
-                                )(self.redshift[i], interp_ks)[0],
-                            }
-                        )
-                    data.append(tmp_data)
-
+                N = ctx.get("PS").shape[0]
             else:
+                N = 1
+
+            for j in range(N):
+                tmp_data = []
                 for i in range(self.redshift.shape[0]):
                     interp_ks = self.k[i]
-                    data.append(
-                        [
-                            {
-                                "k": interp_ks,
-                                "delta": RectBivariateSpline(
-                                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-                                )(self.redshift[i], interp_ks)[0],
-                                "delta_err": RectBivariateSpline(
-                                    ctx.get("PS_redshifts"),
-                                    ctx.get("k"),
-                                    ctx.get("PS_err"),
-                                )(self.redshift[i], interp_ks)[0],
-                            }
-                        ]
+                    tmp_data.append(
+                        {
+                            "k": interp_ks,
+                            "delta": RectBivariateSpline(
+                                ctx.get("PS_redshifts"),
+                                ctx.get("k"),
+                                ctx.get("PS")[j, ...] if j > 1 else ctx.get("PS"),
+                            )(self.redshift[i], interp_ks)[0],
+                            "delta_err": RectBivariateSpline(
+                                ctx.get("PS_redshifts"),
+                                ctx.get("k"),
+                                ctx.get("PS_err"),
+                            )(self.redshift[i], interp_ks)[0],
+                        }
                     )
+                data.append(tmp_data)
+
 
         else:
             brightness_temp = ctx.get("lightcone")
