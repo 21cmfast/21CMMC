@@ -786,7 +786,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 interp_ks = self.k[i]
                 final_PS[i, : len(interp_ks)] = RectBivariateSpline(
                     ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-                )(self.redshifts[i], interp_ks)
+                )(self.redshift[i], interp_ks)
             data = {
                 "k": self.k,
                 "delta": final_PS,
@@ -796,7 +796,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 interp_ks = self.k[i]
                 final_PS_err[i, : len(interp_ks)] = RectBivariateSpline(
                     ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
-                )(self.redshifts[i], interp_ks)
+                )(self.redshift[i], interp_ks)
             data["delta_err"] = final_PS_err
 
         else:
