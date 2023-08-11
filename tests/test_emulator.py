@@ -4,5 +4,3 @@ def test_emulator_runs():
 
     emu = Emulator()
     emu.predict(np.random.rand(9))
-
-
