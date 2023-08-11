@@ -8,6 +8,7 @@ def test_emulator_runs():
 
 def test_emu_compat():
     from py21cmmc import likelihood
+
     lk = likelihood.Likelihood1DPowerLightcone.from_builtin_data("HERA_H1C_IDR3")
 
     c21cmemu = core.Core21cmEMU()
