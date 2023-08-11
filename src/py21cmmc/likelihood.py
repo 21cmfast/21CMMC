@@ -767,7 +767,6 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
 
 
-
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     r"""A likelihood template to use Planck power spectrum.
 
