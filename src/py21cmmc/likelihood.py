@@ -687,7 +687,12 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     def setup(self):
         """Perform post-init setup."""
         LikelihoodBaseFile.setup(self)
-
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            all_keys = np.array(list(self.data[0].keys()))
+            m = ["kwf" in i for i in all_keys]
+            all_kwfs_keys = all_keys[m]
+            self.k = [self.data[0][j] for j in all_kwfs_keys]
+            self.k_len = max(len(i) for i in self.k)
         # Ensure that there is one dataset and noiseset per redshift.
         if len(self.data) != self.nchunks:
             raise ValueError(
@@ -774,26 +779,29 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
-        data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
-            all_zs = ctx.get("PS_redshifts")
-            for z in self.redshift:
-                k = ctx.get("k")
-                interped = RectBivariateSpline(
+            # Interpolate the data onto the HERA bands and ks
+            final_PS = np.zeros((len(self.redshift), self.k_len))
+            for i in range(self.redshifts.shape[0]):
+                interp_ks = self.k[i]
+                final_PS[i, : len(interp_ks)] = RectBivariateSpline(
                     ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
-                )(z, k)
-                interped_err = RectBivariateSpline(
+                )(self.redshifts[i], interp_ks)
+            data = {
+                "k": self.k,
+                "delta": final_PS,
+            }
+            final_PS_err = np.zeros((len(self.redshifts), self.k_len))
+            for i in range(self.redshifts.shape[0]):
+                interp_ks = self.k[i]
+                final_PS_err[i, : len(interp_ks)] = RectBivariateSpline(
                     ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
-                )(z, k)
-                data.append(
-                    {
-                        "k": k,
-                        "delta": interped * k**3 / (2 * np.pi**2),
-                        "delta_err": interped_err * k**3 / (2 * np.pi**2),
-                    }
-                )
+                )(self.redshifts[i], interp_ks)
+            data["delta_err"] = final_PS_err
+
         else:
             brightness_temp = ctx.get("lightcone")
+            data = []
             chunk_indices = list(
                 range(
                     0,
