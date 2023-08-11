@@ -577,8 +577,12 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                                 PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
                             )
                         if N > 1:
-                            lnl[i] += -0.5 * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2 / (error_val**2)
-                            
+                            lnl[i] += (
+                                -0.5
+                                * np.sum((ModelPS_val_afterWF - PS_limit_vals)) ** 2
+                                / (error_val**2)
+                            )
+
                         else:
                             lnl += (
                                 -0.5
@@ -795,14 +799,21 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                     tmp_data = []
                     for i in range(self.redshift.shape[0]):
                         interp_ks = self.k[i]
-                        tmp_data.append({
-                            "k": interp_ks,
-                            "delta": RectBivariateSpline(
-                            ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")[j,...]
-                        )(self.redshift[i], interp_ks)[0],
-                        "delta_err":RectBivariateSpline(
-                                ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
-                            )(self.redshift[i], interp_ks)[0]})
+                        tmp_data.append(
+                            {
+                                "k": interp_ks,
+                                "delta": RectBivariateSpline(
+                                    ctx.get("PS_redshifts"),
+                                    ctx.get("k"),
+                                    ctx.get("PS")[j, ...],
+                                )(self.redshift[i], interp_ks)[0],
+                                "delta_err": RectBivariateSpline(
+                                    ctx.get("PS_redshifts"),
+                                    ctx.get("k"),
+                                    ctx.get("PS_err"),
+                                )(self.redshift[i], interp_ks)[0],
+                            }
+                        )
                     data.append(tmp_data)
 
             else:
@@ -2118,7 +2129,9 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         """Get the computed core data in nice form."""
         # Interpolate the data onto the HERA bands and ks
         if len(ctx.get("PS").shape) > 2:
-            final_PS = np.zeros((ctx.get("PS").shape[0],len(self.redshifts), self.k_len))
+            final_PS = np.zeros(
+                (ctx.get("PS").shape[0], len(self.redshifts), self.k_len)
+            )
             for j in range(ctx.get("PS").shape[0]):
                 for i in range(self.redshifts.shape[0]):
                     interp_ks = self.k[i]
