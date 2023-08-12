@@ -630,7 +630,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                             "delta": RectBivariateSpline(
                                 ctx.get("PS_redshifts"),
                                 ctx.get("k"),
-                                ctx.get("PS")[j, ...] if j > 1 else ctx.get("PS"),
+                                ctx.get("PS")[j, ...] if N > 1 else ctx.get("PS"),
                             )(self.redshift[i], interp_ks)[0],
                             "delta_err": RectBivariateSpline(
                                 ctx.get("PS_redshifts"),
@@ -821,7 +821,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                             "delta": RectBivariateSpline(
                                 ctx.get("PS_redshifts"),
                                 ctx.get("k"),
-                                ctx.get("PS")[j, ...] if j > 1 else ctx.get("PS"),
+                                ctx.get("PS")[j, ...] if N > 1 else ctx.get("PS"),
                             )(self.redshift[i], interp_ks)[0],
                             "delta_err": RectBivariateSpline(
                                 ctx.get("PS_redshifts"),
