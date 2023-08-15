@@ -7,7 +7,11 @@ from os import path, rename
 from pathlib import Path
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
-from scipy.interpolate import InterpolatedUnivariateSpline, interp1d, interp2d
+from scipy.interpolate import (
+    InterpolatedUnivariateSpline,
+    RectBivariateSpline,
+    interp1d,
+)
 from scipy.special import erf
 
 from . import core
@@ -335,7 +339,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     method.
     """
 
-    required_cores = (core.CoreCoevalModule,)
+    required_cores = ((core.CoreCoevalModule, core.Core21cmEMU),)
 
     def __init__(
         self,
@@ -348,6 +352,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         ignore_kperp_zero=True,
         ignore_kpar_zero=False,
         ignore_k_zero=False,
+        name="",
         *args,
         **kwargs,
     ):
@@ -372,6 +377,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         self.ignore_k_zero = ignore_k_zero
         self.ignore_kperp_zero = ignore_kperp_zero
         self.ignore_kpar_zero = ignore_kpar_zero
+        self.name = name
 
     def _check_data_format(self):
         for i, d in enumerate(self.data):
@@ -496,7 +502,10 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     @property
     def redshift(self):
         """The redshifts of coeval simulations."""
-        return self.core_primary.redshift
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            return self.data[0]["z_bands"]
+        else:
+            return self.core_primary.redshift
 
     def computeLikelihood(self, model):
         """Compute the likelihood given a model.
@@ -507,46 +516,145 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             A list of dictionaries, one for each redshift. Exactly the output of
             :meth:'reduce_data`.
         """
-        lnl = 0
-        noise = 0
-        for i, (m, pd) in enumerate(zip(model, self.data_spline)):
-            mask = np.logical_and(m["k"] <= self.max_k, m["k"] >= self.min_k)
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            N = len(model)
+            if N > 1:
+                lnl = np.zeros(N)
+            else:
+                lnl = 0
+            hera_data = self.data[0]
+            for i in range(N):
+                all_band_keys = []
+                for key in list(hera_data.keys()):
+                    if "band" in key and "wf" not in key and "k" not in key:
+                        all_band_keys.append(key)
+                for j, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
+                    nfields = hera_data[band_key].shape[0]
+                    for field in range(nfields):
+                        PS_limit_ks = hera_data[band_key][field, :, 0]
+                        PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
+                        Nkbins = len(PS_limit_ks)
+                        PS_limit_vals = hera_data[band_key][field, :Nkbins, 1]
+                        PS_limit_vars = hera_data[band_key][field, :Nkbins, 2]
 
-            moduncert = (
-                self.model_uncertainty * pd(m["k"][mask])
-                if not self.error_on_model
-                else self.model_uncertainty * m["delta"][mask]
-            )
+                        kwf_limit_vals = hera_data["kwf" + band_key]
+                        Nkwfbins = len(kwf_limit_vals)
+                        PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
 
-            if self.noise_spline:
-                noise = self.noise_spline[i](m["k"][mask])
+                        PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
-            # TODO: if moduncert depends on model, not data, then it should appear
-            #  as -0.5 log(sigma^2) term below.
-            lnl += -0.5 * np.sum(
-                (m["delta"][mask] - pd(m["k"][mask])) ** 2
-                / (moduncert**2 + noise**2)
-            )
+                        ModelPS_val = model[i][j]["delta"][:Nkwfbins]
+
+                        ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
+                        # Include emulator error term if present
+                        if "delta_err" in model[i][j].keys():
+                            ModelPS_val_1sigma_upper_afterWF = np.dot(
+                                PS_limit_wfcs,
+                                ModelPS_val + model[i][j]["delta_err"][:Nkwfbins],
+                            )
+                            ModelPS_val_1sigma_lower_afterWF = np.dot(
+                                PS_limit_wfcs,
+                                ModelPS_val - model[i][j]["delta_err"][:Nkwfbins],
+                            )
+                            # The upper and lower errors are very similar usually, so we can just take the mean and use that.
+                            mean_err = np.mean(
+                                [
+                                    ModelPS_val_1sigma_upper_afterWF
+                                    - ModelPS_val_afterWF,
+                                    ModelPS_val_afterWF
+                                    - ModelPS_val_1sigma_lower_afterWF,
+                                ],
+                                axis=0,
+                            )
+                            error_val = np.sqrt(
+                                PS_limit_vars
+                                + (0.2 * ModelPS_val_afterWF) ** 2
+                                + (mean_err) ** 2
+                            )
+                        else:
+                            error_val = np.sqrt(
+                                PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
+                            )
+                        if N > 1:
+                            lnl[i] += -0.5 * np.sum(
+                                (ModelPS_val_afterWF - PS_limit_vals) ** 2
+                                / (error_val**2)
+                            )
+
+                        else:
+                            lnl += -0.5 * np.sum(
+                                (ModelPS_val_afterWF - PS_limit_vals) ** 2
+                                / (error_val**2)
+                            )
+        else:
+            lnl = 0
+            noise = 0
+            for i, (m, pd) in enumerate(zip(model, self.data_spline)):
+                mask = np.logical_and(m["k"] <= self.max_k, m["k"] >= self.min_k)
+
+                moduncert = (
+                    self.model_uncertainty * pd(m["k"][mask])
+                    if not self.error_on_model
+                    else self.model_uncertainty * m["delta"][mask]
+                )
+
+                if self.noise_spline:
+                    noise = self.noise_spline[i](m["k"][mask])
+
+                # TODO: if moduncert depends on model, not data, then it should appear
+                #  as -0.5 log(sigma^2) term below.
+                lnl += -0.5 * np.sum(
+                    (m["delta"][mask] - pd(m["k"][mask])) ** 2
+                    / (moduncert**2 + noise**2)
+                )
         logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
         return lnl
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift)."""
-        brightness_temp = ctx.get("brightness_temp")
         data = []
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            # Interpolate the data onto the HERA bands and ks
+            if len(ctx.get("PS").shape) > 2:
+                N = ctx.get("PS").shape[0]
+            else:
+                N = 1
+            for j in range(N):
+                tmp_data = []
+                for i in range(self.redshift.shape[0]):
+                    interp_ks = self.k[i]
+                    tmp_data.append(
+                        {
+                            "k": interp_ks,
+                            "delta": RectBivariateSpline(
+                                ctx.get("PS_redshifts"),
+                                ctx.get("k"),
+                                ctx.get("PS")[j, ...] if N > 1 else ctx.get("PS"),
+                            )(self.redshift[i], interp_ks)[0],
+                            "delta_err": RectBivariateSpline(
+                                ctx.get("PS_redshifts"),
+                                ctx.get("k"),
+                                ctx.get("PS_err"),
+                            )(self.redshift[i], interp_ks)[0],
+                        }
+                    )
+                data.append(tmp_data)
 
-        for bt in brightness_temp:
-            power, k = self.compute_power(
-                bt,
-                self.user_params.BOX_LEN,
-                self.n_psbins,
-                log_bins=self.logk,
-                ignore_k_zero=self.ignore_k_zero,
-                ignore_kpar_zero=self.ignore_kpar_zero,
-                ignore_kperp_zero=self.ignore_kperp_zero,
-            )
-            data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
+        else:
+            brightness_temp = ctx.get("brightness_temp")
+
+            for bt in brightness_temp:
+                power, k = self.compute_power(
+                    bt,
+                    self.user_params.BOX_LEN,
+                    self.n_psbins,
+                    log_bins=self.logk,
+                    ignore_k_zero=self.ignore_k_zero,
+                    ignore_kpar_zero=self.ignore_kpar_zero,
+                    ignore_kperp_zero=self.ignore_kperp_zero,
+                )
+                data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
 
         return data
 
@@ -560,6 +668,24 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         for i, m in enumerate(model):
             storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
 
+    @cached_property
+    def paired_core(self):
+        """The PS core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if isinstance(c, core.Core21cmEMU) and c.name == self.name:
+                paired.append(c)
+            else:
+                if isinstance(c, core.CoreCoevalModule) or isinstance(
+                    c, core.CoreCoevalModule
+                ):
+                    paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
+            )
+        return paired[0]
+
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     """
@@ -570,14 +696,27 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     required_cores = ((core.CoreLightConeModule, core.Core21cmEMU),)
 
-    def __init__(self, *args, nchunks=1, **kwargs):
+    def __init__(self, *args, datafile="", nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
         self.nchunks = nchunks
+        self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
+
+    @classmethod
+    def from_builtin_data(cls, datafile="", **kwargs):
+        """Create the class loading in built-in data."""
+        datafile = path.join(path.dirname(__file__), "data", datafile + ".npz")
+
+        return cls(datafile=datafile, **kwargs)
 
     def setup(self):
         """Perform post-init setup."""
         LikelihoodBaseFile.setup(self)
-
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            all_keys = np.array(list(self.data[0].keys()))
+            m = ["kwf" in i for i in all_keys]
+            all_kwfs_keys = all_keys[m]
+            self.k = [self.data[0][j] for j in all_kwfs_keys]
+            self.k_len = max(len(i) for i in self.k)
         # Ensure that there is one dataset and noiseset per redshift.
         if len(self.data) != self.nchunks:
             raise ValueError(
@@ -664,36 +803,66 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
-        brightness_temp = ctx.get("lightcone")
         data = []
-        chunk_indices = list(
-            range(
-                0,
-                brightness_temp.n_slices,
-                round(brightness_temp.n_slices / self.nchunks),
+        if isinstance(self.paired_core, core.Core21cmEMU):
+            # Interpolate the data onto the HERA bands and ks
+            if len(ctx.get("PS").shape) > 2:
+                N = ctx.get("PS").shape[0]
+            else:
+                N = 1
+
+            for j in range(N):
+                tmp_data = []
+                for i in range(self.redshift.shape[0]):
+                    interp_ks = self.k[i]
+                    tmp_data.append(
+                        {
+                            "k": interp_ks,
+                            "delta": RectBivariateSpline(
+                                ctx.get("PS_redshifts"),
+                                ctx.get("k"),
+                                ctx.get("PS")[j, ...] if N > 1 else ctx.get("PS"),
+                            )(self.redshift[i], interp_ks)[0],
+                            "delta_err": RectBivariateSpline(
+                                ctx.get("PS_redshifts"),
+                                ctx.get("k"),
+                                ctx.get("PS_err"),
+                            )(self.redshift[i], interp_ks)[0],
+                        }
+                    )
+                data.append(tmp_data)
+
+        else:
+            brightness_temp = ctx.get("lightcone")
+            data = []
+            chunk_indices = list(
+                range(
+                    0,
+                    brightness_temp.n_slices,
+                    round(brightness_temp.n_slices / self.nchunks),
+                )
             )
-        )
 
-        if len(chunk_indices) > self.nchunks:
-            chunk_indices = chunk_indices[:-1]
+            if len(chunk_indices) > self.nchunks:
+                chunk_indices = chunk_indices[:-1]
 
-        chunk_indices.append(brightness_temp.n_slices)
+            chunk_indices.append(brightness_temp.n_slices)
 
-        for i in range(self.nchunks):
-            start = chunk_indices[i]
-            end = chunk_indices[i + 1]
-            chunklen = (end - start) * brightness_temp.cell_size
+            for i in range(self.nchunks):
+                start = chunk_indices[i]
+                end = chunk_indices[i + 1]
+                chunklen = (end - start) * brightness_temp.cell_size
 
-            power, k = self.compute_power(
-                brightness_temp.brightness_temp[:, :, start:end],
-                (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
-                self.n_psbins,
-                log_bins=self.logk,
-                ignore_kperp_zero=self.ignore_kperp_zero,
-                ignore_kpar_zero=self.ignore_kpar_zero,
-                ignore_k_zero=self.ignore_k_zero,
-            )
-            data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
+                power, k = self.compute_power(
+                    brightness_temp.brightness_temp[:, :, start:end],
+                    (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
+                    self.n_psbins,
+                    log_bins=self.logk,
+                    ignore_kperp_zero=self.ignore_kperp_zero,
+                    ignore_kpar_zero=self.ignore_kpar_zero,
+                    ignore_k_zero=self.ignore_k_zero,
+                )
+                data.append({"k": k, "delta": power * k**3 / (2 * np.pi**2)})
 
         return data
 
@@ -701,7 +870,28 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         """Store the model into backend storage."""
         # add the power to the written data
         for i, m in enumerate(model):
-            storage.update({k + "_%s" % i: v for k, v in m.items()})
+            if isinstance(self.paired_core, core.Core21cmEMU):
+                if isinstance(m, list):
+                    for j, n in enumerate(m):
+                        storage.update({k + "_%s" % j: v for k, v in n.items()})
+            else:
+                storage.update({k + "_%s" % i: v for k, v in m.items()})
+
+    @cached_property
+    def paired_core(self):
+        """The PS core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or (
+                isinstance(c, core.CoreLightConeModule) and c.name == self.name
+            ):
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
+            )
+
+        return paired[0]
 
 
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
@@ -1939,24 +2129,40 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     def reduce_data(self, ctx):
         """Get the computed core data in nice form."""
         # Interpolate the data onto the HERA bands and ks
-        final_PS = np.zeros((len(self.redshifts), self.k_len))
-        for i in range(self.redshifts.shape[0]):
-            interp_ks = self.k[i]
-            final_PS[i, : len(interp_ks)] = interp2d(
-                ctx.get("k"), ctx.get("PS_redshifts"), ctx.get("PS")
-            )(interp_ks, self.redshifts[i])
-        final_data = {
-            "k": self.k,
-            "delta": final_PS,
-        }
+        if len(ctx.get("PS").shape) > 2:
+            final_PS = np.zeros(
+                (ctx.get("PS").shape[0], len(self.redshifts), self.k_len)
+            )
+            for j in range(ctx.get("PS").shape[0]):
+                for i in range(self.redshifts.shape[0]):
+                    interp_ks = self.k[i]
+                    final_PS[j, i, : len(interp_ks)] = RectBivariateSpline(
+                        ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")[j, ...]
+                    )(self.redshifts[i], interp_ks)
+            final_data = {
+                "k": self.k,
+                "delta": final_PS,
+            }
+        else:
+            final_PS = np.zeros((1, len(self.redshifts), self.k_len))
+            for i in range(self.redshifts.shape[0]):
+                interp_ks = self.k[i]
+                final_PS[0, i, : len(interp_ks)] = RectBivariateSpline(
+                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")
+                )(self.redshifts[i], interp_ks)
+            final_data = {
+                "k": self.k,
+                "delta": final_PS,
+            }
+
         # If we are using the emualtor, include the error.
         try:
             final_PS_err = np.zeros((len(self.redshifts), self.k_len))
             for i in range(self.redshifts.shape[0]):
                 interp_ks = self.k[i]
-                final_PS_err[i, : len(interp_ks)] = interp2d(
-                    ctx.get("k"), ctx.get("PS_redshifts"), ctx.get("PS_err")
-                )(interp_ks, self.redshifts[i])
+                final_PS_err[i, : len(interp_ks)] = RectBivariateSpline(
+                    ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
+                )(self.redshifts[i], interp_ks)
             final_data["delta_err"] = final_PS_err
         except:
             pass
@@ -1979,71 +2185,80 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
             For H1C: Data shape = 5 fields, 37 kbins, 4 = [kval, power, variance],
             2 (band1=10 band2=8)
         """
-        lnl = 0
+        N = model[0]["delta"].shape[0]
+        if N > 1:
+            lnl = np.zeros(N)
+        else:
+            lnl = 0
         hera_data = self.data[0]
-        all_band_keys = []
-        for key in list(hera_data.keys()):
-            if "band" in key and "wf" not in key and "k" not in key:
-                all_band_keys.append(key)
+        for i in range(N):
+            for band in self.redshifts:
+                for field in range(hera_data["band" + str(round(band))].shape[0]):
+                    PS_limit_ks = hera_data["band" + str(round(band))][field, :, 0]
+                    PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
+                    Nkbins = len(PS_limit_ks)
+                    PS_limit_vals = hera_data["band" + str(round(band))][
+                        field, :Nkbins, 1
+                    ]
+                    PS_limit_vars = hera_data["band" + str(round(band))][
+                        field, :Nkbins, 2
+                    ]
 
-        for band, band_key in zip(self.redshifts, all_band_keys):
-            nfields = hera_data[band_key].shape[0]
-            for field in range(nfields):
-                PS_limit_ks = hera_data[band_key][field, :, 0]
-                PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
-                Nkbins = len(PS_limit_ks)
-                PS_limit_vals = hera_data[band_key][field, :Nkbins, 1]
-                PS_limit_vars = hera_data[band_key][field, :Nkbins, 2]
+                    kwf_limit_vals = hera_data["kwfband" + str(round(band))]
+                    Nkwfbins = len(kwf_limit_vals)
+                    PS_limit_wfcs = hera_data["wfband" + str(round(band))][
+                        field, :Nkbins, :
+                    ]
 
-                kwf_limit_vals = hera_data["kwf" + band_key]
-                Nkwfbins = len(kwf_limit_vals)
-                PS_limit_wfcs = hera_data["wf" + band_key][field, :Nkbins, :]
+                    PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
-                PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
+                    model_zs = self.redshifts
+                    zbin = np.argmin(abs(band - model_zs))
+                    ModelPS_val = model[0]["delta"][i, zbin, :Nkwfbins]
 
-                model_zs = self.redshifts
-                zbin = np.argmin(abs(band - model_zs))
-                ModelPS_val = model[0]["delta"][zbin, :Nkwfbins]
+                    ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
+                    # Include emulator error term if present
+                    if "delta_err" in model[0].keys():
+                        ModelPS_val_1sigma_upper_afterWF = np.dot(
+                            PS_limit_wfcs,
+                            ModelPS_val + model[0]["delta_err"][zbin, :Nkwfbins],
+                        )
+                        ModelPS_val_1sigma_lower_afterWF = np.dot(
+                            PS_limit_wfcs,
+                            ModelPS_val - model[0]["delta_err"][zbin, :Nkwfbins],
+                        )
+                        # The upper and lower errors are very similar usually, so we can just take the mean and use that.
+                        mean_err = np.mean(
+                            [
+                                ModelPS_val_1sigma_upper_afterWF - ModelPS_val_afterWF,
+                                ModelPS_val_afterWF - ModelPS_val_1sigma_lower_afterWF,
+                            ],
+                            axis=0,
+                        )
 
-                ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
-                # Include emulator error term if present
-                if "delta_err" in model[0].keys():
-                    ModelPS_val_1sigma_upper_afterWF = np.dot(
-                        PS_limit_wfcs,
-                        ModelPS_val + model[0]["delta_err"][zbin, :Nkwfbins],
-                    )
-                    ModelPS_val_1sigma_lower_afterWF = np.dot(
-                        PS_limit_wfcs,
-                        ModelPS_val - model[0]["delta_err"][zbin, :Nkwfbins],
-                    )
-                    # The upper and lower errors are very similar usually, so we can just take the mean and use that.
-                    mean_err = np.mean(
-                        [
-                            ModelPS_val_1sigma_upper_afterWF - ModelPS_val_afterWF,
-                            ModelPS_val_afterWF - ModelPS_val_1sigma_lower_afterWF,
-                        ],
-                        axis=0,
-                    )
-                    error_val = np.sqrt(
-                        PS_limit_vars
-                        + (0.2 * ModelPS_val_afterWF) ** 2
-                        + (mean_err) ** 2
-                    )
-                else:
-                    error_val = np.sqrt(
-                        PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
-                    )
+                        error_val = np.sqrt(
+                            PS_limit_vars
+                            + (0.2 * ModelPS_val_afterWF) ** 2
+                            + (mean_err) ** 2
+                        )
+                    else:
+                        error_val = np.sqrt(
+                            PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
+                        )
 
-                likelihood = 0.5 + 0.5 * erf(
-                    (PS_limit_vals - ModelPS_val_afterWF) / (np.sqrt(2) * error_val)
-                )  # another way to write likelihood for 1-side Gaussian
-                likelihood[likelihood <= 0.0] = 1e-50
-                lnl += np.nansum(np.log(likelihood))
-                logger.debug(
-                    "HERA PS upper Likelihood computed: {lnl}".format(
-                        lnl=np.nansum(np.log(likelihood))
+                    likelihood = 0.5 + 0.5 * erf(
+                        (PS_limit_vals - ModelPS_val_afterWF) / (np.sqrt(2) * error_val)
+                    )  # another way to write likelihood for 1-side Gaussian
+                    likelihood[likelihood <= 0.0] = 1e-50
+                    if N > 1:
+                        lnl[i] += np.nansum(np.log(likelihood))
+                    else:
+                        lnl += np.nansum(np.log(likelihood))
+                    logger.debug(
+                        "HERA PS upper Likelihood computed: {lnl}".format(
+                            lnl=np.nansum(np.log(likelihood))
+                        )
                     )
-                )
         logger.debug("Total HERA PS upper Likelihood computed: {lnl}".format(lnl=lnl))
         return lnl
 
