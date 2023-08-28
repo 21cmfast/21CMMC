@@ -549,7 +549,6 @@ def test_planckpowerspectra(lc_core, default_params, tmpdirec):
 
 
 def test_forest(lc_core_lowz, lc_core_lowz_ctx):
-
     lk = mcmc.LikelihoodForest(name="z5pt4")
 
     with pytest.raises(mcmc.NotAChain):

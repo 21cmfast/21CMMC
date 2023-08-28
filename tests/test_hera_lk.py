@@ -13,15 +13,12 @@ from py21cmmc import (
 
 
 def test_hera_lk():
-
     lk = Likelihood1DPowerLightconeUpper.from_builtin_data("HERA_H1C_IDR3")
 
     c21cmemu = core.Core21cmEMU()
     chain = build_computation_chain(
         [c21cmemu],
-        [
-            lk,
-        ],
+        [lk],
         setup=True,
     )
     chain({})

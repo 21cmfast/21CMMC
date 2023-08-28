@@ -1,15 +1,11 @@
-import pytest
-
 import numpy as np
+import zeus
 
 import py21cmmc as p21mc
 from py21cmmc import mcmc
 
-zeus = pytest.importorskip("zeus")
-
 
 def test_zeus():
-
     core = p21mc.CoreCoevalModule(
         redshift=[7, 8, 9],
         user_params={"HII_DIM": 50, "BOX_LEN": 125.0},
@@ -36,7 +32,7 @@ def test_zeus():
         datadir="data",
         model_name=model_name,
         params={
-            "HII_EFF_FACTO": [30.0, 10.0, 50.0, 3.0],
+            "HII_EFF_FACTOR": [30.0, 10.0, 50.0, 3.0],
             "ION_Tvir_MIN": [4.7, 4, 6, 0.1],
         },
         reuse_burnin=False,
