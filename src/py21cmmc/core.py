@@ -611,7 +611,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
             mturnovers_mini = 10 ** interp1d(
                 z_all, np.array(lc.log10_mturnovers_mini)[::-1]
             )(self.redshift)
-            return p21.compute_luminosity_function(
+            muv, mhalo, lf = p21.compute_luminosity_function(
                 mturnovers=mturnovers,
                 mturnovers_mini=mturnovers_mini,
                 redshifts=self.redshift,
@@ -621,6 +621,11 @@ class CoreLuminosityFunction(CoreCoevalModule):
                 user_params=self.user_params,
                 nbins=self.n_muv_bins,
             )
+            return (
+                    np.array(Muv, dtype=object),
+                    np.array(Mhalo, dtype=object),
+                    np.array(lfunc, dtype=object),
+                )
         else:
             if type(astro_params) == np.ndarray:
                 N = len(astro_params)
