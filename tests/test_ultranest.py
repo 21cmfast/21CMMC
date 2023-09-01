@@ -1,7 +1,11 @@
 import pytest
 
 import numpy as np
+<<<<<<< HEAD
 from py21cmfast._utils import ParameterError
+=======
+from py21cmfast.utils import ParameterError
+>>>>>>> 8f37db0abbf256c3f878abf980a2e7f171bfd3e6
 
 import py21cmmc as mcmc
 from py21cmmc.cosmoHammer import Params
