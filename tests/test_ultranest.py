@@ -46,8 +46,8 @@ def prior(astro_params):
 def test_ultranest_samples(astro_params, prior):
     model_name = "Prior"
     mcmc_options = {
-        'min_num_live_points': 10,
-        'max_ncalls': 10000,
+        "min_num_live_points": 10,
+        "max_ncalls": 10000,
     }
 
     mcmc.run_mcmc(
@@ -61,7 +61,6 @@ def test_ultranest_samples(astro_params, prior):
     )
 
 
-
 def test_ultranest():
     model_name = "LuminosityLikelihood"
     redshifts = [6, 7, 8, 10]
@@ -71,10 +70,10 @@ def test_ultranest():
     t_STAR = [0.5, 0.01, 1, 0.3]
 
     mcmc_options = {
-        'min_num_live_points': 10,
-        'max_ncalls': 10000,
-        'vectorized': True,
-        'ndraw_min': 10
+        "min_num_live_points": 10,
+        "max_ncalls": 10000,
+        "vectorized": True,
+        "ndraw_min": 10,
     }
     sampler, result = mcmc.run_mcmc(
         [
