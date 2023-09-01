@@ -1,8 +1,7 @@
 import pytest
 
 import numpy as np
-import ultranest
-from py21cmfast.utils import ParameterError
+from py21cmfast. utils import ParameterError
 
 import py21cmmc as mcmc
 from py21cmmc.cosmoHammer import Params
