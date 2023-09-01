@@ -581,7 +581,9 @@ class CoreLuminosityFunction(CoreCoevalModule):
         All other parameters are the same as :class:`CoreCoevalModule`.
     """
 
-    def __init__(self, sigma=None, name="", cosmo_params = None, n_muv_bins=100, **kwargs):
+    def __init__(
+        self, sigma=None, name="", cosmo_params=None, n_muv_bins=100, **kwargs
+    ):
         self._sigma = sigma
         self.name = str(name)
         self.n_muv_bins = n_muv_bins
@@ -639,7 +641,11 @@ class CoreLuminosityFunction(CoreCoevalModule):
                 Muv.append(muv[m])
                 Mhalo.append(mhalo[m])
                 lfunc.append(lf[m])
-            return np.array(Muv, dtype = object), np.array(Mhalo, dtype = object), np.array(lfunc, dtype = object)
+            return (
+                np.array(Muv, dtype=object),
+                np.array(Mhalo, dtype=object),
+                np.array(lfunc, dtype=object),
+            )
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
@@ -657,11 +663,9 @@ class CoreLuminosityFunction(CoreCoevalModule):
             for t in zip(*astro_params.values):
                 a = dict(zip(astro_params.keys, t))
                 apars, cosmo_params = self._update_params(
-                        Params(*[(k, v) for k, v in zip(astro_params.keys, t)])
-                    )
-                ap.append(apars
-                    
+                    Params(*[(k, v) for k, v in zip(astro_params.keys, t)])
                 )
+                ap.append(apars)
             astro_params = ap
             astro_params = np.array(astro_params, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
@@ -698,8 +702,8 @@ class CoreLuminosityFunction(CoreCoevalModule):
             try:
                 lfunc[i] += np.random.normal(loc=0, scale=s(muv), size=len(lfunc[i]))
             except TypeError:
-
                 lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
+
 
 class CoreForest(CoreLightConeModule):
     r"""A Core Module that produces model effective optical depth at a range of redshifts.
