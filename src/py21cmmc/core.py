@@ -590,8 +590,6 @@ class CoreLuminosityFunction(CoreCoevalModule):
         super().__init__(**kwargs)
         if cosmo_params is not None:
             self.cosmo_params = p21.CosmoParams(**cosmo_params)
-        else:
-            self.cosmo_params = None
 
     def setup(self):
         """Run post-init setup."""
