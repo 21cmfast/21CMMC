@@ -652,19 +652,19 @@ class CoreLuminosityFunction(CoreCoevalModule):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
         astro_params = ctx.getParams()
-        if all([isinstance(v, (int, float)) for v in astro_params.values]):
+        if all([isinstance(v, (int, float)) for v in astro_params.values()]):
             astro_params, cosmo_params = self._update_params(astro_params)
-        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values]):
-            lengths = [len(v) for v in astro_params.values]
+        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values()]):
+            lengths = [len(v) for v in astro_params.values()]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
                     "For vectorized case, all parameters should have the same length."
                 )
             ap = []
-            for t in zip(*astro_params.values):
-                a = dict(zip(astro_params.keys, t))
+            for t in zip(*astro_params.values()):
+                a = dict(zip(astro_params.keys(), t))
                 apars, cosmo_params = self._update_params(
-                    Params(*[(k, v) for k, v in zip(astro_params.keys, t)])
+                    Params(*[(k, v) for k, v in zip(astro_params.keys(), t)])
                 )
                 ap.append(apars)
             astro_params = ap
