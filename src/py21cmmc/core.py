@@ -586,7 +586,10 @@ class CoreLuminosityFunction(CoreCoevalModule):
         self.name = str(name)
         self.n_muv_bins = n_muv_bins
         super().__init__(**kwargs)
-        self.cosmo_params = p21.CosmoParams(**cosmo_params)
+        if cosmo_params is not None:
+            self.cosmo_params = p21.CosmoParams(**cosmo_params)
+        else:
+            self.cosmo_params = None
 
     def setup(self):
         """Run post-init setup."""
