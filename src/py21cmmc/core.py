@@ -581,11 +581,12 @@ class CoreLuminosityFunction(CoreCoevalModule):
         All other parameters are the same as :class:`CoreCoevalModule`.
     """
 
-    def __init__(self, sigma=None, name="", n_muv_bins=100, **kwargs):
+    def __init__(self, sigma=None, name="", cosmo_params = None, n_muv_bins=100, **kwargs):
         self._sigma = sigma
         self.name = str(name)
         self.n_muv_bins = n_muv_bins
         super().__init__(**kwargs)
+        self.cosmo_params = p21.CosmoParams(**cosmo_params)
 
     def setup(self):
         """Run post-init setup."""
@@ -618,26 +619,54 @@ class CoreLuminosityFunction(CoreCoevalModule):
                 nbins=self.n_muv_bins,
             )
         else:
-            return p21.compute_luminosity_function(
-                redshifts=self.redshift,
-                astro_params=astro_params,
-                flag_options=self.flag_options,
-                cosmo_params=cosmo_params,
-                user_params=self.user_params,
-                nbins=self.n_muv_bins,
-            )
+            if type(astro_params) == np.ndarray:
+                N = len(astro_params)
+            else:
+                N = 1
+            Muv = []
+            Mhalo = []
+            lfunc = []
+            for i in range(N):
+                muv, mhalo, lf = p21.compute_luminosity_function(
+                    redshifts=self.redshift,
+                    astro_params=astro_params[i] if N > 1 else astro_params,
+                    flag_options=self.flag_options,
+                    cosmo_params=cosmo_params,
+                    user_params=self.user_params,
+                    nbins=self.n_muv_bins,
+                )
+                m = ~np.isnan(lf)
+                Muv.append(muv[m])
+                Mhalo.append(mhalo[m])
+                lfunc.append(lf[m])
+            return np.array(Muv, dtype = object), np.array(Mhalo, dtype = object), np.array(lfunc, dtype = object)
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
-        astro_params, cosmo_params = self._update_params(ctx.getParams())
-
+        astro_params = ctx.getParams()
+        if all([isinstance(v, (int, float)) for v in astro_params.values]):
+            astro_params, cosmo_params = self._update_params(astro_params)
+        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values]):
+            lengths = [len(v) for v in astro_params.values]
+            if lengths.count(lengths[0]) != len(lengths):
+                raise ValueError(
+                    "For vectorized case, all parameters should have the same length."
+                )
+            ap = []
+            for t in zip(*astro_params.values):
+                a = dict(zip(astro_params.keys, t))
+                apars, cosmo_params = self._update_params(
+                        Params(*[(k, v) for k, v in zip(astro_params.keys, t)])
+                    )
+                ap.append(apars
+                    
+                )
+            astro_params = ap
+            astro_params = np.array(astro_params, dtype=object)
+        logger.debug(f"AstroParams: {astro_params}")
         # Call C-code
         Muv, mhalo, lfunc = self.run(astro_params, cosmo_params, ctx)
-
-        Muv = [m[~np.isnan(lf)] for lf, m in zip(lfunc, Muv)]
-        mhalo = [m[~np.isnan(lf)] for lf, m in zip(lfunc, mhalo)]
-        lfunc = [m[~np.isnan(lf)] for lf, m in zip(lfunc, lfunc)]
 
         ctx.add(
             "luminosity_function" + self.name,
@@ -669,8 +698,8 @@ class CoreLuminosityFunction(CoreCoevalModule):
             try:
                 lfunc[i] += np.random.normal(loc=0, scale=s(muv), size=len(lfunc[i]))
             except TypeError:
-                lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
 
+                lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))
 
 class CoreForest(CoreLightConeModule):
     r"""A Core Module that produces model effective optical depth at a range of redshifts.
