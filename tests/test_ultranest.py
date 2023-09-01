@@ -1,7 +1,6 @@
 import pytest
 
 import numpy as np
-
 from py21cmfast._utils import ParameterError
 
 import py21cmmc as mcmc
