@@ -1429,33 +1429,53 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             else:
                 xHI = ctx.get("lightcone").global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts
-        redshifts, xHI = np.sort([redshifts, xHI])
+        if len(xHI.shape) == 1:
+            redshifts, xHI = np.sort([redshifts, xHI])
         return {"xHI": xHI, "redshifts": redshifts, "err": err}
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
-        lnprob = 0
+        if len(model['xHI'].shape) == 1:
+            n = 1
+            lnprob = 0
+        else:   
+            n = model['xHI'].shape[0]
+            lnprob = np.zeros(n)
+        for i in range(n):
+            if self._require_spline:
+                if n == 1:
+                    model_spline = InterpolatedUnivariateSpline(
+                    model["redshifts"], model["xHI"], k=1
+                    )
+                else:
+                    model_spline = InterpolatedUnivariateSpline(
+                        model["redshifts"], model["xHI"][i,:], k=1
+                    )
+                if np.sum(model["err"]) > 0:
+                    err_spline = InterpolatedUnivariateSpline(
+                        model["redshifts"], model["err"], k=1
+                    )
 
-        if self._require_spline:
-            model_spline = InterpolatedUnivariateSpline(
-                model["redshifts"], model["xHI"], k=1
-            )
-            if np.sum(model["err"]) > 0:
-                err_spline = InterpolatedUnivariateSpline(
-                    model["redshifts"], model["err"], k=1
-                )
-
-        for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
-            if np.sum(model["err"]) > 0:
-                sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2)
-            else:
-                sigma_t = sigma
-            if z in model["redshifts"]:
-                lnprob += self.lnprob(
-                    model["xHI"][model["redshifts"].index(z)], data, sigma_t
-                )
-            else:
-                lnprob += self.lnprob(model_spline(z), data, sigma_t)
+            for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
+                if np.sum(model["err"]) > 0:
+                    sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2)
+                else:
+                    sigma_t = sigma
+                if z in model["redshifts"]:
+                    if n == 1:
+                        lnprob += self.lnprob(
+                            model["xHI"][model["redshifts"].index(z)], data, sigma_t
+                        )
+                    else:
+                        lnprob[i] += self.lnprob(
+                            model["xHI"][model["redshifts"].index(z)], data, sigma_t
+                        )
+                else:
+                    if n == 1:
+                        lnprob += self.lnprob(model_spline(z), data, sigma_t)
+                    else:
+                        lnprob[i] += self.lnprob(model_spline(z), data, sigma_t)
+                    
         logger.debug("Neutral fraction Likelihood computed: {lnl}".format(lnl=lnprob))
         return lnprob
 
@@ -1467,6 +1487,45 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             return -0.5 * ((data - model) / sigma) ** 2
         else:
             return 0
+
+class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
+    """
+    A likelihood based on the measured neutral fraction at a range of redshifts.
+
+    The log-likelihood statistic is a simple chi^2.
+    """
+
+    required_cores = (
+        (
+            core.CoreLightConeModule,
+            core.CoreCoevalModule,
+            core.CoreCMB,
+            core.Core21cmEMU,
+        ),
+    )
+    threshold = 0.06
+
+    def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
+        """
+        Neutral fraction likelihood/prior.
+
+
+        Parameters
+        ----------
+        redshift : float or list of floats
+            Redshift(s) at which the neutral fraction has been measured.
+        xHI : float or list of floats
+            Measured values of the neutral fraction, corresponding to `redshift`.
+        xHI_sigma : float or list of floats
+            Two-sided uncertainty of measurements.
+        """
+        super().__init__(redshift=redshift, xHI=xHI, xHI_sigma=xHI_sigma)
+        
+    def lnprob(self, model, data, sigma):
+        """Compute the log prob given a model, data and error."""
+        model = np.clip(model, 0, 1)
+
+        return -0.5 * ((data - model) / sigma) ** 2
 
 
 class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
@@ -1746,19 +1805,63 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
-        lnl = 0
-        for i, z in enumerate(self.redshifts):
-            model_spline = InterpolatedUnivariateSpline(
-                model["Muv"][i][::-1], model["lfunc"][i][::-1]
-            )
+        N = model['lfunc'].shape[0]
+        if N > 1:
+            lnl = np.zeros(N)
+        else:
+            lnl = 0
 
-            lnl += -0.5 * np.sum(
-                (
-                    (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
-                    ** 2
-                    / self.noise["sigma"][i] ** 2
-                )[self.data["Muv"][i] > self.mag_brightest]
-            )
+        for n in range(N):
+            for i, z in enumerate(self.redshifts):
+                if type(model['Muv'][0]) == np.ndarray and len(model['Muv']) == N:
+                    if len(self.redshifts) > 1:
+                        if model['Muv'][n][i][0] > model['Muv'][n][i][1]:
+                            muv = model['Muv'][n][i][::-1]
+                            lfunc = model['lfunc'][n,i][::-1]
+                        else:
+                            muv = model['Muv'][n][i]
+                            lfunc = model['lfunc'][n,i]
+                    else:
+                        if model['Muv'][n][0] > model['Muv'][n][1]:
+                            muv = model['Muv'][n][::-1]
+                            lfunc = model['lfunc'][n][::-1]
+                        else:
+                            muv = model['Muv'][n]
+                            lfunc = model['lfunc'][n]
+                else:
+                    if model['Muv'][0] > model['Muv'][1]:
+                        muv = model['Muv'][::-1]
+                        try:
+                            lfunc = model['lfunc'][n,i][::-1]
+                        except:
+                            lfunc = model['lfunc'][n][::-1]
+                    else:
+                        muv = model['Muv']
+                        try:
+                            lfunc = model['lfunc'][n,i]
+                        except:
+                            lfunc = model['lfunc'][n]
+                            
+                model_spline = InterpolatedUnivariateSpline(
+                        muv, lfunc
+                        )
+               
+                if N > 1:
+                    lnl[n] += -0.5 * np.sum(
+                        (
+                            (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
+                            ** 2
+                            / self.noise["sigma"][i] ** 2
+                        )[self.data["Muv"][i] > self.mag_brightest]
+                    )
+                else:
+                    lnl += -0.5 * np.sum(
+                        (
+                            (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
+                            ** 2
+                            / self.noise["sigma"][i] ** 2
+                        )[self.data["Muv"][i] > self.mag_brightest]
+                    )
         logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))
         return lnl
 
