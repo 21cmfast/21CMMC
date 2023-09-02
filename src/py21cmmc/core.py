@@ -622,10 +622,10 @@ class CoreLuminosityFunction(CoreCoevalModule):
                 nbins=self.n_muv_bins,
             )
             return (
-                    np.array(Muv, dtype=object),
-                    np.array(Mhalo, dtype=object),
-                    np.array(lfunc, dtype=object),
-                )
+                np.array(Muv, dtype=object),
+                np.array(Mhalo, dtype=object),
+                np.array(lfunc, dtype=object),
+            )
         else:
             if type(astro_params) == np.ndarray:
                 N = len(astro_params)
