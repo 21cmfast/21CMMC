@@ -1813,9 +1813,8 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             lnl = 0
         print(model["Muv"].shape)
 
-        if len(self.data['lfunc'].shape) == 3:
-            data = {'lfunc':self.data['lfunc'][0],
-                    'Muv':self.data['Muv'][0]}
+        if len(self.data["lfunc"].shape) == 3:
+            data = {"lfunc": self.data["lfunc"][0], "Muv": self.data["Muv"][0]}
         else:
             data = self.data
         for n in range(N):
@@ -1831,10 +1830,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 if N > 1:
                     lnl[n] += -0.5 * np.sum(
                         (
-                            (
-                                data["lfunc"][i]
-                                - 10 ** model_spline(self.data["Muv"][i])
-                            )
+                            (data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
                             ** 2
                             / self.noise["sigma"][i] ** 2
                         )[data["Muv"][i] > self.mag_brightest]
@@ -1842,11 +1838,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 else:
                     lnl += -0.5 * np.sum(
                         (
-                            (
-                                data["lfunc"][i]
-                                - 10 ** model_spline(data["Muv"][i])
-                            )
-                            ** 2
+                            (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i])) ** 2
                             / self.noise["sigma"][i] ** 2
                         )[data["Muv"][i] > self.mag_brightest]
                     )

@@ -657,7 +657,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
         astro_params = ctx.getParams()
- 
+
         if all([isinstance(v, (int, float)) for v in astro_params.values()]):
             astro_params, cosmo_params = self._update_params(astro_params)
         elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values()]):
