@@ -1510,7 +1510,6 @@ class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
         """
         Neutral fraction likelihood/prior.
 
-
         Parameters
         ----------
         redshift : float or list of floats

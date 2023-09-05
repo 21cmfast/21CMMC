@@ -611,20 +611,31 @@ class CoreLuminosityFunction(CoreCoevalModule):
             mturnovers_mini = 10 ** interp1d(
                 z_all, np.array(lc.log10_mturnovers_mini)[::-1]
             )(self.redshift)
-            muv, mhalo, lf = p21.compute_luminosity_function(
-                mturnovers=mturnovers,
-                mturnovers_mini=mturnovers_mini,
-                redshifts=self.redshift,
-                astro_params=astro_params,
-                flag_options=self.flag_options,
-                cosmo_params=cosmo_params,
-                user_params=self.user_params,
-                nbins=self.n_muv_bins,
-            )
+            if type(astro_params) == np.ndarray:
+                N = len(astro_params)
+            else:
+                N = 1
+            Muv = []
+            Mhalo = []
+            lfunc = []
+            for i in range(N):
+                muv, mhalo, lf = p21.compute_luminosity_function(
+                    mturnovers=mturnovers,
+                    mturnovers_mini=mturnovers_mini,
+                    redshifts=self.redshift,
+                    astro_params=astro_params,
+                    flag_options=self.flag_options,
+                    cosmo_params=cosmo_params,
+                    user_params=self.user_params,
+                    nbins=self.n_muv_bins,
+                )
+                Muv.append(muv)
+                Mhalo.append(mhalo)
+                lfunc.append(lf)
             return (
-                np.array(Muv, dtype=object),
-                np.array(Mhalo, dtype=object),
-                np.array(lfunc, dtype=object),
+                np.array(Muv),
+                np.array(Mhalo),
+                np.array(lfunc),
             )
         else:
             if type(astro_params) == np.ndarray:
@@ -643,7 +654,6 @@ class CoreLuminosityFunction(CoreCoevalModule):
                     user_params=self.user_params,
                     nbins=self.n_muv_bins,
                 )
-                m = ~np.isnan(lf)
                 Muv.append(muv)
                 Mhalo.append(mhalo)
                 lfunc.append(lf)
@@ -658,9 +668,9 @@ class CoreLuminosityFunction(CoreCoevalModule):
         # Update parameters
         astro_params = ctx.getParams()
  
-        if all([isinstance(v, (int, float)) for v in astro_params.values()]):
+        if all((isinstance(v, (int, float)) for v in astro_params.values())):
             astro_params, cosmo_params = self._update_params(astro_params)
-        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values()]):
+        elif all((isinstance(v, (np.ndarray, list)) for v in astro_params.values())):
             lengths = [len(v) for v in astro_params.values()]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
@@ -668,7 +678,6 @@ class CoreLuminosityFunction(CoreCoevalModule):
                 )
             ap = []
             for t in zip(*astro_params.values()):
-                a = dict(zip(astro_params.keys(), t))
                 apars, cosmo_params = self._update_params(
                     Params(*[(k, v) for k, v in zip(astro_params.keys(), t)])
                 )
