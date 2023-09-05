@@ -1811,61 +1811,44 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             lnl = np.zeros(N)
         else:
             lnl = 0
+        print(model["Muv"].shape)
 
+        if len(self.data['lfunc'].shape) == 3:
+            data = {'lfunc':self.data['lfunc'][0],
+                    'Muv':self.data['Muv'][0]}
+        else:
+            data = self.data
         for n in range(N):
             for i, z in enumerate(self.redshifts):
-                if type(model["Muv"][0]) == np.ndarray and len(model["Muv"]) == N:
-                    if len(self.redshifts) > 1:
-                        if model["Muv"][n][i][0] > model["Muv"][n][i][1]:
-                            muv = model["Muv"][n][i][::-1]
-                            lfunc = model["lfunc"][n, i][::-1]
-                        else:
-                            muv = model["Muv"][n][i]
-                            lfunc = model["lfunc"][n, i]
-                    else:
-                        if model["Muv"][n][0] > model["Muv"][n][1]:
-                            muv = model["Muv"][n][::-1]
-                            lfunc = model["lfunc"][n][::-1]
-                        else:
-                            muv = model["Muv"][n]
-                            lfunc = model["lfunc"][n]
+                if model["Muv"][n][i][0] > model["Muv"][n][i][1]:
+                    muv = model["Muv"][n][i][::-1]
+                    lfunc = model["lfunc"][n, i][::-1]
                 else:
-                    if model["Muv"][0] > model["Muv"][1]:
-                        muv = model["Muv"][::-1]
-                        try:
-                            lfunc = model["lfunc"][n, i][::-1]
-                        except:
-                            lfunc = model["lfunc"][n][::-1]
-                    else:
-                        muv = model["Muv"]
-                        try:
-                            lfunc = model["lfunc"][n, i]
-                        except:
-                            lfunc = model["lfunc"][n]
+                    muv = model["Muv"][n][i]
+                    lfunc = model["lfunc"][n, i]
 
                 model_spline = InterpolatedUnivariateSpline(muv, lfunc)
-
                 if N > 1:
                     lnl[n] += -0.5 * np.sum(
                         (
                             (
-                                self.data["lfunc"][i]
+                                data["lfunc"][i]
                                 - 10 ** model_spline(self.data["Muv"][i])
                             )
                             ** 2
                             / self.noise["sigma"][i] ** 2
-                        )[self.data["Muv"][i] > self.mag_brightest]
+                        )[data["Muv"][i] > self.mag_brightest]
                     )
                 else:
                     lnl += -0.5 * np.sum(
                         (
                             (
-                                self.data["lfunc"][i]
-                                - 10 ** model_spline(self.data["Muv"][i])
+                                data["lfunc"][i]
+                                - 10 ** model_spline(data["Muv"][i])
                             )
                             ** 2
                             / self.noise["sigma"][i] ** 2
-                        )[self.data["Muv"][i] > self.mag_brightest]
+                        )[data["Muv"][i] > self.mag_brightest]
                     )
         logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))
         return lnl

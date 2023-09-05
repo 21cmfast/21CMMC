@@ -644,32 +644,33 @@ class CoreLuminosityFunction(CoreCoevalModule):
                     nbins=self.n_muv_bins,
                 )
                 m = ~np.isnan(lf)
-                Muv.append(muv[m])
-                Mhalo.append(mhalo[m])
-                lfunc.append(lf[m])
+                Muv.append(muv)
+                Mhalo.append(mhalo)
+                lfunc.append(lf)
             return (
-                np.array(Muv, dtype=object),
-                np.array(Mhalo, dtype=object),
-                np.array(lfunc, dtype=object),
+                np.array(Muv),
+                np.array(Mhalo),
+                np.array(lfunc),
             )
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
         astro_params = ctx.getParams()
-        if all([isinstance(v, (int, float)) for v in astro_params.values]):
+ 
+        if all([isinstance(v, (int, float)) for v in astro_params.values()]):
             astro_params, cosmo_params = self._update_params(astro_params)
-        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values]):
-            lengths = [len(v) for v in astro_params.values]
+        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values()]):
+            lengths = [len(v) for v in astro_params.values()]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
                     "For vectorized case, all parameters should have the same length."
                 )
             ap = []
-            for t in zip(*astro_params.values):
-                a = dict(zip(astro_params.keys, t))
+            for t in zip(*astro_params.values()):
+                a = dict(zip(astro_params.keys(), t))
                 apars, cosmo_params = self._update_params(
-                    Params(*[(k, v) for k, v in zip(astro_params.keys, t)])
+                    Params(*[(k, v) for k, v in zip(astro_params.keys(), t)])
                 )
                 ap.append(apars)
             astro_params = ap
@@ -677,7 +678,6 @@ class CoreLuminosityFunction(CoreCoevalModule):
         logger.debug(f"AstroParams: {astro_params}")
         # Call C-code
         Muv, mhalo, lfunc = self.run(astro_params, cosmo_params, ctx)
-
         ctx.add(
             "luminosity_function" + self.name,
             {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc},
@@ -701,8 +701,8 @@ class CoreLuminosityFunction(CoreCoevalModule):
         if self.sigma is None:
             raise ValueError("Cannot create a mock with sigma=None!")
 
-        lfunc = ctx.get("luminosity_function" + self.name)["lfunc"]
-        muv = ctx.get("luminosity_function" + self.name)["Muv"]
+        lfunc = ctx.get("luminosity_function" + self.name)["lfunc"][0]
+        muv = ctx.get("luminosity_function" + self.name)["Muv"][0]
 
         for i, s in enumerate(self.sigma):  # each redshift
             try:
