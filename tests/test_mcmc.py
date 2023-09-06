@@ -416,6 +416,7 @@ def test_neutral_fraction(lc_core, lc_core_ctx):
 
     assert "xHI" in model
 
+
 def test_twosided_neutral_fraction(lc_core, lc_core_ctx):
     with pytest.raises(ValueError):
         mcmc.build_computation_chain(
