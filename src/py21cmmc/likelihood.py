@@ -1810,7 +1810,6 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             lnl = np.zeros(N)
         else:
             lnl = 0
-        print(model["Muv"].shape)
 
         if len(self.data["lfunc"].shape) == 3:
             data = {"lfunc": self.data["lfunc"][0], "Muv": self.data["Muv"][0]}
@@ -1824,8 +1823,8 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 else:
                     muv = model["Muv"][n][i]
                     lfunc = model["lfunc"][n, i]
-
-                model_spline = InterpolatedUnivariateSpline(muv, lfunc)
+                mask = ~np.isnan(lfunc)
+                model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
                 if N > 1:
                     lnl[n] += -0.5 * np.sum(
                         (
@@ -1842,7 +1841,6 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                         )[data["Muv"][i] > self.mag_brightest]
                     )
         logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))
-
         return lnl
 
     def define_noise(self, ctx, model):
