@@ -1842,6 +1842,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                         )[data["Muv"][i] > self.mag_brightest]
                     )
         logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))
+
         return lnl
 
     def define_noise(self, ctx, model):

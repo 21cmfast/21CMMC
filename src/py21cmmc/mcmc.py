@@ -355,7 +355,7 @@ def run_mcmc(
         show_status = mcmc_options.get("show_status", True)
         dlogz = mcmc_options.get("dlogz", 0.5)
         dKL = mcmc_options.get("dKL", 0.5)
-        frac_remain = mcmc_options.get("frac_remain", 0.01)
+        frac_remain = mcmc_options.get("frac_remain", 0.1)
         Lepsilon = mcmc_options.get("Lepsilon", 0.001)
         min_ess = mcmc_options.get("min_ess", 400)
         max_iters = mcmc_options.get("max_iters", None)
