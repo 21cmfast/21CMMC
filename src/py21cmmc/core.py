@@ -12,6 +12,7 @@ import py21cmfast as p21
 import warnings
 from os import path
 from scipy.interpolate import interp1d
+
 from py21cmmc.cosmoHammer import Params
 
 from . import _utils as ut
@@ -667,13 +668,13 @@ class CoreLuminosityFunction(CoreCoevalModule):
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
-        astro_params=ctx.getParams()
+        astro_params = ctx.getParams()
         if isinstance(astro_params, dict):
-            values=astro_params.values()
-            keys=astro_params.keys()
+            values = astro_params.values()
+            keys = astro_params.keys()
         else:
-            values=astro_params.values
-            keys=astro_params.keys
+            values = astro_params.values
+            keys = astro_params.keys
         if all((isinstance(v, (int, float)) for v in values)):
             astro_params, cosmo_params = self._update_params(astro_params)
         elif all((isinstance(v, (np.ndarray, list)) for v in values)):
