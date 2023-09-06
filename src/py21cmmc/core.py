@@ -12,6 +12,7 @@ import py21cmfast as p21
 import warnings
 from os import path
 from scipy.interpolate import interp1d
+from py21cmmc.cosmoHammer import Params
 
 from . import _utils as ut
 
@@ -666,20 +667,25 @@ class CoreLuminosityFunction(CoreCoevalModule):
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
-        astro_params = ctx.getParams()
-
-        if all((isinstance(v, (int, float)) for v in astro_params.values())):
+        astro_params=ctx.getParams()
+        if isinstance(astro_params, dict):
+            values=astro_params.values()
+            keys=astro_params.keys()
+        else:
+            values=astro_params.values
+            keys=astro_params.keys
+        if all((isinstance(v, (int, float)) for v in values)):
             astro_params, cosmo_params = self._update_params(astro_params)
-        elif all((isinstance(v, (np.ndarray, list)) for v in astro_params.values())):
-            lengths = [len(v) for v in astro_params.values()]
+        elif all((isinstance(v, (np.ndarray, list)) for v in values)):
+            lengths = [len(v) for v in values]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
                     "For vectorized case, all parameters should have the same length."
                 )
             ap = []
-            for t in zip(*astro_params.values()):
+            for t in zip(*values):
                 apars, cosmo_params = self._update_params(
-                    Params(*[(k, v) for k, v in zip(astro_params.keys(), t)])
+                    Params(*[(k, v) for k, v in zip(keys, t)])
                 )
                 ap.append(apars)
             astro_params = ap
