@@ -1679,7 +1679,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     required_cores = ((core.CoreLuminosityFunction, core.Core21cmEMU),)
 
-    def __init__(self, *args, name="", mag_brightest=-20.0, z_idx=None, **kwargs):
+    def __init__(self, *args, name="", mag_brightest=-20.0, z=None, **kwargs):
         super().__init__(*args, **kwargs)
         if self.datafile is not None and len(self.datafile) != 1:
             raise ValueError(
@@ -1690,18 +1690,18 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 "can only pass a single noisefile to LikelihoodLuminosityFunction!"
             )
         # This argument is for the emulator to know which z bin this likelihood is for.
-        self.z_idx = z_idx
+        self.z = z
         self.name = str(name)
         self.mag_brightest = mag_brightest
 
     def setup(self):
         """Setup instance."""
         if isinstance(self.paired_core, core.Core21cmEMU):
-            if self.z_idx is None:
+            if self.z is None:
                 raise ValueError(
                     "Must specify which z bin out of [6, 7, 8, 10] the likelihood is comparing to the data."
                 )
-            self.i = np.argmin(abs(np.array([6, 7, 8, 10]) - int(self.z_idx)))
+            self.i = np.argmin(abs(np.array([6, 7, 8, 10]) - int(self.z)))
 
         if not self._simulate:
             if self.datafile is None:
@@ -1779,10 +1779,10 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def redshifts(self):
         """Redshifts at which luminosity function is defined."""
         if isinstance(self.paired_core, core.Core21cmEMU):
-            if hasattr(self.z_idx, "__len__"):
-                return self.z_idx
+            if hasattr(self.z, "__len__"):
+                return self.z
             else:
-                return np.array([self.z_idx])
+                return np.array([self.z])
         else:
             return self.paired_core.redshift
 
@@ -1790,9 +1790,16 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """Reduce simulated model data."""
         if isinstance(self.paired_core, core.Core21cmEMU):
             final_data = {}
-            # Emulator undoes the log10 so we need to redo it here
-            final_data["lfunc"] = np.log10(ctx.get("UVLFs"))[self.i, :].reshape([1, -1])
-            final_data["Muv"] = ctx.get("Muv").reshape([1, -1])
+            shape = ctx.get("UVLFs").shape
+            if len(shape) == 3:
+                final_data["lfunc"] = np.log10(ctx.get("UVLFs")[:,self.i, :].reshape((shape[0], 1, shape[-1])))
+            else:
+                final_data["lfunc"] = ctx.get("UVLFs")[self.i, :].reshape([1, -1])[np.newaxis,...]
+            # Add two dimensions for nparams
+            N = final_data["lfunc"].shape[0]
+            final_data['Muv'] = np.array(list(ctx.get('Muv').reshape([1, -1])[np.newaxis,...])*N)
+            # TODO check if error is Gaussian and incorporate it properly
+            #final_data["lfunc_err"] = np.log10(ctx.get("UVLFs_err")[self.i, :].reshape([1, -1]))
             return final_data
         else:
             lfunc = ctx.get("luminosity_function" + self.name)
@@ -1802,10 +1809,11 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 return [lfunc]
             else:
                 return lfunc
-
+            
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         N = model["lfunc"].shape[0]
+        has_model_err = 'lfunc_err' in model
         if N > 1:
             lnl = np.zeros(N)
         else:
@@ -1815,29 +1823,46 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             data = {"lfunc": self.data["lfunc"][0], "Muv": self.data["Muv"][0]}
         else:
             data = self.data
+
         for n in range(N):
             for i, z in enumerate(self.redshifts):
-                if model["Muv"][n][i][0] > model["Muv"][n][i][1]:
-                    muv = model["Muv"][n][i][::-1]
-                    lfunc = model["lfunc"][n, i][::-1]
+                if len(model["Muv"].shape) == 3:
+                    if model["Muv"][n][i][0] > model["Muv"][n][i][1]:
+                        muv = model["Muv"][n][i][::-1]
+                        lfunc = model["lfunc"][n, i][::-1]
+                        if has_model_err:
+                            lfunc_err = model["lfunc_err"][i][::-1]
+                    else:
+                        muv = model["Muv"][n][i]
+                        lfunc = model["lfunc"][n, i]
+                        if has_model_err:
+                            lfunc_err = model["lfunc_err"][i]
                 else:
                     muv = model["Muv"][n][i]
                     lfunc = model["lfunc"][n, i]
+                    if has_model_err:
+                        lfunc_err = model["lfunc_err"][i]
                 mask = ~np.isnan(lfunc)
                 model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
+                #if has_model_err:
+                #    err_spline = InterpolatedUnivariateSpline(muv[mask], lfunc_err[mask])
+                #    total_err = self.noise["sigma"][i] ** 2 + err_spline(self.data["Muv"][i]) ** 2
+                #else:
+                total_err = self.noise["sigma"][i] ** 2
+                
                 if N > 1:
                     lnl[n] += -0.5 * np.sum(
                         (
                             (data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
                             ** 2
-                            / self.noise["sigma"][i] ** 2
+                            / total_err
                         )[data["Muv"][i] > self.mag_brightest]
                     )
                 else:
                     lnl += -0.5 * np.sum(
                         (
                             (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i])) ** 2
-                            / self.noise["sigma"][i] ** 2
+                            / total_err
                         )[data["Muv"][i] > self.mag_brightest]
                     )
         logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))

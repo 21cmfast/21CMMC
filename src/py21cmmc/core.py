@@ -1321,15 +1321,32 @@ class Core21cmEMU(CoreBase):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
         logger.debug(f"Updating parameters: {ctx.getParams()}")
-        astro_params = self._update_params(ctx.getParams())
+        astro_params = ctx.getParams()
+        if all([isinstance(v, (int, float)) for v in astro_params.values]):
+            astro_params = self._update_params(astro_params)
+        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values]):
+            lengths = [len(v) for v in astro_params.values]
+            if lengths.count(lengths[0]) != len(lengths):
+                raise ValueError(
+                    "For vectorized case, all parameters should have the same length."
+                )
+            ap = []
+            log_keys = ['F_ESC10', 'F_STAR10', 'L_X', 'M_TURN']
+            for t in zip(*astro_params.values):
+                ap.append(
+                    {k: v if k not in log_keys else 10**v for k, v in zip(astro_params.keys, t)}
+                )
+            astro_params = ap
+            astro_params = np.array(astro_params, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
-        # Take only needed AstroParams
-        input_dict = {k: getattr(astro_params, k) for k in self.astro_param_keys}
-
         # Call 21cmEMU wrapper which returns a dict
-        theta, outputs, errors = self.emulator.predict(astro_params=input_dict)
+        theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
         if self.io_options["cache_dir"] is not None:
-            par_vals = ["{:0.3e}".format(i) for i in list(input_dict.values())]
+            if len(astro_params.shape) == 2:
+                pars = astro_params[0]
+            else:
+                pars = astro_params
+            par_vals = ["{:0.3e}".format(i) for i in list(pars)]
             name = "_".join(par_vals)
             outputs.write(
                 fname=self.io_options["cache_dir"] + name,
