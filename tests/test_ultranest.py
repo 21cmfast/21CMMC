@@ -42,7 +42,7 @@ def test_ultranest_21cmfast():
         **mcmc_options,
     )
     sampler.print_results()
-    assert result['samples'].shape[1] == 6
+    assert result["samples"].shape[1] == 6
 
 
 def test_ultranest_21cmemu():
@@ -63,7 +63,7 @@ def test_ultranest_21cmemu():
     }
     sampler, result = mcmc.run_mcmc(
         [mcmc.Core21cmEMU(redshift=z) for z in redshifts],
-        [mcmc.LikelihoodLuminosityFunction(z = z) for z in redshifts],
+        [mcmc.LikelihoodLuminosityFunction(z=z) for z in redshifts],
         model_name=model_name,
         params={
             "F_STAR10": F_STAR10,
@@ -76,4 +76,4 @@ def test_ultranest_21cmemu():
         **mcmc_options,
     )
     sampler.print_results()
-    assert result['samples'].shape[1] == 6
+    assert result["samples"].shape[1] == 6
