@@ -22,7 +22,7 @@ def test_ultranest_21cmfast():
         "vectorized": True,
         "ndraw_min": 5,
         "frac_remain": 0.2,
-        "Lepsilon": 0.1
+        "Lepsilon": 0.1,
     }
     sampler, result = mcmc.run_mcmc(
         [
@@ -44,6 +44,7 @@ def test_ultranest_21cmfast():
     sampler.print_results()
     assert result.shape[1] == 6
 
+
 def test_ultranest_21cmemu():
     model_name = "LuminosityLikelihood"
     redshifts = [6, 7, 8, 10]
@@ -58,13 +59,10 @@ def test_ultranest_21cmemu():
         "vectorized": True,
         "ndraw_min": 5,
         "frac_remain": 0.2,
-        "Lepsilon": 0.1
+        "Lepsilon": 0.1,
     }
     sampler, result = mcmc.run_mcmc(
-        [
-            mcmc.Core21cmEMU(redshift=z)
-            for z in redshifts
-        ],
+        [mcmc.Core21cmEMU(redshift=z) for z in redshifts],
         [mcmc.LikelihoodLuminosityFunction(name="lfz%d" % z) for z in redshifts],
         model_name=model_name,
         params={

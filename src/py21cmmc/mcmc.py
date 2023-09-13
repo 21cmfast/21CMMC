@@ -474,7 +474,6 @@ def run_mcmc(
             return p, False
 
         def likelihood(p):
-
             try:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
@@ -514,6 +513,7 @@ def run_mcmc(
         return sampler
 
     elif use_ultranest:
+
         def likelihood(p):
             if vectorized:
                 return chain.computeLikelihoods(
