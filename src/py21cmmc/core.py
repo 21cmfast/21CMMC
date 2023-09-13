@@ -1322,21 +1322,27 @@ class Core21cmEMU(CoreBase):
         # Update parameters
         logger.debug(f"Updating parameters: {ctx.getParams()}")
         astro_params = ctx.getParams()
-        if all([isinstance(v, (int, float)) for v in astro_params.values]):
+        if isinstance(astro_params, dict):
+            values = astro_params.values()
+            keys = astro_params.keys()
+        else:
+            values = astro_params.values
+            keys = astro_params.keys
+        if all([isinstance(v, (int, float)) for v in values]):
             astro_params = self._update_params(astro_params)
-        elif all([isinstance(v, (np.ndarray, list)) for v in astro_params.values]):
-            lengths = [len(v) for v in astro_params.values]
+        elif all([isinstance(v, (np.ndarray, list)) for v in values]):
+            lengths = [len(v) for v in values]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
                     "For vectorized case, all parameters should have the same length."
                 )
             ap = []
             log_keys = ["F_ESC10", "F_STAR10", "L_X", "M_TURN"]
-            for t in zip(*astro_params.values):
+            for t in zip(*values):
                 ap.append(
                     {
                         k: v if k not in log_keys else 10**v
-                        for k, v in zip(astro_params.keys, t)
+                        for k, v in zip(keys, t)
                     }
                 )
             astro_params = ap
