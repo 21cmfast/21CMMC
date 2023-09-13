@@ -1792,14 +1792,20 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             final_data = {}
             shape = ctx.get("UVLFs").shape
             if len(shape) == 3:
-                final_data["lfunc"] = np.log10(ctx.get("UVLFs")[:,self.i, :].reshape((shape[0], 1, shape[-1])))
+                final_data["lfunc"] = np.log10(
+                    ctx.get("UVLFs")[:, self.i, :].reshape((shape[0], 1, shape[-1]))
+                )
             else:
-                final_data["lfunc"] = ctx.get("UVLFs")[self.i, :].reshape([1, -1])[np.newaxis,...]
+                final_data["lfunc"] = ctx.get("UVLFs")[self.i, :].reshape([1, -1])[
+                    np.newaxis, ...
+                ]
             # Add two dimensions for nparams
             N = final_data["lfunc"].shape[0]
-            final_data['Muv'] = np.array(list(ctx.get('Muv').reshape([1, -1])[np.newaxis,...])*N)
+            final_data["Muv"] = np.array(
+                list(ctx.get("Muv").reshape([1, -1])[np.newaxis, ...]) * N
+            )
             # TODO check if error is Gaussian and incorporate it properly
-            #final_data["lfunc_err"] = np.log10(ctx.get("UVLFs_err")[self.i, :].reshape([1, -1]))
+            # final_data["lfunc_err"] = np.log10(ctx.get("UVLFs_err")[self.i, :].reshape([1, -1]))
             return final_data
         else:
             lfunc = ctx.get("luminosity_function" + self.name)
@@ -1809,11 +1815,11 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 return [lfunc]
             else:
                 return lfunc
-            
+
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         N = model["lfunc"].shape[0]
-        has_model_err = 'lfunc_err' in model
+        has_model_err = "lfunc_err" in model
         if N > 1:
             lnl = np.zeros(N)
         else:
@@ -1844,12 +1850,12 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                         lfunc_err = model["lfunc_err"][i]
                 mask = ~np.isnan(lfunc)
                 model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
-                #if has_model_err:
+                # if has_model_err:
                 #    err_spline = InterpolatedUnivariateSpline(muv[mask], lfunc_err[mask])
                 #    total_err = self.noise["sigma"][i] ** 2 + err_spline(self.data["Muv"][i]) ** 2
-                #else:
+                # else:
                 total_err = self.noise["sigma"][i] ** 2
-                
+
                 if N > 1:
                     lnl[n] += -0.5 * np.sum(
                         (

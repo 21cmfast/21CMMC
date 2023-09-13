@@ -1331,10 +1331,13 @@ class Core21cmEMU(CoreBase):
                     "For vectorized case, all parameters should have the same length."
                 )
             ap = []
-            log_keys = ['F_ESC10', 'F_STAR10', 'L_X', 'M_TURN']
+            log_keys = ["F_ESC10", "F_STAR10", "L_X", "M_TURN"]
             for t in zip(*astro_params.values):
                 ap.append(
-                    {k: v if k not in log_keys else 10**v for k, v in zip(astro_params.keys, t)}
+                    {
+                        k: v if k not in log_keys else 10**v
+                        for k, v in zip(astro_params.keys, t)
+                    }
                 )
             astro_params = ap
             astro_params = np.array(astro_params, dtype=object)
