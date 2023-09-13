@@ -325,7 +325,7 @@ def run_mcmc(
         check_walkers = mcmc_options.get("check_walkers", True)
         shuffle_ensemble = mcmc_options.get("shuffle_ensemble", True)
         light_mode = mcmc_options.get("light_mode", False)
-        print(start.shape)
+
         try:
             import zeus
         except ImportError:
@@ -409,7 +409,6 @@ def run_mcmc(
                     "`continue_sampling`. Setting simulate=False and continuing..."
                 )
                 lk._simulate = False
-
     # Write out the parameters *before* setup.
     # TODO: not sure if this is the best idea -- should it be after setup()?
     try:
@@ -423,11 +422,9 @@ def run_mcmc(
         print(e)
 
     chain.setup()
-
     # Set logging levels
     if log_level_21CMMC is not None:
         logging.getLogger("21CMMC").setLevel(log_level_21CMMC)
-
     if use_multinest:
 
         def likelihood(p, ndim, nparams):
@@ -477,7 +474,7 @@ def run_mcmc(
             return p, False
 
         def likelihood(p):
-            print(params)
+
             try:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
@@ -517,7 +514,6 @@ def run_mcmc(
         return sampler
 
     elif use_ultranest:
-
         def likelihood(p):
             if vectorized:
                 return chain.computeLikelihoods(
