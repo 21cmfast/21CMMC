@@ -1340,10 +1340,7 @@ class Core21cmEMU(CoreBase):
             log_keys = ["F_ESC10", "F_STAR10", "L_X", "M_TURN"]
             for t in zip(*values):
                 ap.append(
-                    {
-                        k: v if k not in log_keys else 10**v
-                        for k, v in zip(keys, t)
-                    }
+                    {k: v if k not in log_keys else 10**v for k, v in zip(keys, t)}
                 )
             astro_params = ap
             astro_params = np.array(astro_params, dtype=object)
