@@ -1325,12 +1325,17 @@ class Core21cmEMU(CoreBase):
         if isinstance(astro_params, dict):
             values = astro_params.values()
             keys = astro_params.keys()
+        elif isinstance(astro_params, p21.AstroParams):
+            values = astro_params.defining_dict.values
+            keys = self.astro_param_keys
         else:
             values = astro_params.values
             keys = astro_params.keys
-        if all([isinstance(v, (int, float)) for v in values]):
-            astro_params = self._update_params(astro_params)
-        elif all([isinstance(v, (np.ndarray, list)) for v in values]):
+        # For build_computation_chain when params passed are an empty dict
+        if len(values) == 0:
+            astro_params = self._update_params(astro_params).defining_dict
+            astro_params = {k:astro_params[k] for k in self.astro_param_keys}
+        if all([isinstance(v, (np.ndarray, list, int, float)) for v in values]) and len(values) > 0:
             lengths = [len(v) for v in values]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
@@ -1342,8 +1347,7 @@ class Core21cmEMU(CoreBase):
                 ap.append(
                     {k: v if k not in log_keys else 10**v for k, v in zip(keys, t)}
                 )
-            astro_params = ap
-            astro_params = np.array(astro_params, dtype=object)
+            astro_params = np.array(ap, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
         # Call 21cmEMU wrapper which returns a dict
         theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
