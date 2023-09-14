@@ -1334,8 +1334,11 @@ class Core21cmEMU(CoreBase):
         # For build_computation_chain when params passed are an empty dict
         if len(values) == 0:
             astro_params = self._update_params(astro_params).defining_dict
-            astro_params = {k:astro_params[k] for k in self.astro_param_keys}
-        if all([isinstance(v, (np.ndarray, list, int, float)) for v in values]) and len(values) > 0:
+            astro_params = {k: astro_params[k] for k in self.astro_param_keys}
+        if (
+            all([isinstance(v, (np.ndarray, list, int, float)) for v in values])
+            and len(values) > 0
+        ):
             lengths = [len(v) for v in values]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
