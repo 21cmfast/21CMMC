@@ -1240,8 +1240,8 @@ class LikelihoodPlanck(LikelihoodBase):
         """
         # Extract relevant info from the context.
         if self._is_emu:
-            tau_err = ctx.get("tau_e_err")
-            tau_value = ctx.get("tau_e")
+            tau_err = ctx.get("tau_err")
+            tau_value = ctx.get("tau")
 
         elif self._is_lightcone:
             lc = ctx.get("lightcone")
