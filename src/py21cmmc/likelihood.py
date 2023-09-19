@@ -1792,7 +1792,9 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             final_data = {}
             shape = ctx.get("UVLFs").shape
             if len(shape) == 3:
-                final_data["lfunc"] = ctx.get("UVLFs")[:, self.i, :].reshape((shape[0], 1, shape[-1]))
+                final_data["lfunc"] = ctx.get("UVLFs")[:, self.i, :].reshape(
+                    (shape[0], 1, shape[-1])
+                )
             else:
                 final_data["lfunc"] = ctx.get("UVLFs")[self.i, :].reshape([1, -1])[
                     np.newaxis, ...
