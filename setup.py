@@ -74,7 +74,7 @@ setup(
         "cached_property",
         "21cmFAST",
         "pymultinest",
-        "py21cmemu>=1.0.8",
+        "py21cmemu>1.0.8",
         "astropy>=5.2.1",
     ],
     extras_require={

@@ -1345,14 +1345,13 @@ class Core21cmEMU(CoreBase):
                     "For vectorized case, all parameters should have the same length."
                 )
             ap = []
-            log_keys = ["F_ESC10", "F_STAR10", "L_X", "M_TURN"]
             for t in zip(*values):
                 ap.append(
-                    {k: v if k not in log_keys else 10**v for k, v in zip(keys, t)}
+                    {k: v for k, v in zip(keys, t)}
                 )
             astro_params = np.array(ap, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
-        # Call 21cmEMU wrapper which returns a dict
+
         theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
         if self.io_options["cache_dir"] is not None:
             if len(astro_params.shape) == 2:
