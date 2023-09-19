@@ -1336,7 +1336,7 @@ class Core21cmEMU(CoreBase):
             astro_params = self._update_params(astro_params).defining_dict
             astro_params = {k: astro_params[k] for k in self.astro_param_keys}
         if (
-            all([isinstance(v, (np.ndarray, list, int, float)) for v in values])
+            all((isinstance(v, (np.ndarray, list, int, float)) for v in values))
             and len(values) > 0
         ):
             lengths = [len(v) for v in values]

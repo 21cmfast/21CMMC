@@ -1805,7 +1805,6 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 list(ctx.get("Muv").reshape([1, -1])[np.newaxis, ...]) * N
             )
             # TODO check if error is Gaussian and incorporate it properly
-            # final_data["lfunc_err"] = np.log10(ctx.get("UVLFs_err")[self.i, :].reshape([1, -1]))
             return final_data
         else:
             lfunc = ctx.get("luminosity_function" + self.name)
@@ -1819,7 +1818,6 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         N = model["lfunc"].shape[0]
-        has_model_err = "lfunc_err" in model
         if N > 1:
             lnl = np.zeros(N)
         else:
@@ -1836,24 +1834,16 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     if model["Muv"][n][i][0] > model["Muv"][n][i][1]:
                         muv = model["Muv"][n][i][::-1]
                         lfunc = model["lfunc"][n, i][::-1]
-                        if has_model_err:
-                            lfunc_err = model["lfunc_err"][i][::-1]
                     else:
                         muv = model["Muv"][n][i]
                         lfunc = model["lfunc"][n, i]
-                        if has_model_err:
-                            lfunc_err = model["lfunc_err"][i]
                 else:
                     muv = model["Muv"][n][i]
                     lfunc = model["lfunc"][n, i]
-                    if has_model_err:
-                        lfunc_err = model["lfunc_err"][i]
+
                 mask = ~np.isnan(lfunc)
                 model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
-                # if has_model_err:
-                #    err_spline = InterpolatedUnivariateSpline(muv[mask], lfunc_err[mask])
-                #    total_err = self.noise["sigma"][i] ** 2 + err_spline(self.data["Muv"][i]) ** 2
-                # else:
+
                 total_err = self.noise["sigma"][i] ** 2
 
                 if N > 1:
