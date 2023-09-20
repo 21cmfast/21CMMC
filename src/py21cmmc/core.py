@@ -623,7 +623,9 @@ class CoreLuminosityFunction(CoreCoevalModule):
         for i in range(N):
             muv, mhalo, lf = p21.compute_luminosity_function(
                 mturnovers=mturnovers if self.flag_options.USE_MINI_HALOS else None,
-                mturnovers_mini=mturnovers_mini if self.flag_options.USE_MINI_HALOS else None,
+                mturnovers_mini=mturnovers_mini
+                if self.flag_options.USE_MINI_HALOS
+                else None,
                 redshifts=self.redshift,
                 astro_params=astro_params[i]
                 if not isinstance(astro_params, p21.AstroParams)

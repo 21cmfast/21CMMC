@@ -1435,7 +1435,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         n = model["xHI"].shape[0]
-        xHI = np.atleast_2d(model['xHI'])
+        xHI = np.atleast_2d(model["xHI"])
         lnprob = np.zeros(n)
         for i in range(n):
             if self._require_spline:
