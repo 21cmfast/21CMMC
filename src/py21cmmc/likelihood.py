@@ -1837,8 +1837,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
                 lnl[n] += -0.5 * np.sum(
                     (
-                        (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i]))
-                        ** 2
+                        (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i])) ** 2
                         / total_err
                     )[data["Muv"][i] > self.mag_brightest]
                 )
