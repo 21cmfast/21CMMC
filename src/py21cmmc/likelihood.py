@@ -1431,25 +1431,23 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 redshifts = ctx.get("lightcone").node_redshifts
         if len(xHI.shape) == 1:
             redshifts, xHI = np.sort([redshifts, xHI])
+
         return {"xHI": xHI, "redshifts": redshifts, "err": err}
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
-        if len(model["xHI"].shape) == 1:
-            n = 1
-            lnprob = 0
-        else:
-            n = model["xHI"].shape[0]
-            lnprob = np.zeros(n)
+        n = model["xHI"].shape[0]
+        xHI = np.atleast2d(model['xHI'])
+        lnprob = np.zeros(n)
         for i in range(n):
             if self._require_spline:
                 if n == 1:
                     model_spline = InterpolatedUnivariateSpline(
-                        model["redshifts"], model["xHI"], k=1
+                        model["redshifts"], xHI, k=1
                     )
                 else:
                     model_spline = InterpolatedUnivariateSpline(
-                        model["redshifts"], model["xHI"][i, :], k=1
+                        model["redshifts"], xHI[i, :], k=1
                     )
                 if np.sum(model["err"]) > 0:
                     err_spline = InterpolatedUnivariateSpline(
@@ -1464,11 +1462,11 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 if z in model["redshifts"]:
                     if n == 1:
                         lnprob += self.lnprob(
-                            model["xHI"][model["redshifts"].index(z)], data, sigma_t
+                            xHI[model["redshifts"].index(z)], data, sigma_t
                         )
                     else:
                         lnprob[i] += self.lnprob(
-                            model["xHI"][model["redshifts"].index(z)], data, sigma_t
+                            xHI[model["redshifts"].index(z)], data, sigma_t
                         )
                 else:
                     if n == 1:
