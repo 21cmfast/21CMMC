@@ -658,9 +658,9 @@ class CoreLuminosityFunction(CoreCoevalModule):
         else:
             values = astro_params.values
             keys = astro_params.keys
-        if all((isinstance(v, (int, float)) for v in values)):
+        if all(isinstance(v, (int, float)) for v in values):
             astro_params, cosmo_params = self._update_params(astro_params)
-        elif all((isinstance(v, (np.ndarray, list)) for v in values)):
+        elif all(isinstance(v, (np.ndarray, list)) for v in values):
             lengths = [len(v) for v in values]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
@@ -1317,7 +1317,7 @@ class Core21cmEMU(CoreBase):
             astro_params = self._update_params(astro_params).defining_dict
             astro_params = {k: astro_params[k] for k in self.astro_param_keys}
         if (
-            all((isinstance(v, (np.ndarray, list, int, float)) for v in values))
+            all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
             and len(values) > 0
         ):
             lengths = [len(v) for v in values]
@@ -1337,7 +1337,7 @@ class Core21cmEMU(CoreBase):
                 pars = astro_params[0]
             else:
                 pars = astro_params
-            par_vals = ["{:0.3e}".format(i) for i in list(pars)]
+            par_vals = [f"{i:0.3e}" for i in list(pars)]
             name = "_".join(par_vals)
             outputs.write(
                 fname=self.io_options["cache_dir"] + name,
