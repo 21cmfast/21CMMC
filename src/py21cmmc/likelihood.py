@@ -31,7 +31,7 @@ def _ensure_iter(a):
 
 
 def _listify(lst):
-    if type(lst) == list:
+    if isinstance(lst, list):
         return lst
     else:
         return [lst]
@@ -222,9 +222,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                     if hasattr(self, "define_noise"):
                         msg = "If you meant to simulate noise, set simulate=True."
 
-                    raise FileNotFoundError(
-                        "Could not find noisefile: {fl}. {msg}".format(fl=fl, msg=msg)
-                    )
+                    raise FileNotFoundError(f"Could not find noisefile: {fl}. {msg}")
 
                 else:
                     try:
@@ -246,7 +244,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                 rename(fl, fl + ".bk")
 
             np.savez(fl, **d)
-            logger.info("Saving data file: {fl}".format(fl=fl))
+            logger.info(f"Saving data file: {fl}")
 
     def _write_noise(self):
         for fl, d in zip(self.noisefile, self.noise):
@@ -259,7 +257,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                 rename(fl, fl + ".bk")
 
             np.savez(fl, **d)
-            logger.info("Saved noise file: {fl}".format(fl=fl))
+            logger.info(f"Saved noise file: {fl}")
 
     def _check_data_format(self):
         pass
@@ -607,7 +605,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                     (m["delta"][mask] - pd(m["k"][mask])) ** 2
                     / (moduncert**2 + noise**2)
                 )
-        logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
+        logger.debug(f"Likelihood computed: {lnl}")
 
         return lnl
 
@@ -1223,7 +1221,7 @@ class LikelihoodPlanck(LikelihoodBase):
                 + (tau_sigma_u - tau_sigma_l) * (model["tau"] - self.tau_mean)
             )
         )
-        logger.debug("Planck Likelihood computed: {lnl}".format(lnl=lnl))
+        logger.debug(f"Planck Likelihood computed: {lnl}")
         return lnl
 
     @property
@@ -1466,7 +1464,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 else:
                     lnprob[i] += self.lnprob(model_spline(z), data, sigma_t)
 
-        logger.debug("Neutral fraction Likelihood computed: {lnl}".format(lnl=lnprob))
+        logger.debug(f"Neutral fraction Likelihood computed: {lnprob}")
         return lnprob
 
     def lnprob(self, model, data, sigma):
@@ -1843,7 +1841,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                         / total_err
                     )[data["Muv"][i] > self.mag_brightest]
                 )
-        logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))
+        logger.debug(f"UV LF Likelihood computed: {lnl}")
         return lnl
 
     def define_noise(self, ctx, model):
@@ -2337,7 +2335,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                             lnl=np.nansum(np.log(likelihood))
                         )
                     )
-        logger.debug("Total HERA PS upper Likelihood computed: {lnl}".format(lnl=lnl))
+        logger.debug(f"Total HERA PS upper Likelihood computed: {lnl}")
         return lnl
 
     @cached_property
