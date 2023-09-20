@@ -16,7 +16,7 @@ formats: all
 # We basically "mock" any imports that are not absolutely necessary, and so don't
 # need to install much (not even hera_sim!)
 python:
-  version: 3.10
+  version: 3.8
   system_packages: true
   install:
   - requirements: docs/requirements.txt
