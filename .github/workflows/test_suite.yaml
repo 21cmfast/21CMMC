@@ -53,7 +53,7 @@ jobs:
           miniconda-version: "latest"
           python-version: ${{ matrix.python-version }}
           environment-file: ci/test-env.yml
-          activate-environment: tests
+          activate-environment: ${{ env.ENV_NAME }}
           channel-priority: strict
           use-only-tar-bz2: true
 
