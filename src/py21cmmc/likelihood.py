@@ -1437,7 +1437,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         n = model["xHI"].shape[0]
-        xHI = np.atleast2d(model['xHI'])
+        xHI = np.atleast_2d(model['xHI'])
         lnprob = np.zeros(n)
         for i in range(n):
             if self._require_spline:
@@ -2275,10 +2275,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
             2 (band1=10 band2=8)
         """
         N = model[0]["delta"].shape[0]
-        if N > 1:
-            lnl = np.zeros(N)
-        else:
-            lnl = 0
+        lnl = np.zeros(N)
         hera_data = self.data[0]
         for i in range(N):
             for band in self.redshifts:
@@ -2339,10 +2336,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                         (PS_limit_vals - ModelPS_val_afterWF) / (np.sqrt(2) * error_val)
                     )  # another way to write likelihood for 1-side Gaussian
                     likelihood[likelihood <= 0.0] = 1e-50
-                    if N > 1:
-                        lnl[i] += np.nansum(np.log(likelihood))
-                    else:
-                        lnl += np.nansum(np.log(likelihood))
+                    lnl[i] += np.nansum(np.log(likelihood))
                     logger.debug(
                         "HERA PS upper Likelihood computed: {lnl}".format(
                             lnl=np.nansum(np.log(likelihood))
