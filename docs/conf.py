@@ -36,13 +36,13 @@ project = "21CMMC"
 year = "2020"
 author = "The 21cmFAST Collaboration"
 copyright = "{0}, {1}".format(year, author)
-version = release = _version('py21cmmc')
+version = release = _version('21cmMC')
 templates_path = ["templates"]
 
 pygments_style = "trac"
 extlinks = {
-    "issue": ("https://github.com/BradGreig/21CMMC/issues/%s", "#"),
-    "pr": ("https://github.com/BradGreig/21CMMC/pull/%s", "PR #"),
+    "issue": ("https://github.com/21cmFAST/21CMMC/issues/%s", "#"),
+    "pr": ("https://github.com/21cmFAST/21CMMC/pull/%s", "PR #"),
 }
 # on_rtd is whether we are on readthedocs.org
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
