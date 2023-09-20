@@ -79,8 +79,11 @@ jobs:
         run: |
           python -m pytest --cov=py21cmmc --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
 
-      - uses: codecov/codecov-action@v2
-        if: matrix.os == 'ubuntu-latest' && success()
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
         with:
-          file: ./coverage.xml #optional
+          files: ./coverage.xml
+          flags: unittests
           fail_ci_if_error: true
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
