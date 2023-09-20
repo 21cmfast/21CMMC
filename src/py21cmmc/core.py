@@ -613,59 +613,34 @@ class CoreLuminosityFunction(CoreCoevalModule):
             mturnovers_mini = 10 ** interp1d(
                 z_all, np.array(lc.log10_mturnovers_mini)[::-1]
             )(self.redshift)
-            if isinstance(astro_params, np.ndarray):
-                N = len(astro_params)
-            else:
-                N = 1
-            Muv = []
-            Mhalo = []
-            lfunc = []
-            for i in range(N):
-                muv, mhalo, lf = p21.compute_luminosity_function(
-                    mturnovers=mturnovers,
-                    mturnovers_mini=mturnovers_mini,
-                    redshifts=self.redshift,
-                    astro_params=astro_params,
-                    flag_options=self.flag_options,
-                    cosmo_params=cosmo_params,
-                    user_params=self.user_params,
-                    nbins=self.n_muv_bins,
-                )
-                Muv.append(muv)
-                Mhalo.append(mhalo)
-                lfunc.append(lf)
-            return (
-                np.array(Muv),
-                np.array(Mhalo),
-                np.array(lfunc),
-            )
+        if type(astro_params) == np.ndarray:
+            N = len(astro_params)
         else:
-            if type(astro_params) == np.ndarray:
-                N = len(astro_params)
-            else:
-                N = 1
-            Muv = []
-            Mhalo = []
-            lfunc = []
-            for i in range(N):
-                muv, mhalo, lf = p21.compute_luminosity_function(
-                    redshifts=self.redshift,
-                    astro_params=astro_params[i]
-                    if not isinstance(astro_params, p21.AstroParams)
-                    else astro_params,
-                    flag_options=self.flag_options,
-                    cosmo_params=cosmo_params,
-                    user_params=self.user_params,
-                    nbins=self.n_muv_bins,
-                )
-                Muv.append(muv)
-                Mhalo.append(mhalo)
-                lfunc.append(lf)
-            return (
-                np.array(Muv),
-                np.array(Mhalo),
-                np.array(lfunc),
+            N = 1
+        Muv = []
+        Mhalo = []
+        lfunc = []
+        for i in range(N):
+            muv, mhalo, lf = p21.compute_luminosity_function(
+                mturnovers=mturnovers if self.flag_options.USE_MINI_HALOS else None,
+                mturnovers_mini=mturnovers_mini if self.flag_options.USE_MINI_HALOS else None,
+                redshifts=self.redshift,
+                astro_params=astro_params[i]
+                if not isinstance(astro_params, p21.AstroParams)
+                else astro_params,
+                flag_options=self.flag_options,
+                cosmo_params=cosmo_params,
+                user_params=self.user_params,
+                nbins=self.n_muv_bins,
             )
+            Muv.append(muv)
+            Mhalo.append(mhalo)
+            lfunc.append(lf)
+        return (
+            np.array(Muv),
+            np.array(Mhalo),
+            np.array(lfunc),
+        )
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
