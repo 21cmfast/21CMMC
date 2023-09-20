@@ -1420,8 +1420,6 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 # 1.0818709330934035 = 1+0.25*YHe/(1-YHe) with YHe coming from BBN
                 # I think there is a way to fix YHe using user defined value
                 xHI = ctx.get("xHI")
-                if xHI.shape[0] == 1:
-                    xHI = xHI.flatten()
                 redshifts = ctx.get("zs")
                 if redshifts is None:
                     redshifts = ctx.get("redshifts")
@@ -1429,7 +1427,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             else:
                 xHI = ctx.get("lightcone").global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts
-        if len(xHI.shape) == 1:
+        if xHI.ndim == 1:
             redshifts, xHI = np.sort([redshifts, xHI])
 
         return {"xHI": xHI, "redshifts": redshifts, "err": err}
