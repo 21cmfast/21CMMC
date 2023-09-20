@@ -69,8 +69,8 @@ write_to = "src/py21cmmc/_version.py"
 parentdir_prefix_version = "21CMMC-"
 fallback_version = "0.0.0"
 
-[tool.setuptools]
-packages = ["py21cmmc"]
+# [tool.setuptools]
+# packages = ["21CMMC"]
 
 [tool.black]
 include = '\.pyi?$'
