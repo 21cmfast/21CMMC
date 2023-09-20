@@ -9,14 +9,19 @@ version: 2
 sphinx:
   configuration: docs/conf.py
 
-# Optionally build your docs in additional formats such as PDF and ePub
-formats: all
+# conda:
+#   environment: docs/environment.yaml
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "mambaforge-22.9"
 
-# Optionally set the version of Python and requirements required to build your docs
-# We basically "mock" any imports that are not absolutely necessary, and so don't
-# need to install much (not even hera_sim!)
+conda:
+  environment: ci/test-env.yml
+
 python:
-  version: 3.6
-  system_packages: true
-  install:
-  - requirements: docs/requirements.txt
+   install:
+      - method: pip
+        path: .
+        extra_requirements:
+           - docs

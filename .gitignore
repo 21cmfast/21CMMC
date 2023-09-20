@@ -39,4 +39,8 @@ htmlcov/
 
 pip-wheel-metadata/
 src/21CMMC.egg-info/
+src/21cmMC.egg-info/
+21cmMC.egg-info/
+*.egg-info/
 devel/*.out
+_version.py

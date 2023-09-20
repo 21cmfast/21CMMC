@@ -1,4 +1,4 @@
-name: tests
+name: test-suite
 channels:
   - conda-forge
   - conda-forge/label/cf201901
