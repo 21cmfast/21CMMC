@@ -2,20 +2,7 @@
 from __future__ import unicode_literals
 
 import os
-import sys
-from unittest.mock import MagicMock
-
-sys.path.insert(0, os.path.abspath("../"))
-
-
-class Mock(MagicMock):
-    @classmethod
-    def __getattr__(cls, name):
-        return MagicMock()
-
-
-MOCK_MODULES = []
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+from importlib.metadata import version as _version
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -49,7 +36,7 @@ project = "21CMMC"
 year = "2020"
 author = "The 21cmFAST Collaboration"
 copyright = "{0}, {1}".format(year, author)
-version = release = "0.1.0"
+version = release = _version('py21cmmc')
 templates_path = ["templates"]
 
 pygments_style = "trac"
@@ -60,13 +47,11 @@ extlinks = {
 # on_rtd is whether we are on readthedocs.org
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
-if not on_rtd:  # only set the theme if we're building docs locally
-    html_theme = "sphinx_rtd_theme"
-
+html_theme = "furo"
 html_use_smartypants = True
 html_last_updated_fmt = "%b %d, %Y"
 html_split_index = False
-html_sidebars = {"**": ["searchbox.html", "globaltoc.html", "sourcelink.html"]}
+#html_sidebars = {"**": ["searchbox.html", "globaltoc.html", "sourcelink.html"]}
 html_short_title = "%s-%s" % (project, version)
 
 napoleon_use_ivar = True

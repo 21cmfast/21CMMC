@@ -1,2 +1,0 @@
-include README.rst config.yml runconfig_example.yml CHANGELOG.rst
-recursive-include src *
