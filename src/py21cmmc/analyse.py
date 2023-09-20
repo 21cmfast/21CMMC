@@ -113,7 +113,7 @@ def corner_plot(
     niter, mwalkers, nparams = chain.shape
 
     if show_guess:
-        guess = list((samples.param_guess[0]))
+        guess = list(samples.param_guess[0])
 
     labels = list(samples.param_names)
 

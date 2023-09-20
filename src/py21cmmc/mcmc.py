@@ -251,7 +251,7 @@ def run_mcmc(
 
     if continue_sampling and not (use_multinest or use_zeus):
         try:
-            with open(file_prefix + ".LCC.yml", "r") as f:
+            with open(file_prefix + ".LCC.yml") as f:
                 old_chain = yaml.load(f)
 
             if old_chain != chain:
