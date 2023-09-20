@@ -1482,6 +1482,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
 class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
     """
     A likelihood based on the measured neutral fraction at a range of redshifts.
+    
     This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
     See ``LikelihoodNeutralFraction`` for more information.
 
@@ -1640,6 +1641,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     r"""
     Likelihood based on Chi^2 comparison to luminosity function data.
+
     This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
 
     Parameters
