@@ -1699,7 +1699,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 raise ValueError(
                     "Must specify which z bin out of [6, 7, 8, 10] the likelihood is comparing to the data."
                 )
-            self.i = np.argmin(abs(np.array([6, 7, 8, 10]) - int(self.z)))
+            self.zidx = np.argmin(abs(np.array([6, 7, 8, 10]) - int(self.z)))
 
         if not self._simulate:
             if self.datafile is None:
@@ -1790,11 +1790,11 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             final_data = {}
             shape = ctx.get("UVLFs").shape
             if len(shape) == 3:
-                final_data["lfunc"] = ctx.get("UVLFs")[:, self.i, :].reshape(
+                final_data["lfunc"] = ctx.get("UVLFs")[:, self.zidx, :].reshape(
                     (shape[0], 1, shape[-1])
                 )
             else:
-                final_data["lfunc"] = ctx.get("UVLFs")[self.i, :].reshape([1, -1])[
+                final_data["lfunc"] = ctx.get("UVLFs")[self.zidx, :].reshape([1, -1])[
                     np.newaxis, ...
                 ]
             # Add two dimensions for nparams
