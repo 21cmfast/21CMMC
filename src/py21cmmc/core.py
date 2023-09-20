@@ -1272,7 +1272,7 @@ class Core21cmEMU(CoreBase):
         # Call 21cmEMU wrapper which returns a dict
         theta, outputs, errors = self.emulator.predict(astro_params=input_dict)
         if self.io_options["cache_dir"] is not None:
-            par_vals = ["{:0.3e}".format(i) for i in list(input_dict.values())]
+            par_vals = [f"{i:0.3e}" for i in list(input_dict.values())]
             name = "_".join(par_vals)
             outputs.write(
                 fname=self.io_options["cache_dir"] + name,

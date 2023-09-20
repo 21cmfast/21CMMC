@@ -36,7 +36,7 @@ class HDFStorage:
         try:
             with self.open() as f:
                 return self.name in f
-        except (OSError, IOError):
+        except OSError:
             return False
 
     def open(self, mode="r"):  # noqa
@@ -290,7 +290,7 @@ class HDFStorage:
             g["accepted"][iteration, :] = accepted
 
             for i, v in enumerate(random_state):
-                g.attrs["random_state_{0}".format(i)] = v
+                g.attrs[f"random_state_{i}"] = v
 
             g.attrs["iteration"] = iteration + 1
 
@@ -459,16 +459,14 @@ class HDFStorage:
 
         if coords.shape != (nwalkers, ndim):
             raise ValueError(
-                "invalid coordinate dimensions; expected {0}".format((nwalkers, ndim))
+                f"invalid coordinate dimensions; expected {(nwalkers, ndim)}"
             )
         if log_prob.shape != (nwalkers,):
-            raise ValueError(
-                "invalid log probability size; expected {0}".format(nwalkers)
-            )
+            raise ValueError(f"invalid log probability size; expected {nwalkers}")
         if blobs and len(blobs) != nwalkers:
-            raise ValueError("invalid blobs size; expected {0}".format(nwalkers))
+            raise ValueError(f"invalid blobs size; expected {nwalkers}")
         if accepted.shape != (nwalkers,):
-            raise ValueError("invalid acceptance size; expected {0}".format(nwalkers))
+            raise ValueError(f"invalid acceptance size; expected {nwalkers}")
 
 
 class HDFStorageUtil:
@@ -515,8 +513,7 @@ class Params(_util.Params):
 
     def items(self):
         """Iterate through the params like a dict."""
-        for k, v in zip(self.keys, self.values):
-            yield k, v
+        yield from zip(self.keys, self.values)
 
     def __eq__(self, other):
         """Test equality of two instances."""
