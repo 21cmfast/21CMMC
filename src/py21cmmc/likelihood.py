@@ -691,6 +691,9 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     """
     A likelihood very similar to :class:`Likelihood1DPowerCoeval`, except for a lightcone.
 
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``,
+    but only when used with ``Core21cmEMU``.
+
     Since most of the functionality is the same, please see the other documentation for details.
     """
 
@@ -1151,6 +1154,8 @@ class LikelihoodPlanck(LikelihoodBase):
     In practice, any optical depth measurement (or mock measurement) may be used, by
     defining the class variables ``tau_mean`` and ``tau_sigma``.
 
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
+
     Parameters
     ----------
     tau_mean : float
@@ -1294,6 +1299,8 @@ class LikelihoodPlanck(LikelihoodBase):
 class LikelihoodNeutralFraction(LikelihoodBase):
     """
     A likelihood based on the measured neutral fraction at a range of redshifts.
+
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
 
     The log-likelihood statistic is a simple chi^2 if the model has xHI > threshold,
     and 0 otherwise.
@@ -1475,6 +1482,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
 class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
     """
     A likelihood based on the measured neutral fraction at a range of redshifts.
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
+    See ``LikelihoodNeutralFraction`` for more information.
 
     The log-likelihood statistic is a simple chi^2.
     """
@@ -1631,6 +1640,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     r"""
     Likelihood based on Chi^2 comparison to luminosity function data.
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
 
     Parameters
     ----------

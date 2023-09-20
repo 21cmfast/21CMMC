@@ -564,6 +564,10 @@ class CoreLightConeModule(CoreCoevalModule):
 class CoreLuminosityFunction(CoreCoevalModule):
     r"""A Core Module that produces model luminosity functions at a range of redshifts.
 
+    Notes
+    -----
+    This core is vectorized i.e., it accepts an array of ``astro_params``.
+
     Parameters
     ----------
     sigma : float, callable, list of callables, or array_like
@@ -1191,7 +1195,7 @@ class Core21cmEMU(CoreBase):
     Notes
     -----
     This core calls 21cmEMU and uses it to evaluate 21cmFAST summaries (power spectrum, global signal, neutral fraction, spin temperature)
-    given a set of astro_params.
+    given a set of astro_params. This core is vectorized i.e., it accepts an array of ``astro_params``.
 
     Parameters
     ----------
