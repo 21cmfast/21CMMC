@@ -1807,7 +1807,6 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             data = {"lfunc": self.data["lfunc"][0], "Muv": self.data["Muv"][0]}
         else:
             data = self.data
-
         for n in range(N):
             for i, z in enumerate(self.redshifts):
                 if len(model["Muv"].shape) == 3:
@@ -1828,7 +1827,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
                 lnl[n] += -0.5 * np.sum(
                     (
-                        (data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
+                        (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i]))
                         ** 2
                         / total_err
                     )[data["Muv"][i] > self.mag_brightest]
