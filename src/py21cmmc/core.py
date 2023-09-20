@@ -1327,7 +1327,7 @@ class Core21cmEMU(CoreBase):
                 )
             ap = []
             for t in zip(*values):
-                ap.append(dict((k, v) for k, v in zip(keys, t)))
+                ap.append({k: v for k, v in zip(keys, t)})
             astro_params = np.array(ap, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
 
