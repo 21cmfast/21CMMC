@@ -1816,10 +1816,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         N = model["lfunc"].shape[0]
-        if N > 1:
-            lnl = np.zeros(N)
-        else:
-            lnl = 0
+        lnl = np.zeros(N)
 
         if len(self.data["lfunc"].shape) == 3:
             data = {"lfunc": self.data["lfunc"][0], "Muv": self.data["Muv"][0]}
@@ -1844,21 +1841,13 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
                 total_err = self.noise["sigma"][i] ** 2
 
-                if N > 1:
-                    lnl[n] += -0.5 * np.sum(
-                        (
-                            (data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
-                            ** 2
-                            / total_err
-                        )[data["Muv"][i] > self.mag_brightest]
-                    )
-                else:
-                    lnl += -0.5 * np.sum(
-                        (
-                            (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i])) ** 2
-                            / total_err
-                        )[data["Muv"][i] > self.mag_brightest]
-                    )
+                lnl[n] += -0.5 * np.sum(
+                    (
+                        (data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
+                        ** 2
+                        / total_err
+                    )[data["Muv"][i] > self.mag_brightest]
+                )
         logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))
         return lnl
 
