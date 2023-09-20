@@ -1441,14 +1441,9 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         lnprob = np.zeros(n)
         for i in range(n):
             if self._require_spline:
-                if n == 1:
-                    model_spline = InterpolatedUnivariateSpline(
-                        model["redshifts"], xHI, k=1
-                    )
-                else:
-                    model_spline = InterpolatedUnivariateSpline(
-                        model["redshifts"], xHI[i, :], k=1
-                    )
+                model_spline = InterpolatedUnivariateSpline(
+                    model["redshifts"], xHI[i, :], k=1
+                )
                 if np.sum(model["err"]) > 0:
                     err_spline = InterpolatedUnivariateSpline(
                         model["redshifts"], model["err"], k=1
@@ -1460,19 +1455,11 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 else:
                     sigma_t = sigma
                 if z in model["redshifts"]:
-                    if n == 1:
-                        lnprob += self.lnprob(
-                            xHI[model["redshifts"].index(z)], data, sigma_t
-                        )
-                    else:
-                        lnprob[i] += self.lnprob(
-                            xHI[model["redshifts"].index(z)], data, sigma_t
-                        )
+                    lnprob[i] += self.lnprob(
+                        xHI[model["redshifts"].index(z)], data, sigma_t
+                    )
                 else:
-                    if n == 1:
-                        lnprob += self.lnprob(model_spline(z), data, sigma_t)
-                    else:
-                        lnprob[i] += self.lnprob(model_spline(z), data, sigma_t)
+                    lnprob[i] += self.lnprob(model_spline(z), data, sigma_t)
 
         logger.debug("Neutral fraction Likelihood computed: {lnl}".format(lnl=lnprob))
         return lnprob
