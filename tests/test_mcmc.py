@@ -417,6 +417,29 @@ def test_neutral_fraction(lc_core, lc_core_ctx):
     assert "xHI" in model
 
 
+def test_twosided_neutral_fraction(lc_core, lc_core_ctx):
+    with pytest.raises(ValueError):
+        mcmc.build_computation_chain(
+            mcmc.CoreLuminosityFunction(
+                redshift=7, sigma=1
+            ),  # Bad core for neutral fraction
+            mcmc.LikelihoodNeutralFractionTwoSided(),
+        )
+
+    lk = mcmc.LikelihoodNeutralFractionTwoSided()
+
+    mcmc.build_computation_chain(lc_core, lk, setup=False)
+    lk.setup()
+
+    assert lc_core in lk.lightcone_modules
+    assert len(lk.coeval_modules) == 0
+    assert lk._require_spline
+
+    model = lk.reduce_data(lc_core_ctx)
+
+    assert "xHI" in model
+
+
 def test_greig(lc_core, lc_core_ctx):
     lk = mcmc.LikelihoodGreig()
 

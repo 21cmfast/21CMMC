@@ -27,9 +27,8 @@ def test_single_datafile(tmpdir):
 
     model = lk.get_fiducial_model()
     assert isinstance(model, dict)
-
-    assert len(lk.data["Muv"]) == 3
-    assert len(model["Muv"]) == 3
+    assert lk.data["Muv"].shape[1] == 3
+    assert model["Muv"].shape[1] == 3
 
     chain({})
 
@@ -41,8 +40,8 @@ def test_single_datafile(tmpdir):
     model = lk.get_fiducial_model()
     assert isinstance(model, dict)
 
-    assert len(lk.data["Muv"]) == 3
-    assert len(model["Muv"]) == 3
+    assert lk.data["Muv"].shape[1] == 3
+    assert model["Muv"].shape[1] == 3
 
     chain({})
 
@@ -72,10 +71,10 @@ def test_multi_datafile(tmpdir):
     chain = build_computation_chain([core7, core8], [lk7, lk8], setup=True)
 
     assert isinstance(lk7.data, dict)
-    assert len(lk7.data["Muv"]) == 1
-    assert len(lk8.data["Muv"]) == 1
+    assert lk7.data["Muv"].shape[1] == 1
+    assert lk8.data["Muv"].shape[1] == 1
 
-    assert len(lk8.data["Muv"][0]) != len(lk7.data["Muv"][0])
+    assert lk8.data["Muv"][0].shape[1] != lk7.data["Muv"][0].shape[1]
     chain({})
 
     lk7read = LikelihoodLuminosityFunction(datafile=dfile7, noisefile=nfile7, name="7")
@@ -83,10 +82,10 @@ def test_multi_datafile(tmpdir):
     chain = build_computation_chain([core7, core8], [lk7read, lk8read], setup=True)
 
     assert isinstance(lk7read.data, dict)
-    assert len(lk7read.data["Muv"]) == 1
-    assert len(lk8read.data["Muv"]) == 1
+    assert lk7read.data["Muv"].shape[1] == 1
+    assert lk8read.data["Muv"].shape[1] == 1
 
-    assert len(lk8read.data["Muv"][0]) != len(lk7read.data["Muv"][0])
+    assert lk8read.data["Muv"][0].shape[1] != lk7read.data["Muv"][0].shape[1]
     chain({})
 
 

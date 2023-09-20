@@ -24,6 +24,7 @@ from .likelihood import (
     LikelihoodGreig,
     LikelihoodLuminosityFunction,
     LikelihoodNeutralFraction,
+    LikelihoodNeutralFractionTwoSided,
     LikelihoodPlanck,
     LikelihoodPlanckPowerSpectra,
 )

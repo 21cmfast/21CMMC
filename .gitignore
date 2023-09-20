@@ -43,4 +43,7 @@ src/21cmMC.egg-info/
 21cmMC.egg-info/
 *.egg-info/
 devel/*.out
+MultiNest/*
+LuminosityLikelihood*
+Prior*
 _version.py

@@ -16,10 +16,12 @@ dependencies:
   - h5py>=2.8.0
   - matplotlib
   - multinest
+  - ultranest
   - pymultinest
   - zeus-mcmc
   - pip
   - 21cmFAST
+
   - pip:
     - powerbox
     - cached_property

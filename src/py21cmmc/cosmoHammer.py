@@ -78,7 +78,7 @@ class HDFStorage:
                 ),
             )
             g.create_dataset(
-                "accepted", (0, nwalkers), maxshape=(None, nwalkers), dtype=np.int
+                "accepted", (0, nwalkers), maxshape=(None, nwalkers), dtype=int
             )
             g.create_dataset(
                 "chain",
@@ -666,7 +666,7 @@ class LikelihoodComputationChain(_Chain):
 
         logger.debug(f"Computing Likelihood for {module.__class__.__name__}...")
         lnl = module.computeLikelihood(model)
-        logger.debug(f"... done computing likelihood (lnl = {lnl:.3e}")
+        logger.debug(f"... done computing likelihood (lnl = {lnl}")
         return lnl
 
     def __call__(self, p):

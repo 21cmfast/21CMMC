@@ -13,6 +13,8 @@ import warnings
 from os import path
 from scipy.interpolate import interp1d
 
+from py21cmmc.cosmoHammer import Params
+
 from . import _utils as ut
 
 logger = logging.getLogger("21cmFAST")
@@ -562,6 +564,10 @@ class CoreLightConeModule(CoreCoevalModule):
 class CoreLuminosityFunction(CoreCoevalModule):
     r"""A Core Module that produces model luminosity functions at a range of redshifts.
 
+    Notes
+    -----
+    This core is vectorized i.e., it accepts an array of ``astro_params``.
+
     Parameters
     ----------
     sigma : float, callable, list of callables, or array_like
@@ -581,11 +587,15 @@ class CoreLuminosityFunction(CoreCoevalModule):
         All other parameters are the same as :class:`CoreCoevalModule`.
     """
 
-    def __init__(self, sigma=None, name="", n_muv_bins=100, **kwargs):
+    def __init__(
+        self, sigma=None, name="", cosmo_params=None, n_muv_bins=100, **kwargs
+    ):
         self._sigma = sigma
         self.name = str(name)
         self.n_muv_bins = n_muv_bins
         super().__init__(**kwargs)
+        if cosmo_params is not None:
+            self.cosmo_params = p21.CosmoParams(**cosmo_params)
 
     def setup(self):
         """Run post-init setup."""
@@ -607,38 +617,66 @@ class CoreLuminosityFunction(CoreCoevalModule):
             mturnovers_mini = 10 ** interp1d(
                 z_all, np.array(lc.log10_mturnovers_mini)[::-1]
             )(self.redshift)
-            return p21.compute_luminosity_function(
-                mturnovers=mturnovers,
-                mturnovers_mini=mturnovers_mini,
-                redshifts=self.redshift,
-                astro_params=astro_params,
-                flag_options=self.flag_options,
-                cosmo_params=cosmo_params,
-                user_params=self.user_params,
-                nbins=self.n_muv_bins,
-            )
+        if isinstance(astro_params, np.ndarray):
+            N = len(astro_params)
         else:
-            return p21.compute_luminosity_function(
+            N = 1
+        Muv = []
+        Mhalo = []
+        lfunc = []
+        for i in range(N):
+            muv, mhalo, lf = p21.compute_luminosity_function(
+                mturnovers=mturnovers if self.flag_options.USE_MINI_HALOS else None,
+                mturnovers_mini=mturnovers_mini
+                if self.flag_options.USE_MINI_HALOS
+                else None,
                 redshifts=self.redshift,
-                astro_params=astro_params,
+                astro_params=astro_params[i]
+                if not isinstance(astro_params, p21.AstroParams)
+                else astro_params,
                 flag_options=self.flag_options,
                 cosmo_params=cosmo_params,
                 user_params=self.user_params,
                 nbins=self.n_muv_bins,
             )
+            Muv.append(muv)
+            Mhalo.append(mhalo)
+            lfunc.append(lf)
+        return (
+            np.array(Muv),
+            np.array(Mhalo),
+            np.array(lfunc),
+        )
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
-        astro_params, cosmo_params = self._update_params(ctx.getParams())
-
+        astro_params = ctx.getParams()
+        if isinstance(astro_params, dict):
+            values = astro_params.values()
+            keys = astro_params.keys()
+        else:
+            values = astro_params.values
+            keys = astro_params.keys
+        if all(isinstance(v, (int, float)) for v in values):
+            astro_params, cosmo_params = self._update_params(astro_params)
+        elif all(isinstance(v, (np.ndarray, list)) for v in values):
+            lengths = [len(v) for v in values]
+            if lengths.count(lengths[0]) != len(lengths):
+                raise ValueError(
+                    "For vectorized case, all parameters should have the same length."
+                )
+            ap = []
+            for t in zip(*values):
+                apars, cosmo_params = self._update_params(
+                    Params(*[(k, v) for k, v in zip(keys, t)])
+                )
+                ap.append(apars)
+            astro_params = ap
+            astro_params = np.array(astro_params, dtype=object)
+        logger.debug(f"AstroParams: {astro_params}")
         # Call C-code
         Muv, mhalo, lfunc = self.run(astro_params, cosmo_params, ctx)
-
-        Muv = [m[~np.isnan(lf)] for lf, m in zip(lfunc, Muv)]
-        mhalo = [m[~np.isnan(lf)] for lf, m in zip(lfunc, mhalo)]
-        lfunc = [m[~np.isnan(lf)] for lf, m in zip(lfunc, lfunc)]
-
         ctx.add(
             "luminosity_function" + self.name,
             {"Muv": Muv, "mhalo": mhalo, "lfunc": lfunc},
@@ -662,8 +700,8 @@ class CoreLuminosityFunction(CoreCoevalModule):
         if self.sigma is None:
             raise ValueError("Cannot create a mock with sigma=None!")
 
-        lfunc = ctx.get("luminosity_function" + self.name)["lfunc"]
-        muv = ctx.get("luminosity_function" + self.name)["Muv"]
+        lfunc = ctx.get("luminosity_function" + self.name)["lfunc"][0]
+        muv = ctx.get("luminosity_function" + self.name)["Muv"][0]
 
         for i, s in enumerate(self.sigma):  # each redshift
             try:
@@ -1157,7 +1195,7 @@ class Core21cmEMU(CoreBase):
     Notes
     -----
     This core calls 21cmEMU and uses it to evaluate 21cmFAST summaries (power spectrum, global signal, neutral fraction, spin temperature)
-    given a set of astro_params.
+    given a set of astro_params. This core is vectorized i.e., it accepts an array of ``astro_params``.
 
     Parameters
     ----------
@@ -1264,15 +1302,42 @@ class Core21cmEMU(CoreBase):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
         logger.debug(f"Updating parameters: {ctx.getParams()}")
-        astro_params = self._update_params(ctx.getParams())
+        astro_params = ctx.getParams()
+        if isinstance(astro_params, dict):
+            values = astro_params.values()
+            keys = astro_params.keys()
+        elif isinstance(astro_params, p21.AstroParams):
+            values = astro_params.defining_dict.values
+            keys = self.astro_param_keys
+        else:
+            values = astro_params.values
+            keys = astro_params.keys
+        # For build_computation_chain when params passed are an empty dict
+        if len(values) == 0:
+            astro_params = self._update_params(astro_params).defining_dict
+            astro_params = {k: astro_params[k] for k in self.astro_param_keys}
+        if (
+            all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
+            and len(values) > 0
+        ):
+            lengths = [len(v) for v in values]
+            if lengths.count(lengths[0]) != len(lengths):
+                raise ValueError(
+                    "For vectorized case, all parameters should have the same length."
+                )
+            ap = []
+            for t in zip(*values):
+                ap.append(dict(zip(keys, t)))
+            astro_params = np.array(ap, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
-        # Take only needed AstroParams
-        input_dict = {k: getattr(astro_params, k) for k in self.astro_param_keys}
 
-        # Call 21cmEMU wrapper which returns a dict
-        theta, outputs, errors = self.emulator.predict(astro_params=input_dict)
+        theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
         if self.io_options["cache_dir"] is not None:
-            par_vals = [f"{i:0.3e}" for i in list(input_dict.values())]
+            if len(astro_params.shape) == 2:
+                pars = astro_params[0]
+            else:
+                pars = astro_params
+            par_vals = [f"{i:0.3e}" for i in list(pars)]
             name = "_".join(par_vals)
             outputs.write(
                 fname=self.io_options["cache_dir"] + name,

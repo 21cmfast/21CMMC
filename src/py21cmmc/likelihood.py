@@ -689,6 +689,9 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     """
     A likelihood very similar to :class:`Likelihood1DPowerCoeval`, except for a lightcone.
 
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``,
+    but only when used with ``Core21cmEMU``.
+
     Since most of the functionality is the same, please see the other documentation for details.
     """
 
@@ -1149,6 +1152,8 @@ class LikelihoodPlanck(LikelihoodBase):
     In practice, any optical depth measurement (or mock measurement) may be used, by
     defining the class variables ``tau_mean`` and ``tau_sigma``.
 
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
+
     Parameters
     ----------
     tau_mean : float
@@ -1238,8 +1243,8 @@ class LikelihoodPlanck(LikelihoodBase):
         """
         # Extract relevant info from the context.
         if self._is_emu:
-            tau_err = ctx.get("tau_e_err")
-            tau_value = ctx.get("tau_e")
+            tau_err = ctx.get("tau_err")
+            tau_value = ctx.get("tau")
 
         elif self._is_lightcone:
             lc = ctx.get("lightcone")
@@ -1292,6 +1297,8 @@ class LikelihoodPlanck(LikelihoodBase):
 class LikelihoodNeutralFraction(LikelihoodBase):
     """
     A likelihood based on the measured neutral fraction at a range of redshifts.
+
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
 
     The log-likelihood statistic is a simple chi^2 if the model has xHI > threshold,
     and 0 otherwise.
@@ -1418,8 +1425,6 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 # 1.0818709330934035 = 1+0.25*YHe/(1-YHe) with YHe coming from BBN
                 # I think there is a way to fix YHe using user defined value
                 xHI = ctx.get("xHI")
-                if xHI.shape[0] == 1:
-                    xHI = xHI.flatten()
                 redshifts = ctx.get("zs")
                 if redshifts is None:
                     redshifts = ctx.get("redshifts")
@@ -1427,33 +1432,38 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             else:
                 xHI = ctx.get("lightcone").global_xHI
                 redshifts = ctx.get("lightcone").node_redshifts
-        redshifts, xHI = np.sort([redshifts, xHI])
+        if xHI.ndim == 1:
+            redshifts, xHI = np.sort([redshifts, xHI])
+
         return {"xHI": xHI, "redshifts": redshifts, "err": err}
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
-        lnprob = 0
-
-        if self._require_spline:
-            model_spline = InterpolatedUnivariateSpline(
-                model["redshifts"], model["xHI"], k=1
-            )
-            if np.sum(model["err"]) > 0:
-                err_spline = InterpolatedUnivariateSpline(
-                    model["redshifts"], model["err"], k=1
+        n = model["xHI"].shape[0]
+        xHI = np.atleast_2d(model["xHI"])
+        lnprob = np.zeros(n)
+        for i in range(n):
+            if self._require_spline:
+                model_spline = InterpolatedUnivariateSpline(
+                    model["redshifts"], xHI[i, :], k=1
                 )
+                if np.sum(model["err"]) > 0:
+                    err_spline = InterpolatedUnivariateSpline(
+                        model["redshifts"], model["err"], k=1
+                    )
 
-        for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
-            if np.sum(model["err"]) > 0:
-                sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2)
-            else:
-                sigma_t = sigma
-            if z in model["redshifts"]:
-                lnprob += self.lnprob(
-                    model["xHI"][model["redshifts"].index(z)], data, sigma_t
-                )
-            else:
-                lnprob += self.lnprob(model_spline(z), data, sigma_t)
+            for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
+                if np.sum(model["err"]) > 0:
+                    sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2)
+                else:
+                    sigma_t = sigma
+                if z in model["redshifts"]:
+                    lnprob[i] += self.lnprob(
+                        xHI[model["redshifts"].index(z)], data, sigma_t
+                    )
+                else:
+                    lnprob[i] += self.lnprob(model_spline(z), data, sigma_t)
+
         logger.debug(f"Neutral fraction Likelihood computed: {lnprob}")
         return lnprob
 
@@ -1465,6 +1475,48 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             return -0.5 * ((data - model) / sigma) ** 2
         else:
             return 0
+
+
+class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
+    """
+    A likelihood based on the measured neutral fraction at a range of redshifts.
+
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
+    See ``LikelihoodNeutralFraction`` for more information.
+
+    The log-likelihood statistic is a simple chi^2.
+    """
+
+    required_cores = (
+        (
+            core.CoreLightConeModule,
+            core.CoreCoevalModule,
+            core.CoreCMB,
+            core.Core21cmEMU,
+        ),
+    )
+    threshold = 0.06
+
+    def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
+        """
+        Neutral fraction likelihood/prior.
+
+        Parameters
+        ----------
+        redshift : float or list of floats
+            Redshift(s) at which the neutral fraction has been measured.
+        xHI : float or list of floats
+            Measured values of the neutral fraction, corresponding to `redshift`.
+        xHI_sigma : float or list of floats
+            Two-sided uncertainty of measurements.
+        """
+        super().__init__(redshift=redshift, xHI=xHI, xHI_sigma=xHI_sigma)
+
+    def lnprob(self, model, data, sigma):
+        """Compute the log prob given a model, data and error."""
+        model = np.clip(model, 0, 1)
+
+        return -0.5 * ((data - model) / sigma) ** 2
 
 
 class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
@@ -1588,6 +1640,8 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     r"""
     Likelihood based on Chi^2 comparison to luminosity function data.
 
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
+
     Parameters
     ----------
     datafile : str, optional
@@ -1618,7 +1672,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     required_cores = ((core.CoreLuminosityFunction, core.Core21cmEMU),)
 
-    def __init__(self, *args, name="", mag_brightest=-20.0, z_idx=None, **kwargs):
+    def __init__(self, *args, name="", mag_brightest=-20.0, z=None, **kwargs):
         super().__init__(*args, **kwargs)
         if self.datafile is not None and len(self.datafile) != 1:
             raise ValueError(
@@ -1629,18 +1683,18 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 "can only pass a single noisefile to LikelihoodLuminosityFunction!"
             )
         # This argument is for the emulator to know which z bin this likelihood is for.
-        self.z_idx = z_idx
+        self.z = z
         self.name = str(name)
         self.mag_brightest = mag_brightest
 
     def setup(self):
         """Setup instance."""
         if isinstance(self.paired_core, core.Core21cmEMU):
-            if self.z_idx is None:
+            if self.z is None:
                 raise ValueError(
                     "Must specify which z bin out of [6, 7, 8, 10] the likelihood is comparing to the data."
                 )
-            self.i = np.argmin(abs(np.array([6, 7, 8, 10]) - int(self.z_idx)))
+            self.zidx = np.argmin(abs(np.array([6, 7, 8, 10]) - int(self.z)))
 
         if not self._simulate:
             if self.datafile is None:
@@ -1718,10 +1772,10 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     def redshifts(self):
         """Redshifts at which luminosity function is defined."""
         if isinstance(self.paired_core, core.Core21cmEMU):
-            if hasattr(self.z_idx, "__len__"):
-                return self.z_idx
+            if hasattr(self.z, "__len__"):
+                return self.z
             else:
-                return np.array([self.z_idx])
+                return np.array([self.z])
         else:
             return self.paired_core.redshift
 
@@ -1729,9 +1783,21 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """Reduce simulated model data."""
         if isinstance(self.paired_core, core.Core21cmEMU):
             final_data = {}
-            # Emulator undoes the log10 so we need to redo it here
-            final_data["lfunc"] = np.log10(ctx.get("UVLFs"))[self.i, :].reshape([1, -1])
-            final_data["Muv"] = ctx.get("Muv").reshape([1, -1])
+            shape = ctx.get("UVLFs").shape
+            if len(shape) == 3:
+                final_data["lfunc"] = ctx.get("UVLFs")[:, self.zidx, :].reshape(
+                    (shape[0], 1, shape[-1])
+                )
+            else:
+                final_data["lfunc"] = ctx.get("UVLFs")[self.zidx, :].reshape([1, -1])[
+                    np.newaxis, ...
+                ]
+            # Add two dimensions for nparams
+            N = final_data["lfunc"].shape[0]
+            final_data["Muv"] = np.array(
+                list(ctx.get("Muv").reshape([1, -1])[np.newaxis, ...]) * N
+            )
+            # TODO check if error is Gaussian and incorporate it properly
             return final_data
         else:
             lfunc = ctx.get("luminosity_function" + self.name)
@@ -1744,19 +1810,37 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
-        lnl = 0
-        for i, z in enumerate(self.redshifts):
-            model_spline = InterpolatedUnivariateSpline(
-                model["Muv"][i][::-1], model["lfunc"][i][::-1]
-            )
+        N = model["lfunc"].shape[0]
+        lnl = np.zeros(N)
 
-            lnl += -0.5 * np.sum(
-                (
-                    (self.data["lfunc"][i] - 10 ** model_spline(self.data["Muv"][i]))
-                    ** 2
-                    / self.noise["sigma"][i] ** 2
-                )[self.data["Muv"][i] > self.mag_brightest]
-            )
+        if len(self.data["lfunc"].shape) == 3:
+            data = {"lfunc": self.data["lfunc"][0], "Muv": self.data["Muv"][0]}
+        else:
+            data = self.data
+        for n in range(N):
+            for i, z in enumerate(self.redshifts):
+                if len(model["Muv"].shape) == 3:
+                    if model["Muv"][n][i][0] > model["Muv"][n][i][1]:
+                        muv = model["Muv"][n][i][::-1]
+                        lfunc = model["lfunc"][n, i][::-1]
+                    else:
+                        muv = model["Muv"][n][i]
+                        lfunc = model["lfunc"][n, i]
+                else:
+                    muv = model["Muv"][n][i]
+                    lfunc = model["lfunc"][n, i]
+
+                mask = ~np.isnan(lfunc)
+                model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
+
+                total_err = self.noise["sigma"][i] ** 2
+
+                lnl[n] += -0.5 * np.sum(
+                    (
+                        (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i])) ** 2
+                        / total_err
+                    )[data["Muv"][i] > self.mag_brightest]
+                )
         logger.debug(f"UV LF Likelihood computed: {lnl}")
         return lnl
 
@@ -2184,10 +2268,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
             2 (band1=10 band2=8)
         """
         N = model[0]["delta"].shape[0]
-        if N > 1:
-            lnl = np.zeros(N)
-        else:
-            lnl = 0
+        lnl = np.zeros(N)
         hera_data = self.data[0]
         for i in range(N):
             for band in self.redshifts:
@@ -2248,10 +2329,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                         (PS_limit_vals - ModelPS_val_afterWF) / (np.sqrt(2) * error_val)
                     )  # another way to write likelihood for 1-side Gaussian
                     likelihood[likelihood <= 0.0] = 1e-50
-                    if N > 1:
-                        lnl[i] += np.nansum(np.log(likelihood))
-                    else:
-                        lnl += np.nansum(np.log(likelihood))
+                    lnl[i] += np.nansum(np.log(likelihood))
                     logger.debug(
                         "HERA PS upper Likelihood computed: {lnl}".format(
                             lnl=np.nansum(np.log(likelihood))
