@@ -10,13 +10,14 @@ on:
   pull_request:
     branches:
       - 'master'
+      - 'main'
 
 
 jobs:
   tests:
     if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
     env:
-      ENV_NAME: tests
+      ENV_NAME: test-suite
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
     name: Testing
