@@ -24,4 +24,3 @@ dependencies:
     - powerbox
     - cached_property
     - pre-commit
-    - .
