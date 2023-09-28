@@ -190,6 +190,7 @@ def run_mcmc(
         max_iter = mcmc_options.get("max_iter", 50)
         multimodal = mcmc_options.get("multimodal", True)
         write_output = mcmc_options.get("write_output", True)
+        n_iter_before_update = mcmc_options.get("n_iter_before_update", 100)
         datadir = datadir + "/MultiNest/"
         try:
             from pymultinest import run
@@ -323,6 +324,7 @@ def run_mcmc(
                 multimodal=multimodal,
                 evidence_tolerance=evidence_tolerance,
                 sampling_efficiency=sampling_efficiency,
+                n_iter_before_update=n_iter_before_update,
                 init_MPI=False,
             )
             return 1
