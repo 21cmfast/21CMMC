@@ -647,12 +647,13 @@ class CoreLightConeModule(CoreCoevalModule):
                     data=lightcone.Nion_acg,
                     dtype="float",
                 )
-                for key in lightcone.photon_nonconservation_data.keys():
-                    f.create_dataset(
-                        key+"_PC",
-                        data=lightcone.photon_nonconservation_data[key],
-                        dtype="float",
-                    )
+                if lightcone.photon_nonconservation_data:
+                    for key in lightcone.photon_nonconservation_data.keys():
+                        f.create_dataset(
+                            key+"_PC",
+                            data=lightcone.photon_nonconservation_data[key],
+                            dtype="float",
+                        )
 
         except:
             lightcone = None
