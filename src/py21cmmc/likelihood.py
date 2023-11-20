@@ -523,7 +523,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             else:
                 lnl = 0
             hera_data = self.data[0]
-            all_band_keys = []
             for i in range(N):
                 for j, band in enumerate(self.redshift):
                     band_key = "band" + str(int(np.round(band))
