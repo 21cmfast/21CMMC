@@ -713,7 +713,9 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         LikelihoodBaseFile.setup(self)
         if isinstance(self.paired_core, core.Core21cmEMU):
             self.redshifts = self.data[0]["z_bands"]
-            self.k = [self.data[0]["kwfband" + str(int(np.round(z)))] for z in self.redshifts]
+            self.k = [
+                self.data[0]["kwfband" + str(int(np.round(z)))] for z in self.redshifts
+            ]
             self.k_len = max(len(i) for i in self.k)
         # Ensure that there is one dataset and noiseset per redshift.
         if len(self.data) != self.nchunks:
@@ -2199,7 +2201,9 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         """Setup the object."""
         super().setup()
         self.redshifts = self.data[0]["z_bands"]
-        self.k = [self.data[0]["kwfband" + str(int(np.round(z)))] for z in self.redshifts]
+        self.k = [
+            self.data[0]["kwfband" + str(int(np.round(z)))] for z in self.redshifts
+        ]
         self.k_len = max(len(i) for i in self.k)
 
     def reduce_data(self, ctx):
