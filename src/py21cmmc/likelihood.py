@@ -523,11 +523,12 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             else:
                 lnl = 0
             hera_data = self.data[0]
-            for i in range(N):
-                all_band_keys = []
+            all_band_keys = []
+            for z in self.redshift:
                 for key in list(hera_data.keys()):
-                    if "band" in key and "wf" not in key and "k" not in key and  and str(int(np.round(self.redshift))) in key:
+                    if "band" in key and "wf" not in key and "k" not in key and str(int(np.round(z))) in key:
                         all_band_keys.append(key)
+            for i in range(N):
                 for j, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
                     nfields = hera_data[band_key].shape[0]
                     for field in range(nfields):
