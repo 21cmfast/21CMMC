@@ -522,11 +522,8 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 lnl = 0
             hera_data = self.data[0]
             for i in range(N):
-                all_band_keys = []
-                for key in list(hera_data.keys()):
-                    if "band" in key and "wf" not in key and "k" not in key:
-                        all_band_keys.append(key)
-                for j, (band, band_key) in enumerate(zip(self.redshift, all_band_keys)):
+                for j, band in enumerate(self.redshift):
+                    band_key = "band" + str(int(np.round(band)))
                     nfields = hera_data[band_key].shape[0]
                     for field in range(nfields):
                         PS_limit_ks = hera_data[band_key][field, :, 0]
@@ -713,10 +710,10 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         """Perform post-init setup."""
         LikelihoodBaseFile.setup(self)
         if isinstance(self.paired_core, core.Core21cmEMU):
-            all_keys = np.array(list(self.data[0].keys()))
-            m = ["kwf" in i for i in all_keys]
-            all_kwfs_keys = all_keys[m]
-            self.k = [self.data[0][j] for j in all_kwfs_keys]
+            self.redshifts = self.data[0]["z_bands"]
+            self.k = [
+                self.data[0]["kwfband" + str(int(np.round(z)))] for z in self.redshifts
+            ]
             self.k_len = max(len(i) for i in self.k)
         # Ensure that there is one dataset and noiseset per redshift.
         if len(self.data) != self.nchunks:
@@ -2202,10 +2199,9 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         """Setup the object."""
         super().setup()
         self.redshifts = self.data[0]["z_bands"]
-        all_keys = np.array(list(self.data[0].keys()))
-        m = ["kwf" in i for i in all_keys]
-        all_kwfs_keys = all_keys[m]
-        self.k = [self.data[0][j] for j in all_kwfs_keys]
+        self.k = [
+            self.data[0]["kwfband" + str(int(np.round(z)))] for z in self.redshifts
+        ]
         self.k_len = max(len(i) for i in self.k)
 
     def reduce_data(self, ctx):
