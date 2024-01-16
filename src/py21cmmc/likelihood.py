@@ -280,8 +280,9 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         Path to file containing data. See :class:`LikelihoodBaseFile` for details.
     noisefile : str, optional
         Path to file containing noise data. See :class:`LikelihoodBaseFile` for details.
-    n_psbins : int, optional
-        The number of bins for the spherically averaged power spectrum. By default
+    psbins : int, optional
+        The number of bins or bin edges for the spherically averaged power spectrum
+        or kperp dimension of a cylindrical power spectrum. By default
         automatically calculated from the number of cells.
     min_k : float, optional
         The minimum k value at which to compare model and data (units 1/Mpc).
@@ -341,7 +342,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
     def __init__(
         self,
-        n_psbins=None,
+        psbins=None,
         min_k=0.1,
         max_k=1.0,
         logk=True,
@@ -366,7 +367,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 "of files (one for each coeval box)"
             )
 
-        self.n_psbins = n_psbins
+        self.psbins = psbins
         self.min_k = min_k
         self.max_k = max_k
         self.logk = logk
@@ -643,7 +644,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 power, k = self.compute_power(
                     bt,
                     self.user_params.BOX_LEN,
-                    self.n_psbins,
+                    self.psbins,
                     log_bins=self.logk,
                     ignore_k_zero=self.ignore_k_zero,
                     ignore_kpar_zero=self.ignore_kpar_zero,
@@ -694,7 +695,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     required_cores = ((core.CoreLightConeModule, core.Core21cmEMU),)
 
-    def __init__(self, *args, datafile="", nchunks=1, **kwargs):
+    def __init__(self, *args, datafile="", nchunks=1, ps_dim = 1, **kwargs):
         super().__init__(*args, **kwargs)
         self.nchunks = nchunks
         self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
@@ -854,7 +855,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
                 power, k = self.compute_power(
                     brightness_temp.brightness_temp[:, :, start:end],
                     (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
-                    self.n_psbins,
+                    self.psbins,
                     log_bins=self.logk,
                     ignore_kperp_zero=self.ignore_kperp_zero,
                     ignore_kpar_zero=self.ignore_kpar_zero,
@@ -891,7 +892,155 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
         return paired[0]
 
+class Likelihood2DPowerLightcone(Likelihood1DPowerLightcone):
+    """
+    A likelihood very similar to :class:`Likelihood1DPowerLightcone`, except for a 2D power spectrum.
 
+    Since most of the functionality is the same, please see the other documentation for details.
+    """
+
+    required_cores = ((core.CoreLightConeModule),)
+
+    @staticmethod
+    def compute_power(
+        box,
+        length,
+        psbins,
+        log_bins=True,
+        bin_ave=False,
+        denoiser=False,
+        ignore_kperp_zero=True,
+        ignore_kpar_zero=False,
+        ignore_k_zero=False,
+    ):
+        """Compute power spectrum from coeval box.
+
+        Parameters
+        ----------
+        box : :class:`py21cmfast.Lightcone` instance
+            The lightcone to take the power spectrum of.
+        length : 3-tuple
+            Size of the lightcone in its 3 dimensions (X,Y,Z)
+        psbins : int or array
+            Number of power spectrum bins to return or array of bins.
+        log_bins : bool, optional
+            Whether the bins are regular in log-space.
+        ignore_kperp_zero : bool, optional
+            Whether to ignore perpendicular k=0 modes when performing spherical average.
+        ignore_kpar_zero : bool, optional
+            Whether to ignore parallel k=0 modes when performing spherical average.
+        ignore_k_zero : bool, optional
+            Whether to ignore the ``|k|=0`` mode when performing spherical average.
+
+        Returns
+        -------
+        power : ndarray
+            The power spectrum as a function of k
+        k : ndarray
+            The centres of the k-bins defining the power spectrum.
+        """
+        # Determine the weighting function required from ignoring k's.
+        k_weights = np.ones(box.shape, dtype=int)
+        n0 = k_weights.shape[0]
+        n1 = k_weights.shape[-1]
+
+        if ignore_kperp_zero:
+            k_weights[n0 // 2, n0 // 2, :] = 0
+        if ignore_kpar_zero:
+            k_weights[:, :, n1 // 2] = 0
+        if ignore_k_zero:
+            k_weights[n0 // 2, n0 // 2, n1 // 2] = 0
+
+        ps_2d, kperp, kpar = get_power(
+            box,
+            boxlength=length,
+            bins=psbins,
+            bin_ave=bin_ave,
+            get_variance=False,
+            log_bins=log_bins,
+            k_weights=k_weights,
+            res_ndims=2,
+        )
+
+        if not bin_ave:
+            if log_bins:
+                kperp = np.exp((np.log(kperp[1:]) + np.log(kperp[:-1])) / 2)
+            else:
+                kperp = (kperp[1:] + kperp[:-1]) / 2
+        if denoiser:
+            ps_2d, ps_2d_var = denoiser(ps_2d)
+        else:
+            if hasattr(psbins, '__len__'):
+                nbins = len(psbins)
+            else:
+                nbins = psbins
+            ps_2d_var = np.eye(nbins)
+        return [ps_2d, ps_2d_var, kperp, kpar]
+
+    def reduce_data(self, ctx):
+        """Reduce the data in the context to a list of models (one for each redshift chunk)."""
+        data = []
+        brightness_temp = ctx.get("lightcone")
+        data = []
+        chunk_indices = list(
+            range(
+                0,
+                brightness_temp.n_slices,
+                round(brightness_temp.n_slices / self.nchunks),
+            )
+        )
+
+        if len(chunk_indices) > self.nchunks:
+            chunk_indices = chunk_indices[:-1]
+
+        chunk_indices.append(brightness_temp.n_slices)
+
+        for i in range(self.nchunks):
+            start = chunk_indices[i]
+            end = chunk_indices[i + 1]
+            chunklen = (end - start) * brightness_temp.cell_size
+
+            power, var, kperp, kpar = self.compute_power(
+                brightness_temp.brightness_temp[:, :, start:end],
+                (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
+                self.psbins,
+                log_bins=self.logk,
+                ignore_kperp_zero=self.ignore_kperp_zero,
+                ignore_kpar_zero=self.ignore_kpar_zero,
+                ignore_k_zero=self.ignore_k_zero,
+            )
+            cst = kperp**2*kpar / (2 * np.pi**2)
+            data.append({"kperp": kperp, "kpar": kpar, "var_delta": var * cst**2, "delta": power * cst})
+
+        return data
+
+    def store(self, model, storage):
+        """Store the model into backend storage."""
+        # add the power to the written data
+        for i, m in enumerate(model):
+            if isinstance(self.paired_core, core.Core21cmEMU):
+                if isinstance(m, list):
+                    for j, n in enumerate(m):
+                        storage.update({k + "_%s" % j: v for k, v in n.items()})
+            else:
+                storage.update({k + "_%s" % i: v for k, v in m.items()})
+
+    @cached_property
+    def paired_core(self):
+        """The PS core that is paired with this likelihood."""
+        paired = []
+        for c in self._cores:
+            if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or (
+                isinstance(c, core.CoreLightConeModule) and c.name == self.name
+            ):
+                paired.append(c)
+        if len(paired) > 1:
+            raise ValueError(
+                "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
+            )
+
+        return paired[0]
+    
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     r"""A likelihood template to use Planck power spectrum.
 
