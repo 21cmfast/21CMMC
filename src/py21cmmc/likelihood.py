@@ -695,7 +695,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     required_cores = ((core.CoreLightConeModule, core.Core21cmEMU),)
 
-    def __init__(self, *args, datafile="", nchunks=1, ps_dim = 1, **kwargs):
+    def __init__(self, *args, datafile="", nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
         self.nchunks = nchunks
         self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
@@ -901,18 +901,20 @@ class Likelihood2DPowerLightcone(Likelihood1DPowerLightcone):
 
     required_cores = ((core.CoreLightConeModule),)
 
-    @staticmethod
-    def compute_power(
-        box,
-        length,
-        psbins,
-        log_bins=True,
-        bin_ave=False,
-        denoiser=False,
-        ignore_kperp_zero=True,
-        ignore_kpar_zero=False,
-        ignore_k_zero=False,
-    ):
+    def __init__(self, *args, ps_dim = 1, denoise=False,**kwargs):
+            super().__init__(*args, **kwargs)
+            self.ps_dim = ps_dim
+            self.denoise=denoise
+            if denoise:
+                try:
+                    from py21cmpscvd import Denoiser
+                except ImportError:
+                    except:
+                    print("Could not load py21cmpscvd. Make sure it is installed properly.")
+                self.denoiser = Denoiser(version=version)
+
+
+    def compute_power(self, box, length):
         """Compute power spectrum from coeval box.
 
         Parameters
@@ -921,16 +923,6 @@ class Likelihood2DPowerLightcone(Likelihood1DPowerLightcone):
             The lightcone to take the power spectrum of.
         length : 3-tuple
             Size of the lightcone in its 3 dimensions (X,Y,Z)
-        psbins : int or array
-            Number of power spectrum bins to return or array of bins.
-        log_bins : bool, optional
-            Whether the bins are regular in log-space.
-        ignore_kperp_zero : bool, optional
-            Whether to ignore perpendicular k=0 modes when performing spherical average.
-        ignore_kpar_zero : bool, optional
-            Whether to ignore parallel k=0 modes when performing spherical average.
-        ignore_k_zero : bool, optional
-            Whether to ignore the ``|k|=0`` mode when performing spherical average.
 
         Returns
         -------
@@ -940,6 +932,13 @@ class Likelihood2DPowerLightcone(Likelihood1DPowerLightcone):
             The centres of the k-bins defining the power spectrum.
         """
         # Determine the weighting function required from ignoring k's.
+        psbins=self.psbins,
+        denoise=self.denoise,
+        log_bins=self.logk,
+        ignore_kperp_zero=self.ignore_kperp_zero,
+        ignore_kpar_zero=self.ignore_kpar_zero,
+        ignore_k_zero=self.ignore_k_zero,
+
         k_weights = np.ones(box.shape, dtype=int)
         n0 = k_weights.shape[0]
         n1 = k_weights.shape[-1]
@@ -955,27 +954,23 @@ class Likelihood2DPowerLightcone(Likelihood1DPowerLightcone):
             box,
             boxlength=length,
             bins=psbins,
-            bin_ave=bin_ave,
+            bin_ave=False,
             get_variance=False,
             log_bins=log_bins,
             k_weights=k_weights,
             res_ndims=2,
         )
-
-        if not bin_ave:
-            if log_bins:
-                kperp = np.exp((np.log(kperp[1:]) + np.log(kperp[:-1])) / 2)
-            else:
-                kperp = (kperp[1:] + kperp[:-1]) / 2
-        if denoiser:
-            ps_2d, ps_2d_var = denoiser(ps_2d)
+        if denoise:
+            ps_2d, var = self.denoiser(kperp, kpar, ps_2d)
         else:
-            if hasattr(psbins, '__len__'):
-                nbins = len(psbins)
-            else:
-                nbins = psbins
-            ps_2d_var = np.eye(nbins)
-        return [ps_2d, ps_2d_var, kperp, kpar]
+            var = np.eye(ps_2d.shape)
+
+        if log_bins:
+            kperp = np.exp((np.log(kperp[1:]) + np.log(kperp[:-1])) / 2)
+        else:
+            kperp = (kperp[1:] + kperp[:-1]) / 2
+
+        return [ps_2d, var, kperp, kpar]
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
@@ -1003,11 +998,6 @@ class Likelihood2DPowerLightcone(Likelihood1DPowerLightcone):
             power, var, kperp, kpar = self.compute_power(
                 brightness_temp.brightness_temp[:, :, start:end],
                 (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
-                self.psbins,
-                log_bins=self.logk,
-                ignore_kperp_zero=self.ignore_kperp_zero,
-                ignore_kpar_zero=self.ignore_kpar_zero,
-                ignore_k_zero=self.ignore_k_zero,
             )
             cst = kperp**2*kpar / (2 * np.pi**2)
             data.append({"kperp": kperp, "kpar": kpar, "var_delta": var * cst**2, "delta": power * cst})
