@@ -543,6 +543,69 @@ class CoreLightConeModule(CoreCoevalModule):
 
             logger.info("Initialization done.")
 
+    def tau_GP(self, gamma_bg, delta, temp, redshifts):
+        r"""Calculating the lyman-alpha optical depth in each pixel using the fluctuating GP approximation.
+
+        Parameters
+        ----------
+        gamma_bg : float or array_like
+            The background photonionization rate in units of 1e-12 s**-1
+
+        delta : float or array_like
+            The underlying overdensity
+
+        temp : float or array_like
+            The kinectic temperature of the gas in 1e4 K
+
+        redshifts : float or array_like
+            Correspoding redshifts along the los
+        """
+        gamma_local = np.zeros_like(gamma_bg)
+        residual_xHI = np.zeros_like(gamma_bg, dtype=np.float64)
+
+        flag_neutral = gamma_bg == 0
+        flag_zerodelta = delta == 0
+
+        if gamma_bg.shape != redshifts.shape:
+            redshifts = np.tile(redshifts, (*gamma_bg.shape[:-1], 1))
+
+        delta_ss = (
+            2.67e4 * temp**0.17 * (1.0 + redshifts) ** -3 * gamma_bg ** (2.0 / 3.0)
+        )
+        gamma_local[~flag_neutral] = gamma_bg[~flag_neutral] * (
+            0.98
+            * (
+                (1.0 + (delta[~flag_neutral] / delta_ss[~flag_neutral]) ** 1.64)
+                ** -2.28
+            )
+            + 0.02 * (1.0 + (delta[~flag_neutral] / delta_ss[~flag_neutral])) ** -0.84
+        )
+
+        Y_He = 0.245
+        # TODO: use global_params
+        residual_xHI[~flag_zerodelta] = 1 + gamma_local[~flag_zerodelta] * 1.0155e7 / (
+            1.0 + 1.0 / (4.0 / Y_He - 3)
+        ) * temp[~flag_zerodelta] ** 0.75 / (
+            delta[~flag_zerodelta] * (1.0 + redshifts[~flag_zerodelta]) ** 3
+        )
+        residual_xHI[~flag_zerodelta] = residual_xHI[~flag_zerodelta] - np.sqrt(
+            residual_xHI[~flag_zerodelta] ** 2 - 1.0
+        )
+
+        return (
+            7875.053145028655
+            / (
+                self.cosmo_params.hlittle
+                * np.sqrt(
+                    self.cosmo_params.OMm * (1.0 + redshifts) ** 3
+                    + self.cosmo_params.OMl
+                )
+            )
+            * delta
+            * (1.0 + redshifts) ** 3
+            * residual_xHI
+        )
+
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
         # Update parameters
@@ -605,8 +668,43 @@ class CoreLightConeModule(CoreCoevalModule):
                 global_quantities=lightcone_quantities,
                 **self.global_params,
             )
+ 
+            lc = lightcone
+            lightcone_redshifts = lc.lightcone_redshifts
+            total_los = lc.user_params.HII_DIM**2
+
+            index_right_lc = np.where(lightcone_redshifts > 8)[0][0]
+
+            gamma_bg = lc.Gamma12_box[:, :, :index_right_lc].reshape(
+                [total_los, index_right_lc]
+            )
+            delta = (
+                lc.density[:, :, :index_right_lc].reshape(
+                    [total_los, index_right_lc]
+                )
+                + 1.0
+            )
+            temp = (
+                lc.temp_kinetic_all_gas[:, :, :index_right_lc].reshape(
+                    [total_los, index_right_lc]
+                )
+                / 1e4
+            )
+
+            tau_lyman_alpha = self.tau_GP(
+                gamma_bg,
+                delta,
+                temp,
+                lightcone_redshifts[:index_right_lc],
+            ).reshape([lc.user_params.HII_DIM, lc.user_params.HII_DIM, index_right_lc])
 
             with h5py.File("output/run_%s.hdf5" % filename, "a") as f:
+
+                f.create_dataset(
+                    "tau_lyman_alpha",
+                    data=tau_lyman_alpha,
+                    dtype="float",
+                )
                 f.create_dataset(
                     "node_redshifts",
                     data=lightcone.node_redshifts,
