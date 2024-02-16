@@ -1473,7 +1473,6 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         else:
             return 0
 
-
 class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
     """
     A likelihood based on the measured neutral fraction at a range of redshifts.
@@ -1515,7 +1514,91 @@ class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
 
         return -0.5 * ((data - model) / sigma) ** 2
 
+class LikelihoodArcade(LikelihoodBase):
+    """
+    A likelihood based on the measured radio temperature at a range of redshifts.
 
+    This likelihood is vectorized i.e., it accepts an array of ``astro_params``.
+
+    The log-likelihood statistic is a simple chi^2 if the model has Tr > Arcade model,
+    and 0 otherwise.
+    """
+
+    required_cores = ((core.CoreRadioEMU,),)
+
+    def __init__(self, redshift=None):
+        """
+        Arcade radio temperature model likelihood.
+
+        Parameters
+        ----------
+        redshift : float or list of floats
+            Redshift(s) at which to evaluate the Arcade model.
+        """
+        self.redshift = redshift
+        # If redshift is provided, evaluate the arcade model now
+        # Otherwise will be evaluated every time on emulator zs
+        if redshift is not None:
+            self.arcade = get_T_arcade(redshift)
+            
+    def get_T_arcade(z):
+        '''
+        Arcade excess level (@v21) at z, outputs in K, see 1802.07432
+        '''
+        v21 = 1.42
+        v0 = v21/(1+z)
+        t0 = 1.19 * (v0**-2.62) # arcade model
+        t = (1+z) * t0
+        return t
+
+    @property
+    def emu_modules(self):
+        """All emulator core modules that are loaded."""
+        return [m for m in self._cores if isinstance(m, core.CoreRadioEMU)]
+
+    def setup(self):
+        """Perform post-init setup."""
+        if not self.emu_modules:
+            raise ValueError(
+                "LikelihoodArcade needs the CoreRadioEMU to be loaded."
+            )
+
+       
+
+    def reduce_data(self, ctx):
+        """Return a dictionary of model quantities from the context."""
+        Tr = ctx.get("Tr")
+        redshifts = ctx.get("zs")
+        if redshifts is None:
+            redshifts = ctx.get("redshifts")
+        try:
+            err = ctx.get("Tr_err")
+        except:
+            err = np.zeros(Tr.shape)
+
+        return {"Tr": Tr, "redshifts": redshifts, "err": err}
+
+    def computeLikelihood(self, model):
+        """Compute the likelihood."""
+        n = model["Tr"].shape[0]
+        xHI = np.atleast_2d(model["xHI"])
+        lnprob = np.zeros(n)
+        tol = 0.2
+        for i in range(n):
+            Tr = model['Tr'][i]
+            zs = model['redshifts']
+            if np.all(zs == self.redshift):
+                Ta = self.arcade
+            else:
+                Ta = get_T_arcade(zs)
+            dT = tol * Ta
+            Chi2 = ((Ta - Tr)/dT)**2
+            LnL = -0.5 * Chi2 * np.heaviside(Tr - Ta,0)
+            lnprob[i] = np.sum(LnL)
+
+        logger.debug(f"Arcade Likelihood computed: {lnprob}")
+        return lnprob
+    
 class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
     """Likelihood using QSOs.
 
