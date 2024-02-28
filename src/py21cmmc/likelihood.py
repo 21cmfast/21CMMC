@@ -692,7 +692,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     Since most of the functionality is the same, please see the other documentation for details.
     """
 
-    required_cores = ((core.CoreLightConeModule, core.Core21cmEMU),)
+    required_cores = ((core.CoreLightConeModule, core.Core21cmEMU, core.CoreRadioEMU),)
 
     def __init__(self, *args, datafile="", nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1165,7 +1165,7 @@ class LikelihoodPlanck(LikelihoodBase):
     """
 
     required_cores = (
-        (core.CoreCoevalModule, core.CoreLightConeModule, core.Core21cmEMU),
+        (core.CoreCoevalModule, core.CoreLightConeModule, core.Core21cmEMU, core.CoreRadioEMU),
     )
 
     def __init__(
@@ -1227,7 +1227,7 @@ class LikelihoodPlanck(LikelihoodBase):
 
     @property
     def _is_emu(self):
-        return isinstance(self.core_primary, core.Core21cmEMU)
+        return isinstance(self.core_primary, core.Core21cmEMU) or isinstance(self.core_primary, core.CoreRadioEMU)
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a model.
@@ -1307,6 +1307,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             core.CoreCoevalModule,
             core.CoreCMB,
             core.Core21cmEMU,
+            core.CoreRadioEMU,
         ),
     )
     threshold = 0.06
@@ -1361,7 +1362,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     @property
     def emu_modules(self):
         """All emulator core modules that are loaded."""
-        return [m for m in self._cores if isinstance(m, core.Core21cmEMU)]
+        return [m for m in self._cores if (isinstance(m, core.Core21cmEMU) or isinstance(m,core.CoreRadioEMU))]
 
     @property
     def cmb_modules(self):
@@ -1489,6 +1490,7 @@ class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
             core.CoreCoevalModule,
             core.CoreCMB,
             core.Core21cmEMU,
+            core.CoreRadioEMU,
         ),
     )
     threshold = 0.06
@@ -1541,7 +1543,7 @@ class LikelihoodArcade(LikelihoodBase):
         if redshift is not None:
             self.arcade = get_T_arcade(redshift)
             
-    def get_T_arcade(z):
+    def get_T_arcade(self,z):
         '''
         Arcade excess level (@v21) at z, outputs in K, see 1802.07432
         '''
@@ -1581,7 +1583,6 @@ class LikelihoodArcade(LikelihoodBase):
     def computeLikelihood(self, model):
         """Compute the likelihood."""
         n = model["Tr"].shape[0]
-        xHI = np.atleast_2d(model["xHI"])
         lnprob = np.zeros(n)
         tol = 0.2
         for i in range(n):
@@ -1590,7 +1591,7 @@ class LikelihoodArcade(LikelihoodBase):
             if np.all(zs == self.redshift):
                 Ta = self.arcade
             else:
-                Ta = get_T_arcade(zs)
+                Ta = self.get_T_arcade(zs)
             dT = tol * Ta
             Chi2 = ((Ta - Tr)/dT)**2
             LnL = -0.5 * Chi2 * np.heaviside(Tr - Ta,0)
@@ -2352,21 +2353,24 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         for i in range(N):
             for band in self.redshifts:
                 for field in range(hera_data["band" + str(round(band))].shape[0]):
-                    PS_limit_ks = hera_data["band" + str(round(band))][field, :, 0]
-                    PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
-                    Nkbins = len(PS_limit_ks)
                     PS_limit_vals = hera_data["band" + str(round(band))][
-                        field, :Nkbins, 1
+                        field, :, 1
                     ]
+                    PS_limit_ks = hera_data["band" + str(round(band))][field, :, 0]
+                    m = np.logical_and(PS_limit_vals > 0, ~np.isnan(PS_limit_ks))
+                    PS_limit_vals = PS_limit_vals[m]
+                    PS_limit_ks = PS_limit_ks[m]
+                    Nkbins = len(PS_limit_ks)
+                    
                     PS_limit_vars = hera_data["band" + str(round(band))][
-                        field, :Nkbins, 2
-                    ]
+                        field, :, 2
+                    ][m]
 
                     kwf_limit_vals = hera_data["kwfband" + str(round(band))]
                     Nkwfbins = len(kwf_limit_vals)
                     PS_limit_wfcs = hera_data["wfband" + str(round(band))][
-                        field, :Nkbins, :
-                    ]
+                        field, :, :
+                    ][m]
 
                     PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
@@ -2422,7 +2426,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         """The 21cmEMU core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-            if isinstance(c, core.Core21cmEMU) and c.name == self.name:
+            if (isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)) and c.name == self.name:
                 paired.append(c)
         if len(paired) > 1:
             raise ValueError(

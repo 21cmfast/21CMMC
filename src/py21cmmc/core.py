@@ -1355,3 +1355,160 @@ class Core21cmEMU(CoreBase):
                     raise ValueError(
                         f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict."
                     )
+
+class CoreRadioEMU(CoreBase):
+    r"""A Core Module that loads RadioEMU and uses it to obtain 21cmFAST summaries.
+
+    Notes
+    -----
+    This core calls RadioEMU and uses it to evaluate 21cmFAST summaries (power spectrum, global signal, neutral fraction, spin temperature)
+    given a set of astro_params. This core is vectorized i.e., it accepts an array of ``astro_params``.
+
+    Parameters
+    ----------
+    redshift : float or array_like
+         The redshift(s) at which to evaluate the summary statistics.
+    astro_params : dict or :class:`~py21cmfast.AstroParams`
+        Astrophysical parameters of reionization model according to Park+19 parametrization.
+    version : str, optional
+        Emulator version to use, defaults to 'latest'.
+    """
+
+    def __init__(
+        self,
+        astro_params=None,
+        redshift=None,
+        k=None,
+        name="",
+        global_params=None,
+        ctx_variables=(
+            "Tb",
+            "Tb_err",
+            "Tr",
+            "Tr_err",
+            "xHI",
+            "xHI_err",
+            "redshifts",
+            "PS_redshifts",
+            "PS",
+            "PS_err",
+            "k",
+            "tau",
+            "tau_err",
+        ),
+        cache_dir=None,
+        version="latest",
+        store=[],
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.name = str(name)
+        self.ctx_variables = ctx_variables
+
+        try:
+            import sys
+            emu_path = '/home/dbreitman/Radio_Background/RadioEMU/src/'
+            sys.path.insert(1, emu_path)
+            from radioemu import Emulator, properties
+        except:
+            print("Could not load radioemu. Make sure it is installed properly.")
+        self.astro_param_keys = (
+            "fR_mini", 
+            "F_ESC7_MINI", 
+            "F_STAR7_MINI", 
+            "L_X_MINI", 
+            "A_LW"
+        )
+        if astro_params is not None:
+            if isinstance(astro_params, p21.AstroParams):
+                self.astro_params = astro_params
+            else:
+                self.astro_params = p21.AstroParams(astro_params)
+        else:
+            self.astro_params = p21.AstroParams()
+
+        self.global_params = global_params or {}
+        self.io_options = {
+            "store": store,  # which summaries to store
+            "cache_dir": cache_dir,  # where the stored data will be written
+        }
+
+        self.emulator = Emulator(version=version)
+
+    def _update_params(self, params):
+        """
+        Update all the parameter structures which get passed to the driver.
+
+        Parameters
+        ----------
+        params :
+            Parameter object from cosmoHammer
+        """
+        ap_dict = copy.copy(self.astro_params.self)
+
+        ap_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.astro_params.defining_dict
+            }
+        )
+
+        return p21.AstroParams(**ap_dict)
+
+    def build_model_data(self, ctx):
+        """Compute all data defined by this core and add it to the context."""
+        # Update parameters
+        logger.debug(f"Updating parameters: {ctx.getParams()}")
+        astro_params = ctx.getParams()
+        if isinstance(astro_params, dict):
+            values = astro_params.values()
+            keys = astro_params.keys()
+        elif isinstance(astro_params, p21.AstroParams):
+            values = astro_params.defining_dict.values
+            keys = self.astro_param_keys
+        else:
+            values = astro_params.values
+            keys = astro_params.keys
+        # For build_computation_chain when params passed are an empty dict
+        if len(values) == 0:
+            astro_params = self._update_params(astro_params).defining_dict
+            astro_params = {k: astro_params[k] for k in self.astro_param_keys}
+        if (
+            all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
+            and len(values) > 0
+        ):
+            lengths = [len(v) for v in values]
+            if lengths.count(lengths[0]) != len(lengths):
+                raise ValueError(
+                    "For vectorized case, all parameters should have the same length."
+                )
+            ap = []
+            for t in zip(*values):
+                ap.append(dict(zip(keys, t)))
+            astro_params = np.array(ap, dtype=object)
+        logger.debug(f"AstroParams: {astro_params}")
+
+        theta, outputs = self.emulator.predict(astro_params=astro_params)
+
+        if self.io_options["cache_dir"] is not None:
+            if len(astro_params.shape) == 2:
+                pars = astro_params[0]
+            else:
+                pars = astro_params
+            par_vals = [f"{i:0.3e}" for i in list(pars)]
+            name = "_".join(par_vals)
+            outputs.write(
+                fname=self.io_options["cache_dir"] + name,
+                theta=theta,
+                store=self.io_options["store"],
+            )
+        logger.debug(f"Adding {self.ctx_variables} to context data")
+        for key in self.ctx_variables:
+            try:
+                ctx.add(key + self.name, getattr(outputs, key))
+            except:
+                raise ValueError(
+                    f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict."
+                )
