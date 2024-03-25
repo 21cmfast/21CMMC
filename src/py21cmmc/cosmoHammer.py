@@ -1,4 +1,5 @@
 """A set of extensions to the basic ``CosmoHammer`` package."""
+
 import emcee
 import gc
 import h5py
