@@ -1,4 +1,5 @@
 """Module containing 21CMMC likelihoods."""
+
 import logging
 import numpy as np
 from cached_property import cached_property
@@ -1041,13 +1042,13 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                             elif i == 4:
                                 tot[index + j] = cl["te"][j]
                             elif i == 5:
-                                tot[
-                                    index + j
-                                ] = 0  # cl['tb'][j] class does not compute tb
+                                tot[index + j] = (
+                                    0  # cl['tb'][j] class does not compute tb
+                                )
                             elif i == 6:
-                                tot[
-                                    index + j
-                                ] = 0  # cl['eb'][j] class does not compute eb
+                                tot[index + j] = (
+                                    0  # cl['eb'][j] class does not compute eb
+                                )
 
                         index += my_clik.get_lmax()[i] + 1
 
