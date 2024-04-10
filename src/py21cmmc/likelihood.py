@@ -1436,8 +1436,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
-        n = model["xHI"].shape[0]
         xHI = np.atleast_2d(model["xHI"])
+        n = xHI.shape[0]
         lnprob = np.zeros(n)
         for i in range(n):
             if self._require_spline:
@@ -1462,7 +1462,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                     lnprob[i] += self.lnprob(model_spline(z), data, sigma_t)
 
         logger.debug(f"Neutral fraction Likelihood computed: {lnprob}")
-        return lnprob
+        return lnprob.squeeze()
 
     def lnprob(self, model, data, sigma):
         """Compute the log prob given a model, data and error."""

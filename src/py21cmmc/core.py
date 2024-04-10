@@ -1317,9 +1317,9 @@ class Core21cmEMU(CoreBase):
             astro_params = self._update_params(astro_params).defining_dict
             astro_params = {k: astro_params[k] for k in self.astro_param_keys}
         if (
-            all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
+            all(isinstance(v, (np.ndarray, list)) for v in values)
             and len(values) > 0
-        ):
+        ):  
             lengths = [len(v) for v in values]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
@@ -1329,9 +1329,16 @@ class Core21cmEMU(CoreBase):
             for t in zip(*values):
                 ap.append(dict(zip(keys, t)))
             astro_params = np.array(ap, dtype=object)
+        if (
+            all(isinstance(v, (float, int)) for v in values)
+            and len(values) > 0
+        ):
+            astro_params = dict(zip(keys, values))
+            astro_params = np.array([astro_params], dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
-
+        n = len(astro_params)
         theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
+
         if self.io_options["cache_dir"] is not None:
             if len(astro_params.shape) == 2:
                 pars = astro_params[0]
@@ -1347,7 +1354,7 @@ class Core21cmEMU(CoreBase):
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
             try:
-                ctx.add(key + self.name, getattr(outputs, key))
+                ctx.add(key + self.name, getattr(outputs, key) if n > 1 else getattr(outputs, key)[np.newaxis,...])
             except AttributeError:
                 try:
                     ctx.add(key + self.name, errors[key])
