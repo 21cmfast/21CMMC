@@ -1,0 +1,24 @@
+name: Check Distribution Build
+
+on: push
+
+jobs:
+  check-build:
+    name: Twine Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Build package
+        run: uv build
+
+      - name: Check Distribution
+        run: uvx twine check dist/*
