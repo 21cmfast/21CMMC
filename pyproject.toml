@@ -47,6 +47,7 @@ dynamic = [
 samplers = [
   "pymultinest",
   "ultranest",
+  "nautilus-sampler",
 ]
 test = [
   "pytest",
