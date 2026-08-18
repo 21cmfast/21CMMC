@@ -12,11 +12,12 @@ import py21cmfast as p21
 import warnings
 from os import path
 from scipy.interpolate import interp1d
+from tuesday.core import cylindrical_to_spherical
 
 from py21cmmc.cosmoHammer import Params
 
 from . import _utils as ut
-from tuesday.core import cylindrical_to_spherical
+
 logger = logging.getLogger("21cmFAST")
 
 
@@ -1005,7 +1006,6 @@ class CoreCMB(CoreBase):
         try:
             from classy import Class
 
-            
             if verbose > 0:
                 print("import CLASS")
             global cosmo
@@ -1205,7 +1205,7 @@ class Core21cmEMU(CoreBase):
     astro_params : dict or :class:`~py21cmfast.AstroParams`
         Astrophysical parameters of reionization model according to Park+19 parametrization.
     emulator: str, optional
-        Name of emulator to use: 
+        Name of emulator to use:
         'v1' or 'acg' for 21cmEMUv1
         'v2' or 'radio' for 21cmEMUv2
         'v3' or 'mcg' for 21cmEMUv3
@@ -1240,9 +1240,9 @@ class Core21cmEMU(CoreBase):
         ),
         cache_dir=None,
         emulator_name="mcg",
-        mu_min=0.,
+        mu_min=0.0,
         k1d_inp=16,
-        astro_param_defaults={'SIGMA_8':0.8, 't_STAR':0.5, 'ALPHA_STAR':0.5},
+        astro_param_defaults={"SIGMA_8": 0.8, "t_STAR": 0.5, "ALPHA_STAR": 0.5},
         n_realisations=50,
         n_ps_batch=None,
         store_ps_2d=False,
@@ -1252,13 +1252,13 @@ class Core21cmEMU(CoreBase):
     ):
         super().__init__(*args, **kwargs)
         self.name = str(name)
-        
+
         # Import the emulator from the installed package
         from py21cmemu import Emulator
         from py21cmemu.properties import get_emulator_properties
 
         properties = get_emulator_properties(emulator_name)
-        
+
         self.astro_param_keys = properties.astro_param_keys
 
         if astro_params is not None:
@@ -1268,7 +1268,7 @@ class Core21cmEMU(CoreBase):
                 self.astro_params = p21.AstroParams(astro_params)
         else:
             self.astro_params = p21.AstroParams()
-        
+
         self.cosmo_params = p21.CosmoParams(properties.cosmo_params)
         self.flag_options = p21.FlagOptions(properties.flag_options)
         self.user_params = p21.UserParams(properties.user_params)
@@ -1277,26 +1277,28 @@ class Core21cmEMU(CoreBase):
             "store": store,  # which summaries to store
             "cache_dir": cache_dir,  # where the stored data will be written
         }
-        self.emulate_ps_2d = emulate_ps_2d and (emulator_name == 'mcg')
+        self.emulate_ps_2d = emulate_ps_2d and (emulator_name == "mcg")
         self.store_ps_2d = store_ps_2d and self.emulate_ps_2d
         self.ps_2d_redshifts = ps_2d_redshifts
         self.emulator = Emulator(
-            emulator = emulator_name, 
-            emulate_2d_ps=self.emulate_ps_2d)
+            emulator=emulator_name, emulate_2d_ps=self.emulate_ps_2d
+        )
 
-        if emulator_name == 'mcg':
+        if emulator_name == "mcg":
             if self.emulate_ps_2d:
                 if self.ps_2d_redshifts is None:
-                    raise ValueError("If emulate_ps_2d is True, you must provide ps_2d_redshifts.")
+                    raise ValueError(
+                        "If emulate_ps_2d is True, you must provide ps_2d_redshifts."
+                    )
                 self.ps_2d_redshifts = ps_2d_redshifts
                 self.mu_min = mu_min
                 self.n_realisations = n_realisations
-                self.n_ps_batch= n_ps_batch
+                self.n_ps_batch = n_ps_batch
                 if not self.store_ps_2d:
                     print("WArnING: emulating 2D PS, but storing 1D PS!")
 
             self.k1d_inp = k1d_inp
-        
+
         self.astro_param_defaults = astro_param_defaults
         self.emulator_type = emulator_name
         self.ctx_variables = ctx_variables
@@ -1331,14 +1333,14 @@ class Core21cmEMU(CoreBase):
             values = astro_params.values()
             keys = astro_params.keys()
             if len(keys) < len(self.astro_param_keys):
-                keys=self.astro_param_keys
-                values=[]
+                keys = self.astro_param_keys
+                values = []
                 for k in self.astro_param_keys:
                     try:
                         values.append(astro_params[k])
                     except KeyError:
-                        if k == 'L_X_MINI':
-                            values.append(ap['L_X'])
+                        if k == "L_X_MINI":
+                            values.append(ap["L_X"])
                         else:
                             values.append(self.astro_param_defaults[k])
         elif isinstance(astro_params, p21.AstroParams):
@@ -1347,22 +1349,25 @@ class Core21cmEMU(CoreBase):
         else:
             values = astro_params.values
             keys = astro_params.keys
-            ap = {k:v for k,v in zip(keys,values)}
+            ap = {k: v for k, v in zip(keys, values)}
             if len(keys) < len(self.astro_param_keys):
-                keys=self.astro_param_keys
-                values=[]
+                keys = self.astro_param_keys
+                values = []
                 for k in self.astro_param_keys:
                     try:
                         values.append(ap[k])
                     except KeyError:
                         try:
-                            if k == 'L_X_MINI':
-                                values.append(ap['L_X'])
+                            if k == "L_X_MINI":
+                                values.append(ap["L_X"])
                             else:
-                                values.append(np.ones(len(ap[self.astro_param_keys[0]]))*self.astro_param_defaults[k])
+                                values.append(
+                                    np.ones(len(ap[self.astro_param_keys[0]]))
+                                    * self.astro_param_defaults[k]
+                                )
                         except TypeError:
-                            if k == 'L_X_MINI':
-                                values.append(ap['L_X'])
+                            if k == "L_X_MINI":
+                                values.append(ap["L_X"])
                             else:
                                 values.append(self.astro_param_defaults[k])
         # For build_computation_chain when params passed are an empty dict
@@ -1370,10 +1375,10 @@ class Core21cmEMU(CoreBase):
             astro_params = self._update_params(astro_params).defining_dict
             astro_params = {k: astro_params[k] for k in self.astro_param_keys}
         if (
-            all((isinstance(v, (np.ndarray, list, int, float)) for v in values))
+            all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
             and len(values) > 0
         ):
-            if all((isinstance(v, (int, float)) for v in values)):
+            if all(isinstance(v, (int, float)) for v in values):
                 values = np.array([np.array([v]) for v in values])
                 lengths = [1 for v in values]
             else:
@@ -1392,13 +1397,16 @@ class Core21cmEMU(CoreBase):
         if self.emulator_type == "mcg":
             if self.emulate_ps_2d:
                 theta, outputs, errors = self.emulator.predict(
-                    astro_params=astro_params, 
+                    astro_params=astro_params,
                     ps_2d_redshifts=self.ps_2d_redshifts,
                     n_realisations=self.n_realisations,
                     n_ps_batch=self.n_ps_batch,
-                    ps_sampling_method="ode")
+                    ps_sampling_method="ode",
+                )
             else:
-                theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
+                theta, outputs, errors = self.emulator.predict(
+                    astro_params=astro_params
+                )
         else:
             theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
         if self.io_options["cache_dir"] is not None:
@@ -1415,10 +1423,10 @@ class Core21cmEMU(CoreBase):
             )
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
-            if key == 'PS':
+            if key == "PS":
                 if self.emulate_ps_2d and self.store_ps_2d:
                     # emulate and perform inference on 2D PS
-                    ctx.add(key + self.name, getattr(outputs, 'PS_2D').value)
+                    ctx.add(key + self.name, getattr(outputs, "PS_2D").value)
                     ctx.add("kperp" + self.name, getattr(outputs, "kperp").value)
                     ctx.add("kpar" + self.name, getattr(outputs, "kpar").value)
                 elif self.emulate_ps_2d:
@@ -1432,25 +1440,35 @@ class Core21cmEMU(CoreBase):
                     for i in range(N):
                         for j in range(len(self.ps_2d_redshifts)):
                             nmodes = getattr(outputs, "Nmodes")
-                            mask = np.mean(nmodes, axis = 1) == 0. 
-                            this_ps1d, k1d, _ = cylindrical_to_spherical(getattr(outputs, 'PS_2D').value[i,j][~mask], 
-                                                         getattr(outputs, 'kperp').value[~mask], getattr(outputs, 'kpar').value, 
-                                                         nbins = self.k1d_inp, interp=True, bin_ave=True,
-                                                         weights = nmodes[~mask], 
-                                                         mu_min = self.mu_min)
-                            ps1d[i,j]=this_ps1d
+                            mask = np.mean(nmodes, axis=1) == 0.0
+                            this_ps1d, k1d, _ = cylindrical_to_spherical(
+                                getattr(outputs, "PS_2D").value[i, j][~mask],
+                                getattr(outputs, "kperp").value[~mask],
+                                getattr(outputs, "kpar").value,
+                                nbins=self.k1d_inp,
+                                interp=True,
+                                bin_ave=True,
+                                weights=nmodes[~mask],
+                                mu_min=self.mu_min,
+                            )
+                            ps1d[i, j] = this_ps1d
                     ctx.add(key + self.name, ps1d)
                     ctx.add("k" + self.name, k1d)
                 else:
                     # don't emulate 2D PS at all, use 1D PS.
                     ctx.add("k" + self.name, outputs.PS_1D_k)
-                    ctx.add("PS" + self.name, outputs.PS[None,...].value if len(astro_params) == 1 else outputs.PS.value)
-            
-            elif key == 'PS_redshifts':
+                    ctx.add(
+                        "PS" + self.name,
+                        outputs.PS[None, ...].value
+                        if len(astro_params) == 1
+                        else outputs.PS.value,
+                    )
+
+            elif key == "PS_redshifts":
                 if self.emulate_ps_2d:
                     ctx.add(key, outputs.PS_2D_redshifts)
                 else:
-                    ctx.add(key, outputs.PS_1D_redshifts)        
+                    ctx.add(key, outputs.PS_1D_redshifts)
             else:
                 if "err" in key:
                     try:
@@ -1466,6 +1484,8 @@ class Core21cmEMU(CoreBase):
                         raise ValueError(
                             f"ctx_variable {key} not an attribute of EmulatorOutput."
                         )
+
+
 class CoreRadioEMU(CoreBase):
     r"""A Core Module that loads RadioEMU and uses it to obtain 21cmFAST summaries.
 
@@ -1521,11 +1541,11 @@ class CoreRadioEMU(CoreBase):
         except:
             print("Could not load radioemu. Make sure it is installed properly.")
         self.astro_param_keys = (
-            "fR_mini", 
-            "F_ESC7_MINI", 
-            "F_STAR7_MINI", 
-            "L_X_MINI", 
-            "A_LW"
+            "fR_mini",
+            "F_ESC7_MINI",
+            "F_STAR7_MINI",
+            "L_X_MINI",
+            "A_LW",
         )
         if astro_params is not None:
             if isinstance(astro_params, p21.AstroParams):
@@ -1541,7 +1561,7 @@ class CoreRadioEMU(CoreBase):
             "cache_dir": cache_dir,  # where the stored data will be written
         }
 
-        self.emulator = Emulator(emulator = 'radio_background')
+        self.emulator = Emulator(emulator="radio_background")
 
     def _update_params(self, params):
         """
@@ -1573,8 +1593,8 @@ class CoreRadioEMU(CoreBase):
             values = astro_params.values()
             keys = astro_params.keys()
             if len(keys) < len(self.astro_param_keys):
-                keys=self.astro_param_keys
-                values=[]
+                keys = self.astro_param_keys
+                values = []
                 for k in self.astro_param_keys:
                     try:
                         values.append(astro_params[k])
@@ -1586,16 +1606,19 @@ class CoreRadioEMU(CoreBase):
         else:
             values = astro_params.values
             keys = astro_params.keys
-            ap = {k:v for k,v in zip(keys,values)}
+            ap = {k: v for k, v in zip(keys, values)}
             if len(keys) < len(self.astro_param_keys):
-                keys=self.astro_param_keys
-                values=[]
+                keys = self.astro_param_keys
+                values = []
                 for k in self.astro_param_keys:
                     try:
                         values.append(ap[k])
                     except KeyError:
                         try:
-                            values.append(np.ones(len(ap[self.astro_param_keys[0]]))*self.astro_param_defaults[k])
+                            values.append(
+                                np.ones(len(ap[self.astro_param_keys[0]]))
+                                * self.astro_param_defaults[k]
+                            )
                         except TypeError:
                             values.append(self.astro_param_defaults[k])
         # For build_computation_chain when params passed are an empty dict
@@ -1603,10 +1626,10 @@ class CoreRadioEMU(CoreBase):
             astro_params = self._update_params(astro_params).defining_dict
             astro_params = {k: astro_params[k] for k in self.astro_param_keys}
         if (
-            all((isinstance(v, (np.ndarray, list, int, float)) for v in values))
+            all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
             and len(values) > 0
         ):
-            if all((isinstance(v, (int, float)) for v in values)):
+            if all(isinstance(v, (int, float)) for v in values):
                 values = np.array([np.array([v]) for v in values])
                 lengths = [1 for v in values]
             else:
@@ -1629,7 +1652,7 @@ class CoreRadioEMU(CoreBase):
                 pars = astro_params[0]
             else:
                 pars = astro_params
-            par_vals = ["{:0.3e}".format(i) for i in list(pars)]
+            par_vals = [f"{i:0.3e}" for i in list(pars)]
             name = "_".join(par_vals)
             outputs.write(
                 fname=self.io_options["cache_dir"] + name,
@@ -1650,4 +1673,3 @@ class CoreRadioEMU(CoreBase):
                     raise ValueError(
                         f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict."
                     )
-
