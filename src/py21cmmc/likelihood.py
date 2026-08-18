@@ -1,6 +1,9 @@
 """Module containing 21CMMC likelihoods."""
 import logging
 import numpy as np
+import pspec_likelihood as pslike
+from astropy import cosmology
+from astropy import units as un
 from cached_property import cached_property
 from io import IOBase
 from os import path, rename
@@ -14,9 +17,6 @@ from scipy.interpolate import (
     interp1d,
 )
 from scipy.special import erf
-import pspec_likelihood as pslike
-from astropy import cosmology
-from astropy import units as un
 
 from . import core
 
@@ -226,7 +226,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                         msg = "If you meant to simulate noise, set simulate=True."
 
                     raise FileNotFoundError(
-                        "Could not find noisefile: {fl}. {msg}".format(fl=fl, msg=msg)
+                        f"Could not find noisefile: {fl}. {msg}"
                     )
 
                 else:
@@ -249,7 +249,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                 rename(fl, fl + ".bk")
 
             np.savez(fl, **d)
-            logger.info("Saving data file: {fl}".format(fl=fl))
+            logger.info(f"Saving data file: {fl}")
 
     def _write_noise(self):
         for fl, d in zip(self.noisefile, self.noise):
@@ -262,13 +262,14 @@ class LikelihoodBaseFile(LikelihoodBase):
                 rename(fl, fl + ".bk")
 
             np.savez(fl, **d)
-            logger.info("Saved noise file: {fl}".format(fl=fl))
+            logger.info(f"Saved noise file: {fl}")
 
     def _check_data_format(self):
         pass
 
     def _check_noise_format(self):
         pass
+
 
 class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     r"""
@@ -518,7 +519,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             hera_data = self.data[0]
             for i in range(N):
                 for j, band in enumerate(self.redshift):
-                    band_key = "band" + str(np.round(band,1))
+                    band_key = "band" + str(np.round(band, 1))
                     nfields = hera_data[band_key].shape[0]
                     for field in range(nfields):
                         PS_limit_ks = hera_data[band_key][field, :, 0]
@@ -591,7 +592,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                     (m["delta"][mask] - pd(m["k"][mask])) ** 2
                     / (moduncert**2 + noise**2)
                 )
-        logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
+        logger.debug(f"Likelihood computed: {lnl}")
         return lnl.squeeze()
 
     def reduce_data(self, ctx):
@@ -656,7 +657,9 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         """The PS core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-            if (isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)) and c.name == self.name:
+            if (
+                isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)
+            ) and c.name == self.name:
                 paired.append(c)
             else:
                 if isinstance(c, core.CoreCoevalModule) or isinstance(
@@ -680,7 +683,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     Since most of the functionality is the same, please see the other documentation for details.
     """
 
-    required_cores = ((core.CoreLightConeModule, core.Core21cmEMU,core.CoreRadioEMU),)
+    required_cores = ((core.CoreLightConeModule, core.Core21cmEMU, core.CoreRadioEMU),)
 
     def __init__(self, *args, datafile="", nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
@@ -697,28 +700,34 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     def setup(self):
         """Perform post-init setup."""
         LikelihoodBaseFile.setup(self)
-        if isinstance(self.paired_core, core.Core21cmEMU) or isinstance(self.paired_core, core.CoreRadioEMU):
+        if isinstance(self.paired_core, core.Core21cmEMU) or isinstance(
+            self.paired_core, core.CoreRadioEMU
+        ):
             self.redshifts = self.data[0]["z_bands"]
             try:
                 self.k = [
-                    self.data[0]["kwfband" + str(np.round(z,1))] for z in self.redshifts
+                    self.data[0]["kwfband" + str(np.round(z, 1))]
+                    for z in self.redshifts
                 ]
                 self.k_len = max(len(i) for i in self.k)
             except KeyError:
                 try:
                     self.k = [
-                    self.data[0]["kwfband" + str(int(np.round(z)))] for z in self.redshifts
+                        self.data[0]["kwfband" + str(int(np.round(z)))]
+                        for z in self.redshifts
                     ]
                     self.k_len = max(len(i) for i in self.k)
                 except KeyError:
                     self.kperp = [
-                    self.data[0]["kperpwfband" + str(np.round(z,1))] for z in self.redshifts
-                ]
+                        self.data[0]["kperpwfband" + str(np.round(z, 1))]
+                        for z in self.redshifts
+                    ]
                     self.kpar = [
-                    self.data[0]["kparwfband" + str(np.round(z,1))] for z in self.redshifts
-                ]
+                        self.data[0]["kparwfband" + str(np.round(z, 1))]
+                        for z in self.redshifts
+                    ]
                     self.k_len = max((len(self.kperp), len(self.kpar)))
-            
+
         # Ensure that there is one dataset and noiseset per redshift.
         if len(self.data) != self.nchunks:
             raise ValueError(
@@ -922,15 +931,15 @@ class LikelihoodArcade(LikelihoodBase):
         # Otherwise will be evaluated every time on emulator zs
         if redshift is not None:
             self.arcade = get_T_arcade(redshift)
-            
-    def get_T_arcade(self,z):
-        '''
+
+    def get_T_arcade(self, z):
+        """
         Arcade excess level (@v21) at z, outputs in K, see 1802.07432
-        '''
+        """
         v21 = 1.42
-        v0 = v21/(1+z)
-        t0 = 1.19 * (v0**-2.62) # arcade model
-        t = (1+z) * t0
+        v0 = v21 / (1 + z)
+        t0 = 1.19 * (v0**-2.62)  # arcade model
+        t = (1 + z) * t0
         return t
 
     @property
@@ -941,11 +950,7 @@ class LikelihoodArcade(LikelihoodBase):
     def setup(self):
         """Perform post-init setup."""
         if not self.emu_modules:
-            raise ValueError(
-                "LikelihoodArcade needs the CoreRadioEMU to be loaded."
-            )
-
-       
+            raise ValueError("LikelihoodArcade needs the CoreRadioEMU to be loaded.")
 
     def reduce_data(self, ctx):
         """Return a dictionary of model quantities from the context."""
@@ -966,19 +971,21 @@ class LikelihoodArcade(LikelihoodBase):
         lnprob = np.zeros(n)
         tol = 0.2
         for i in range(n):
-            Tr = model['Tr'][i]
-            zs = model['redshifts']
+            Tr = model["Tr"][i]
+            zs = model["redshifts"]
             if np.all(zs == self.redshift):
                 Ta = self.arcade
             else:
                 Ta = self.get_T_arcade(zs)
             dT = tol * Ta
-            Chi2 = ((Ta - Tr)/dT)**2
-            LnL = -0.5 * Chi2 * np.heaviside(Tr - Ta,0)
+            Chi2 = ((Ta - Tr) / dT) ** 2
+            LnL = -0.5 * Chi2 * np.heaviside(Tr - Ta, 0)
             lnprob[i] = np.sum(LnL)
 
         logger.debug(f"Arcade Likelihood computed: {lnprob}")
         return lnprob.squeeze()
+
+
 class LikelihoodPlanckPowerSpectra(LikelihoodBase):
     r"""A likelihood template to use Planck power spectrum.
 
@@ -1252,7 +1259,12 @@ class LikelihoodPlanck(LikelihoodBase):
     """
 
     required_cores = (
-        (core.CoreCoevalModule, core.CoreLightConeModule, core.Core21cmEMU,core.CoreRadioEMU),
+        (
+            core.CoreCoevalModule,
+            core.CoreLightConeModule,
+            core.Core21cmEMU,
+            core.CoreRadioEMU,
+        ),
     )
 
     def __init__(
@@ -1304,7 +1316,7 @@ class LikelihoodPlanck(LikelihoodBase):
                 + (tau_sigma_u - tau_sigma_l) * (model["tau"] - self.tau_mean)
             )
         )
-        logger.debug("Planck Likelihood computed: {lnl}".format(lnl=lnl))
+        logger.debug(f"Planck Likelihood computed: {lnl}")
         return lnl.squeeze()
 
     @property
@@ -1313,7 +1325,9 @@ class LikelihoodPlanck(LikelihoodBase):
 
     @property
     def _is_emu(self):
-        return isinstance(self.core_primary, core.Core21cmEMU) or isinstance(self.core_primary, core.CoreRadioEMU)
+        return isinstance(self.core_primary, core.Core21cmEMU) or isinstance(
+            self.core_primary, core.CoreRadioEMU
+        )
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a model.
@@ -1448,7 +1462,11 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     @property
     def emu_modules(self):
         """All emulator core modules that are loaded."""
-        return [m for m in self._cores if isinstance(m, core.Core21cmEMU) or isinstance(m, core.CoreRadioEMU)]
+        return [
+            m
+            for m in self._cores
+            if isinstance(m, core.Core21cmEMU) or isinstance(m, core.CoreRadioEMU)
+        ]
 
     @property
     def cmb_modules(self):
@@ -1534,14 +1552,14 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                     )
                 except:
                     print(xHI.shape, n)
-                    
+
                 if np.sum(model["err"]) > 0:
                     err_spline = InterpolatedUnivariateSpline(
-                        model["redshifts"], xHI_err[i,:], k=1
+                        model["redshifts"], xHI_err[i, :], k=1
                     )
 
             for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
-                if np.sum(xHI_err[i,:]) > 0:
+                if np.sum(xHI_err[i, :]) > 0:
                     sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2)
                 else:
                     sigma_t = sigma
@@ -1552,7 +1570,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 else:
                     lnprob[i] += self.lnprob(model_spline(z), data, sigma_t)
 
-        logger.debug("Neutral fraction Likelihood computed: {lnl}".format(lnl=lnprob))
+        logger.debug(f"Neutral fraction Likelihood computed: {lnprob}")
         return lnprob.squeeze()
 
     def lnprob(self, model, data, sigma):
@@ -1563,6 +1581,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             return -0.5 * ((data - model) / sigma) ** 2
         else:
             return 0
+
 
 class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
     """
@@ -1596,12 +1615,13 @@ class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
             Two-sided uncertainty of measurements.
         """
         super().__init__(redshift=redshift, xHI=xHI, xHI_sigma=xHI_sigma)
-        
+
     def lnprob(self, model, data, sigma):
         """Compute the log prob given a model, data and error."""
         model = np.clip(model, 0, 1)
 
         return -0.5 * ((data - model) / sigma) ** 2
+
 
 class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
     """
@@ -1798,7 +1818,9 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     required_cores = ((core.CoreLuminosityFunction, core.Core21cmEMU),)
 
-    def __init__(self, *args, name="", telescope="HST",mag_brightest=-20.0, z=None, **kwargs):
+    def __init__(
+        self, *args, name="", telescope="HST", mag_brightest=-20.0, z=None, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         if self.datafile is not None and len(self.datafile) != 1:
             raise ValueError(
@@ -1834,7 +1856,13 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     raise ValueError(
                         "Only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
                     )
-                if self.telescope == "JWST" and self.redshifts[0] not in [9, 10, 11, 12.5, 14.5]:
+                if self.telescope == "JWST" and self.redshifts[0] not in [
+                    9,
+                    10,
+                    11,
+                    12.5,
+                    14.5,
+                ]:
                     raise ValueError(
                         "Only LFs at z=9,10,11, 12.5 and 14.5 are provided! use your own LF :)"
                     )
@@ -1968,10 +1996,9 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             data = {"lfunc": self.data["lfunc"][0], "Muv": self.data["Muv"][0]}
         else:
             data = self.data
-        
+
         for n in range(N):
             for i, z in enumerate(self.redshifts):
-            
                 if len(model["Muv"].shape) == 3:
                     if model["Muv"][n][i][0] > model["Muv"][n][i][1]:
                         muv = model["Muv"][n][i][::-1]
@@ -1986,7 +2013,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 mask = ~np.isnan(lfunc)
 
                 model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
-      
+
                 total_err = self.noise["sigma"][i] ** 2
 
                 lnl[n] += -0.5 * np.sum(
@@ -1995,7 +2022,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                         / total_err
                     )[data["Muv"][i] > self.mag_brightest]
                 )
-        logger.debug("UV LF Likelihood computed: {lnl}".format(lnl=lnl))
+        logger.debug(f"UV LF Likelihood computed: {lnl}")
         return lnl.squeeze()
 
     def define_noise(self, ctx, model):
@@ -2357,7 +2384,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         self.redshifts = self.data[0]["z_bands"]
         try:
             self.k = [
-                self.data[0]["kwfband" + str(np.round(z,1))] for z in self.redshifts
+                self.data[0]["kwfband" + str(np.round(z, 1))] for z in self.redshifts
             ]
         except KeyError:
             self.k = [
@@ -2376,11 +2403,13 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                 for i in range(self.redshifts.shape[0]):
                     interp_ks = self.k[i]
                     if len(self.redshifts) == len(ctx.get("PS_redshifts")):
-                            zidx = np.argmin(abs(ctx.get("PS_redshifts") - self.redshifts[i]))
-                            final_PS[j, i, : len(interp_ks)]  = interp1d(
-                                ctx.get("k"), ctx.get("PS")[j, zidx]
-                            )(interp_ks)
-                    else:    
+                        zidx = np.argmin(
+                            abs(ctx.get("PS_redshifts") - self.redshifts[i])
+                        )
+                        final_PS[j, i, : len(interp_ks)] = interp1d(
+                            ctx.get("k"), ctx.get("PS")[j, zidx]
+                        )(interp_ks)
+                    else:
                         final_PS[j, i, : len(interp_ks)] = RectBivariateSpline(
                             ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS")[j, ...]
                         )(self.redshifts[i], interp_ks)
@@ -2436,9 +2465,9 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         for i in range(N):
             for band in self.redshifts:
                 try:
-                    this_band = hera_data["band" + str(np.round(band,1))]
-                    this_bandwf = hera_data["wfband" + str(np.round(band,1))]
-                    this_bandkwf = hera_data["kwfband" + str(np.round(band,1))]
+                    this_band = hera_data["band" + str(np.round(band, 1))]
+                    this_bandwf = hera_data["wfband" + str(np.round(band, 1))]
+                    this_bandkwf = hera_data["kwfband" + str(np.round(band, 1))]
                 except KeyError:
                     this_band = hera_data["band" + str(int(np.round(band)))]
                     this_bandwf = hera_data["wfband" + str(int(np.round(band)))]
@@ -2447,18 +2476,12 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                     PS_limit_ks = this_band[field, :, 0]
                     PS_limit_ks = PS_limit_ks[~np.isnan(PS_limit_ks)]
                     Nkbins = len(PS_limit_ks)
-                    PS_limit_vals = this_band[
-                        field, :Nkbins, 1
-                    ]
-                    PS_limit_vars = this_band[
-                        field, :Nkbins, 2
-                    ]
+                    PS_limit_vals = this_band[field, :Nkbins, 1]
+                    PS_limit_vars = this_band[field, :Nkbins, 2]
 
                     kwf_limit_vals = this_bandkwf
                     Nkwfbins = len(kwf_limit_vals)
-                    PS_limit_wfcs = this_bandwf[
-                        field, :Nkbins, :
-                    ]
+                    PS_limit_wfcs = this_bandwf[field, :Nkbins, :]
 
                     PS_limit_wfcs = PS_limit_wfcs.reshape([Nkbins, Nkwfbins])
 
@@ -2486,8 +2509,8 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                         )
                         error_val = np.sqrt(
                             PS_limit_vars
-                           + (0.2 * ModelPS_val_afterWF) ** 2
-                           + (mean_err) ** 2
+                            + (0.2 * ModelPS_val_afterWF) ** 2
+                            + (mean_err) ** 2
                         )
                     else:
                         error_val = np.sqrt(
@@ -2504,7 +2527,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                         )
                     )
 
-        logger.debug("Total HERA PS upper Likelihood computed: {lnl}".format(lnl=lnl))
+        logger.debug(f"Total HERA PS upper Likelihood computed: {lnl}")
         return lnl
 
     @cached_property
@@ -2512,14 +2535,17 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         """The 21cmEMU core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-            if (isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)) and c.name == self.name:
+            if (
+                isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)
+            ) and c.name == self.name:
                 paired.append(c)
         if len(paired) > 1:
             raise ValueError(
                 "You've got more than one 21cmEMU with the same name -- they will overwrite each other!"
             )
         return paired[0]
-    
+
+
 class LikelihoodPspec(Likelihood1DPowerLightcone):
     r"""
     Likelihood based on Chi^2 comparison of a 21 cm PS model to HERA H1C upper limit data.
@@ -2543,7 +2569,7 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         try:
             import pspec_likelihood as pslike
         except ImportError:
-            raise ImportError('pspec_likelihood is not installed.')
+            raise ImportError("pspec_likelihood is not installed.")
         self.name = name
         self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
         if lk.lower() == "upper_limit":
@@ -2552,13 +2578,12 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
             self.lk = pslike.Gaussian
         else:
             raise ValueError(f"Accepted lk is gaussian or upper_limit, got {lk}.")
-        
 
     @classmethod
-    def from_builtin_data(cls, datafile='', **kwargs):
+    def from_builtin_data(cls, datafile="", **kwargs):
         """Create the class loading in built-in data."""
         datafile = path.join(path.dirname(__file__), "data", datafile + ".npz")
-        
+
         return cls(datafile=datafile, **kwargs)
 
     def setup(self):
@@ -2567,21 +2592,24 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         self.redshifts = self.data[0]["z_bands"]
         try:
             self.k = [
-                self.data[0]["kwfband" + str(np.round(z,1))] for z in self.redshifts
+                self.data[0]["kwfband" + str(np.round(z, 1))] for z in self.redshifts
             ]
         except KeyError:
             try:
                 self.k = [
-                    self.data[0]["kwfband" + str(int(np.round(z)))] for z in self.redshifts
+                    self.data[0]["kwfband" + str(int(np.round(z)))]
+                    for z in self.redshifts
                 ]
                 self.k_len = max(len(i) for i in self.k)
             except KeyError:
                 self.kperp = [
-                self.data[0]["kperpwfband" + str(np.round(z,1))] for z in self.redshifts
-            ]
+                    self.data[0]["kperpwfband" + str(np.round(z, 1))]
+                    for z in self.redshifts
+                ]
                 self.kpar = [
-                self.data[0]["kparwfband" + str(np.round(z,1))] for z in self.redshifts
-            ]
+                    self.data[0]["kparwfband" + str(np.round(z, 1))]
+                    for z in self.redshifts
+                ]
                 self.k_len = max((len(self.kperp), len(self.kpar)))
 
     def reduce_data(self, ctx):
@@ -2589,7 +2617,10 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         all_dmi = []
         use_2d_ps = len(ctx.get("PS").shape) == 4
         for i in range(ctx.get("PS").shape[0]):
-            def theory_model(z: float, k: np.ndarray, params: list[float], ps = ctx.get("PS")[i]) -> np.ndarray:
+
+            def theory_model(
+                z: float, k: np.ndarray, params: list[float], ps=ctx.get("PS")[i]
+            ) -> np.ndarray:
                 if use_2d_ps:
                     zs = ctx.get("PS_redshifts")
                     # RegularGridInterpolator requires strictly increasing axes
@@ -2599,8 +2630,11 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
                     else:
                         ps_interp = ps
                     fnc = RegularGridInterpolator(
-                        (zs, ctx.get("kperp"), ctx.get("kpar")), ps_interp,
-                        method='linear', bounds_error=False, fill_value=None
+                        (zs, ctx.get("kperp"), ctx.get("kpar")),
+                        ps_interp,
+                        method="linear",
+                        bounds_error=False,
+                        fill_value=None,
                     )
                     # k = (kperp_flat, kpar_flat), each shape (N,)
                     pts = np.column_stack([np.full(len(k[0]), z), k[0], k[1]])
@@ -2611,50 +2645,72 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
                         fnc = interp1d(ctx.get("k"), ps[zidx])
                         return fnc(k).squeeze() * un.mK**2
                     else:
-                        fnc = RectBivariateSpline(ctx.get("PS_redshifts"), ctx.get("k"), ps)
-                        return fnc(z,k).squeeze() * un.mK**2
+                        fnc = RectBivariateSpline(
+                            ctx.get("PS_redshifts"), ctx.get("k"), ps
+                        )
+                        return fnc(z, k).squeeze() * un.mK**2
 
-            this_param_dmi=[]
+            this_param_dmi = []
             for band in self.redshifts:
-                
-                try: 
-                    band_name = "band" + str(np.round(band,1))
+                try:
+                    band_name = "band" + str(np.round(band, 1))
                     self.data[0][band_name]
                 except:
                     band_name = "band" + str(int(np.round(band)))
                 for field in range(self.data[0][band_name].shape[0]):
                     try:
-                        cov = self.data[0]['cov'+band_name][field]
+                        cov = self.data[0]["cov" + band_name][field]
                     except:
                         pass
                         if use_2d_ps:
-                            cov = np.diag(self.data[0][band_name][field,...,1].flatten())
+                            cov = np.diag(
+                                self.data[0][band_name][field, ..., 1].flatten()
+                            )
                         else:
-                            cov = np.diag(self.data[0][band_name][field,:,2].flatten())
+                            cov = np.diag(
+                                self.data[0][band_name][field, :, 2].flatten()
+                            )
                     if use_2d_ps:
-                        kpar_1d = self.data[0]["kpar"+band_name][field]    # (Nkpar,)
-                        kperp_1d = self.data[0]["kperp"+band_name][field]  # (Nkperp,)
+                        kpar_1d = self.data[0]["kpar" + band_name][field]  # (Nkpar,)
+                        kperp_1d = self.data[0]["kperp" + band_name][field]  # (Nkperp,)
                         Nkpar = len(kpar_1d)
                         Nkperp = len(kperp_1d)
-                        kpar_flat = np.tile(kpar_1d, Nkperp)       # (Nkperp*Nkpar,)
-                        kperp_flat = np.repeat(kperp_1d, Nkpar)    # (Nkperp*Nkpar,)
-                        kparwf_1d = self.data[0]['kparwf'+band_name]
-                        kperpwf_1d = self.data[0]['kperpwf'+band_name]
+                        kpar_flat = np.tile(kpar_1d, Nkperp)  # (Nkperp*Nkpar,)
+                        kperp_flat = np.repeat(kperp_1d, Nkpar)  # (Nkperp*Nkpar,)
+                        kparwf_1d = self.data[0]["kparwf" + band_name]
+                        kperpwf_1d = self.data[0]["kperpwf" + band_name]
                         kparwf_flat = np.tile(kparwf_1d, len(kperpwf_1d))
                         kperpwf_flat = np.repeat(kperpwf_1d, len(kparwf_1d))
                     dmi = pslike.DataModelInterface(
                         cosmology=cosmology.Planck18,
                         redshift=band,
-                        power_spectrum=self.data[0][band_name][field,...,0].flatten() * un.mK**2 if use_2d_ps else self.data[0][band_name][field,...,1] * un.mK**2,
-                        window_function=self.data[0]['wf'+band_name][field],
+                        power_spectrum=self.data[0][band_name][field, ..., 0].flatten()
+                        * un.mK**2
+                        if use_2d_ps
+                        else self.data[0][band_name][field, ..., 1] * un.mK**2,
+                        window_function=self.data[0]["wf" + band_name][field],
                         covariance=cov * un.mK**4,
-                        kpar_bins_obs=kpar_flat * cosmology.units.littleh / un.Mpc if use_2d_ps else self.data[0][band_name][field,:,0] * cosmology.units.littleh / un.Mpc,
-                        kperp_bins_obs=kperp_flat * cosmology.units.littleh / un.Mpc if use_2d_ps else None,
+                        kpar_bins_obs=kpar_flat * cosmology.units.littleh / un.Mpc
+                        if use_2d_ps
+                        else self.data[0][band_name][field, :, 0]
+                        * cosmology.units.littleh
+                        / un.Mpc,
+                        kperp_bins_obs=kperp_flat * cosmology.units.littleh / un.Mpc
+                        if use_2d_ps
+                        else None,
                         theory_uses_little_h=False,
                         theory_uses_spherical_k=not use_2d_ps,
                         theory_model=theory_model,
-                        kpar_bins_theory=kparwf_flat * cosmology.units.littleh / un.Mpc if use_2d_ps else self.data[0]['kwf'+band_name] * cosmology.units.littleh / un.Mpc,
-                        kperp_bins_theory=kperpwf_flat * cosmology.units.littleh / un.Mpc if use_2d_ps else None
+                        kpar_bins_theory=kparwf_flat * cosmology.units.littleh / un.Mpc
+                        if use_2d_ps
+                        else self.data[0]["kwf" + band_name]
+                        * cosmology.units.littleh
+                        / un.Mpc,
+                        kperp_bins_theory=kperpwf_flat
+                        * cosmology.units.littleh
+                        / un.Mpc
+                        if use_2d_ps
+                        else None,
                     )
                     this_param_dmi.append(dmi)
             all_dmi.append(this_param_dmi)
@@ -2690,7 +2746,9 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         """The 21cmEMU core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
-            if (isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)) and c.name == self.name:
+            if (
+                isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)
+            ) and c.name == self.name:
                 paired.append(c)
         if len(paired) > 1:
             raise ValueError(

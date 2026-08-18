@@ -387,7 +387,7 @@ def run_mcmc(
         ultranest_logger = logging.getLogger("ultranest")
         ultranest_logger.addHandler(logging.NullHandler())
         ultranest_logger.setLevel(log_level_ultranest)
-    
+
     if use_nautilus:
         try:
             import nautilus
@@ -397,28 +397,28 @@ def run_mcmc(
         n_live = mcmc_options.get("n_live", 2000)
         n_update = mcmc_options.get("n_update", None)
         enlarge_per_dim = mcmc_options.get("enlarge_per_dim", 1.1)
-        n_points_min=mcmc_options.get("n_points_min", None)
-        split_threshold=mcmc_options.get("split_threshold", 100)
+        n_points_min = mcmc_options.get("n_points_min", None)
+        split_threshold = mcmc_options.get("split_threshold", 100)
         n_networks = mcmc_options.get("n_networks", 4)
-        neural_network_kwargs=mcmc_options.get("neural_network_kwargs", {})
-        prior_args=mcmc_options.get("prior_args",[])
-        prior_kwargs=mcmc_options.get("prior_kwargs", {})
-        likelihood_args=mcmc_options.get("likelihood_args", [])
-        likelihood_kwargs=mcmc_options.get("likelihood_kwargs", {})
+        neural_network_kwargs = mcmc_options.get("neural_network_kwargs", {})
+        prior_args = mcmc_options.get("prior_args", [])
+        prior_kwargs = mcmc_options.get("prior_kwargs", {})
+        likelihood_args = mcmc_options.get("likelihood_args", [])
+        likelihood_kwargs = mcmc_options.get("likelihood_kwargs", {})
         n_batch = mcmc_options.get("n_batch", None)
-        n_like_new_bound=mcmc_options.get("n_like_new_bound", None)
+        n_like_new_bound = mcmc_options.get("n_like_new_bound", None)
         vectorized = mcmc_options.get("vectorized", False)
-        pass_dict=mcmc_options.get("pass_dict", None)
+        pass_dict = mcmc_options.get("pass_dict", None)
         pool = mcmc_options.get("pool", None)
         seed = mcmc_options.get("seed", None)
-        blobs_dtype=mcmc_options.get("blobs_dtype", None)
+        blobs_dtype = mcmc_options.get("blobs_dtype", None)
         filepath = mcmc_options.get("filepath", None)
         resume = mcmc_options.get("resume", True)
         verbose = mcmc_options.get("verbose", True)
         discard_exploration = mcmc_options.get("discard_exploration", False)
         equal_weight_boost = mcmc_options.get("equal_weight_boost", 10)
         equal_weight = mcmc_options.get("equal_weight", True)
-        
+
     # Setup parameters.
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
@@ -428,7 +428,7 @@ def run_mcmc(
     )
     if continue_sampling and not (use_multinest or use_zeus or use_ultranest):
         try:
-            with open(file_prefix + ".LCC.yml", "r") as f:
+            with open(file_prefix + ".LCC.yml") as f:
                 old_chain = yaml.load(f)
 
             if old_chain != chain:
@@ -466,7 +466,9 @@ def run_mcmc(
                 )
             except ParameterError:
                 return -np.inf
+
         if prior is None:
+
             def prior(p, ndim, nparams):
                 for i in range(ndim):
                     p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
@@ -487,7 +489,7 @@ def run_mcmc(
                 evidence_tolerance=evidence_tolerance,
                 sampling_efficiency=sampling_efficiency,
                 init_MPI=False,
-                verbose=verbose
+                verbose=verbose,
             )
             return 1
 
@@ -544,7 +546,7 @@ def run_mcmc(
         return sampler
 
     elif use_ultranest:
-        
+
         def likelihood(p):
             if vectorized:
                 return chain.computeLikelihoods(
@@ -561,7 +563,9 @@ def run_mcmc(
                     ).squeeze()
                 except ParameterError:
                     return -np.inf
+
         if prior is None:
+
             def prior(p):
                 t = np.empty(p.shape, dtype=p.dtype)
                 for i in range(p.shape[-1]):
@@ -571,13 +575,15 @@ def run_mcmc(
                     else:
                         t[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
                 return t
+
         if warmstart_file is not None:
             from ultranest.integrator import warmstart_from_similar_file
 
             paramnames, likelihood, prior, vectorized = warmstart_from_similar_file(
-                warmstart_file, params.keys, likelihood, prior)
+                warmstart_file, params.keys, likelihood, prior
+            )
         else:
-            paramnames=None
+            paramnames = None
 
         sampler = ultranest.ReactiveNestedSampler(
             params.keys if paramnames is None else paramnames,
@@ -599,7 +605,7 @@ def run_mcmc(
                 nsteps=nsteps,
                 generate_direction=ultranest.stepsampler.generate_mixture_random_direction,
                 adaptive_nsteps=adaptive_nsteps,
-                max_nsteps=max_nsteps
+                max_nsteps=max_nsteps,
             )
 
         result = sampler.run(
@@ -621,9 +627,9 @@ def run_mcmc(
             region_class=region_class,
         )
         return sampler, result
-    
+
     elif use_nautilus:
-        
+
         def likelihood(p):
             if vectorized:
                 return chain.computeLikelihoods(
@@ -640,40 +646,44 @@ def run_mcmc(
                     )
                 except ParameterError:
                     return -np.inf
+
         if prior is None:
             from nautilus import Prior
+
             prior = Prior()
             for p in params.keys():
                 prior.add_parameter(p, dist=(params[p][1], params[p][2]))
-        sampler = nautilus.Sampler(prior=prior, 
-                                   likelihood=likelihood, 
-                                   n_dim=len(params.keys),
-                                   n_live=n_live,
-                                   n_update=n_update,
-                                   enlarge_per_dim = enlarge_per_dim,
-                                   n_points_min=n_points_min,
-                                   split_threshold=split_threshold, 
-                                   n_networks=n_networks, 
-                                   neural_network_kwargs=neural_network_kwargs, 
-                                   prior_args=prior_args, 
-                                   prior_kwargs=prior_kwargs, 
-                                   likelihood_args=likelihood_args, 
-                                   likelihood_kwargs=likelihood_kwargs, 
-                                   n_batch=n_batch, 
-                                   n_like_new_bound=n_like_new_bound, 
-                                   vectorized=vectorized, 
-                                   pass_dict=pass_dict, 
-                                   pool=pool, 
-                                   seed=seed, 
-                                   blobs_dtype=blobs_dtype, 
-                                   filepath=filepath, 
-                                   resume=resume,
-
+        sampler = nautilus.Sampler(
+            prior=prior,
+            likelihood=likelihood,
+            n_dim=len(params.keys),
+            n_live=n_live,
+            n_update=n_update,
+            enlarge_per_dim=enlarge_per_dim,
+            n_points_min=n_points_min,
+            split_threshold=split_threshold,
+            n_networks=n_networks,
+            neural_network_kwargs=neural_network_kwargs,
+            prior_args=prior_args,
+            prior_kwargs=prior_kwargs,
+            likelihood_args=likelihood_args,
+            likelihood_kwargs=likelihood_kwargs,
+            n_batch=n_batch,
+            n_like_new_bound=n_like_new_bound,
+            vectorized=vectorized,
+            pass_dict=pass_dict,
+            pool=pool,
+            seed=seed,
+            blobs_dtype=blobs_dtype,
+            filepath=filepath,
+            resume=resume,
         )
         if not post_only:
             sampler.run(verbose=verbose, discard_exploration=discard_exploration)
 
-        return sampler, sampler.posterior(equal_weight=equal_weight, equal_weight_boost=equal_weight_boost)
+        return sampler, sampler.posterior(
+            equal_weight=equal_weight, equal_weight_boost=equal_weight_boost
+        )
 
     else:
         pool = mcmc_options.pop(
