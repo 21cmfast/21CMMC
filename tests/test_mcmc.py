@@ -1,9 +1,8 @@
-import pytest
-
 import logging
-import numpy as np
-import os
 from pathlib import Path
+
+import numpy as np
+import pytest
 from py21cmfast import LightCone
 
 import py21cmmc as mcmc

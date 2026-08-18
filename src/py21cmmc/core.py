@@ -4,13 +4,15 @@ This is the basis of the plugin system for :mod:`py21cmmc`.
 
 TODO: Add description of the API of cores (and how to define new ones).
 """
+
 import copy
 import inspect
 import logging
-import numpy as np
-import py21cmfast as p21
 import warnings
 from os import path
+
+import numpy as np
+import py21cmfast as p21
 from scipy.interpolate import interp1d
 
 from py21cmmc.cosmoHammer import Params
@@ -43,8 +45,6 @@ class NotAChain(AttributeError):
 
 class AlreadySetupError(Exception):
     """Exception to be raised if trying to setup a core twice."""
-
-    pass
 
 
 class ModuleBase:
@@ -156,9 +156,7 @@ class CoreBase(ModuleBase):
                     break
                 if core.__class__.__name__ == self.__class__.__name__:
                     raise ValueError(
-                        "{this} requires {that} to be loaded.".format(
-                            this=self.__class__.__name__, that=rc.__class__.__name__
-                        )
+                        f"{self.__class__.__name__} requires {rc.__class__.__name__} to be loaded."
                     )
 
     def prepare_storage(self, ctx, storage):
@@ -193,7 +191,6 @@ class CoreBase(ModuleBase):
         dct : dict
             A dictionary of data which was simulated.
         """
-        pass
 
     def convert_model_to_mock(self, ctx):
         """
@@ -208,7 +205,6 @@ class CoreBase(ModuleBase):
         ctx : dict-like
             The context, from which parameters and other simulated model data can be accessed.
         """
-        pass
 
     def simulate_mock(self, ctx):
         """Generate all mock data and add it to the context."""
@@ -846,8 +842,7 @@ class CoreForest(CoreLightConeModule):
             f_x = np.mean(np.exp(-tau * x)) - mean_fluxave_target
             f_prime_x = np.min([-1e-10, np.mean(-tau * np.exp(-tau * x))])
             x -= f_x / f_prime_x
-            if x < 0:
-                x = 0
+            x = max(x, 0)
             Ntry += 1
             if Ntry > 1e3:
                 break
@@ -1316,10 +1311,7 @@ class Core21cmEMU(CoreBase):
         if len(values) == 0:
             astro_params = self._update_params(astro_params).defining_dict
             astro_params = {k: astro_params[k] for k in self.astro_param_keys}
-        if (
-            all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
-            and len(values) > 0
-        ):
+        if all(isinstance(v, (np.ndarray, list)) for v in values) and len(values) > 0:
             lengths = [len(v) for v in values]
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
@@ -1329,9 +1321,13 @@ class Core21cmEMU(CoreBase):
             for t in zip(*values):
                 ap.append(dict(zip(keys, t)))
             astro_params = np.array(ap, dtype=object)
+        elif all(isinstance(v, (float, int)) for v in values) and len(values) > 0:
+            astro_params = dict(zip(keys, values))
+            astro_params = np.array([astro_params], dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
-
+        n = len(astro_params)
         theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
+
         if self.io_options["cache_dir"] is not None:
             if len(astro_params.shape) == 2:
                 pars = astro_params[0]
@@ -1347,7 +1343,12 @@ class Core21cmEMU(CoreBase):
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
             try:
-                ctx.add(key + self.name, getattr(outputs, key))
+                ctx.add(
+                    key + self.name,
+                    getattr(outputs, key)
+                    if n > 1
+                    else getattr(outputs, key)[np.newaxis, ...],
+                )
             except AttributeError:
                 try:
                     ctx.add(key + self.name, errors[key])

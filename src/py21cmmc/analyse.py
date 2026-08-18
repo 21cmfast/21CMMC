@@ -2,10 +2,12 @@
 
 Also enables more transparent input/output of chains.
 """
-import numpy as np
-from matplotlib import pyplot as plt
+
 from os.path import join
 from pathlib import Path
+
+import numpy as np
+from matplotlib import pyplot as plt
 from py21cmfast import yaml
 
 from .cosmoHammer import CosmoHammerSampler, HDFStorage

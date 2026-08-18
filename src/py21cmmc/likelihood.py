@@ -1,16 +1,17 @@
 """Module containing 21CMMC likelihoods."""
+
 import logging
-import numpy as np
-from cached_property import cached_property
 from io import IOBase
 from os import path, rename
 from pathlib import Path
+
+import numpy as np
+from cached_property import cached_property
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
 from scipy.interpolate import (
     InterpolatedUnivariateSpline,
     RectBivariateSpline,
-    interp1d,
 )
 from scipy.special import erf
 
@@ -204,9 +205,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         for fl in self.datafile:
             if not path.exists(fl):
                 raise FileNotFoundError(
-                    "Could not find datafile: {fl}. If you meant to simulate data, set simulate=True.".format(
-                        fl=fl
-                    )
+                    f"Could not find datafile: {fl}. If you meant to simulate data, set simulate=True."
                 )
             else:
                 data.append(dict(np.load(fl, allow_pickle=True)))
@@ -237,9 +236,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         for fl, d in zip(self.datafile, self.data):
             if path.exists(fl):
                 logger.warning(
-                    "File {fl} already exists. Moving previous version to {fl}.bk".format(
-                        fl=fl
-                    )
+                    f"File {fl} already exists. Moving previous version to {fl}.bk"
                 )
                 rename(fl, fl + ".bk")
 
@@ -250,9 +247,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         for fl, d in zip(self.noisefile, self.noise):
             if path.exists(fl):
                 logger.warning(
-                    "File {fl} already exists. Moving previous version to {fl}.bk".format(
-                        fl=fl
-                    )
+                    f"File {fl} already exists. Moving previous version to {fl}.bk"
                 )
                 rename(fl, fl + ".bk")
 
@@ -383,14 +378,14 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 "delta" not in d and "band8" not in d
             ):
                 raise ValueError(
-                    f"datafile #{i+1} of {len(self.datafile)} has the wrong format."
+                    f"datafile #{i + 1} of {len(self.datafile)} has the wrong format."
                 )
 
     def _check_noise_format(self):
         for i, n in enumerate(self.noise):
             if "k" not in n or "errs" not in n:
                 raise ValueError(
-                    f"noisefile #{i+1} of {len(self.noise)} has the wrong format"
+                    f"noisefile #{i + 1} of {len(self.noise)} has the wrong format"
                 )
 
     def setup(self):
@@ -1041,13 +1036,13 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                             elif i == 4:
                                 tot[index + j] = cl["te"][j]
                             elif i == 5:
-                                tot[
-                                    index + j
-                                ] = 0  # cl['tb'][j] class does not compute tb
+                                tot[index + j] = (
+                                    0  # cl['tb'][j] class does not compute tb
+                                )
                             elif i == 6:
-                                tot[
-                                    index + j
-                                ] = 0  # cl['eb'][j] class does not compute eb
+                                tot[index + j] = (
+                                    0  # cl['eb'][j] class does not compute eb
+                                )
 
                         index += my_clik.get_lmax()[i] + 1
 
@@ -1080,7 +1075,13 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
 
     def initialize_clik_and_class(self, name=None):
         """Initialize clik and class."""
-        global my_clik_TTTEEE, my_clik_lensing, my_clik_EE, my_l_max_lensing, my_l_max_EE, my_l_max_TTTEEE
+        global \
+            my_clik_TTTEEE, \
+            my_clik_lensing, \
+            my_clik_EE, \
+            my_l_max_lensing, \
+            my_l_max_EE, \
+            my_l_max_TTTEEE
         self.initialize = False
 
         try:
@@ -1100,6 +1101,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         )
         if not path.isdir(my_path):
             import tarfile
+
             from astropy.utils.data import download_file
 
             tarfile.open(
@@ -1133,7 +1135,8 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
         except AttributeError:
             raise AttributeError(
                 "The path to the .clik file for the likelihood "
-                "%s was not found where indicated:\n%s\n" % (name, my_path)
+                "%s was not found where indicated:\n%s\n"
+                % (name, my_path)
                 + " Note that the default path to search for it is"
                 " one directory above the path['clik'] field. You"
                 " can change this behaviour in all the "
@@ -1336,9 +1339,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         self.xHI_sigma = _ensure_iter(xHI_sigma)
 
         # By default, setup as if using coeval boxes.
-        self.redshifts = (
-            []
-        )  # these will become the redshifts of all coeval boxes, if that exists.
+        self.redshifts = []  # these will become the redshifts of all coeval boxes, if that exists.
         self._use_coeval = True
         self._require_spline = False
         self._use_tanh = False
@@ -1382,11 +1383,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             )
 
         if not self.lightcone_modules:
-            if self.cmb_modules:
-                self._use_tanh = True
-                self._use_coeval = False
-                self._require_spline = True
-            elif self.emu_modules:
+            if self.cmb_modules or self.emu_modules:
                 self._use_tanh = True
                 self._use_coeval = False
                 self._require_spline = True
@@ -1436,8 +1433,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
 
     def computeLikelihood(self, model):
         """Compute the likelihood."""
-        n = model["xHI"].shape[0]
         xHI = np.atleast_2d(model["xHI"])
+        n = xHI.shape[0]
         lnprob = np.zeros(n)
         for i in range(n):
             if self._require_spline:
@@ -1462,7 +1459,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                     lnprob[i] += self.lnprob(model_spline(z), data, sigma_t)
 
         logger.debug(f"Neutral fraction Likelihood computed: {lnprob}")
-        return lnprob
+        return lnprob.squeeze()
 
     def lnprob(self, model, data, sigma):
         """Compute the log prob given a model, data and error."""
@@ -2327,9 +2324,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                     likelihood[likelihood <= 0.0] = 1e-50
                     lnl[i] += np.nansum(np.log(likelihood))
                     logger.debug(
-                        "HERA PS upper Likelihood computed: {lnl}".format(
-                            lnl=np.nansum(np.log(likelihood))
-                        )
+                        f"HERA PS upper Likelihood computed: {np.nansum(np.log(likelihood))}"
                     )
         logger.debug(f"Total HERA PS upper Likelihood computed: {lnl}")
         return lnl
