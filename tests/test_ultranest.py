@@ -1,11 +1,4 @@
-import pytest
-
-import numpy as np
-from py21cmfast._utils import ParameterError
-
 import py21cmmc as mcmc
-from py21cmmc.cosmoHammer import Params
-from py21cmmc.likelihood import LikelihoodBase
 
 
 def test_ultranest_21cmemu():

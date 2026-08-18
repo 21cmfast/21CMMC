@@ -1,12 +1,13 @@
 """High-level functions for running MCMC chains."""
+
 import logging
-import numpy as np
-import scipy.stats as stats
-from cmath import log
 from concurrent.futures import ProcessPoolExecutor
 from os import mkdir, path
+
+import numpy as np
 from py21cmfast import yaml
 from py21cmfast._utils import ParameterError
+from scipy import stats
 
 from .cosmoHammer import (
     CosmoHammerSampler,
@@ -393,9 +394,7 @@ def run_mcmc(
             if old_chain != chain:
                 raise RuntimeError(
                     "Attempting to continue chain, but chain parameters are different. "
-                    + "Check your parameters against {file_prefix}.LCC.yml".format(
-                        file_prefix=file_prefix
-                    )
+                    + f"Check your parameters against {file_prefix}.LCC.yml"
                 )
 
         except FileNotFoundError:
