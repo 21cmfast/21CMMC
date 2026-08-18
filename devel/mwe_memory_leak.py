@@ -1,6 +1,7 @@
 import os
-import psutil
 import tracemalloc
+
+import psutil
 
 import py21cmmc
 from py21cmmc import mcmc
@@ -35,9 +36,7 @@ def trace_print():
         thismem = PROCESS.memory_info().rss / 1024**2
         diff = thismem - oldmem
         print(
-            "===================== Begin Trace (TOTAL MEM={:1.4e} MB... [{:+1.4e} MB]):".format(
-                thismem, diff
-            )
+            f"===================== Begin Trace (TOTAL MEM={thismem:1.4e} MB... [{diff:+1.4e} MB]):"
         )
         top_stats = snapshot2.compare_to(snapshot, "lineno", cumulative=True)
         for stat in top_stats[:4]:

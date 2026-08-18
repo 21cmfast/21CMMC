@@ -1,8 +1,7 @@
-import pytest
+import os
 
 import numpy as np
-import os
-import shutil
+import pytest
 
 from py21cmmc import (
     CoreLuminosityFunction,
