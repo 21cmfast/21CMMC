@@ -1,4 +1,5 @@
 """Patch of `emcee.Ensemble` to allow for some new features required for 21CMMC."""
+
 import emcee
 import logging
 import numpy as np
@@ -209,15 +210,13 @@ class EnsembleSampler(emcee.EnsembleSampler):
         except BrokenProcessPool:
             import traceback
 
-            print(
-                """
+            print("""
 BrokenProcessPool exception (most likely an unrecoverable crash in C-code).
 
   Due to the nature of this exception, it is impossible to know which of the following parameter
   vectors were responsible for the crash. Running your likelihood function with each set
   of parameters in serial may help identify the problem.
-"""
-            )
+""")
             print(
                 "  params:",
                 str(pos if pos is not None else self.pos).replace("\n", "\n          "),

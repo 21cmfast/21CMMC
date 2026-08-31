@@ -2,6 +2,7 @@
 
 Also enables more transparent input/output of chains.
 """
+
 import numpy as np
 from matplotlib import pyplot as plt
 from os.path import join
