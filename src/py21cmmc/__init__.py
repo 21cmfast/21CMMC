@@ -9,6 +9,7 @@ from .core import (
     CoreForest,
     CoreLightConeModule,
     CoreLuminosityFunction,
+    CoreRadioEMU,
     NotAChain,
     NotSetupError,
 )
@@ -27,5 +28,6 @@ from .likelihood import (
     LikelihoodNeutralFractionTwoSided,
     LikelihoodPlanck,
     LikelihoodPlanckPowerSpectra,
+    LikelihoodPspec,
 )
 from .mcmc import build_computation_chain, run_mcmc
