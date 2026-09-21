@@ -1,12 +1,14 @@
 """A set of extensions to the basic ``CosmoHammer`` package."""
-import emcee
+
 import gc
-import h5py
 import logging
-import numpy as np
 import os
 import time
 import warnings
+
+import emcee
+import h5py
+import numpy as np
 from cosmoHammer import CosmoHammerSampler as _CosmoHammerSampler
 from cosmoHammer import getLogger
 from cosmoHammer import util as _util
@@ -39,7 +41,7 @@ class HDFStorage:
         except OSError:
             return False
 
-    def open(self, mode="r"):  # noqa
+    def open(self, mode="r"):
         """Open the backend file."""
         return h5py.File(self.filename, mode)
 
@@ -505,7 +507,6 @@ class HDFStorageUtil:
 
     def close(self):
         """No-op."""
-        pass
 
 
 class Params(_util.Params):

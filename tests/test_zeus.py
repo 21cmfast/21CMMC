@@ -1,5 +1,4 @@
 import numpy as np
-import zeus
 
 import py21cmmc as p21mc
 from py21cmmc import mcmc

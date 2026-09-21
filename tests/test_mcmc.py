@@ -1,9 +1,8 @@
-import pytest
-
 import logging
-import numpy as np
-import os
 from pathlib import Path
+
+import numpy as np
+import pytest
 from py21cmfast import LightCone
 
 import py21cmmc as mcmc
@@ -283,8 +282,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
 
 
 def test_bad_continuation(core, likelihood_coeval, default_params, tmpdirec):
-    "check if trying to continue a chain that isn't compatible with previous chain raises an error"
-
+    """Check if trying to continue a chain that isn't compatible with previous chain raises an error"""
     mcmc.run_mcmc(
         core,
         likelihood_coeval,
