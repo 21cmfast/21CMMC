@@ -1823,15 +1823,35 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     lfunc = model["lfunc"][n, i]
 
                 mask = ~np.isnan(lfunc)
+                # Extreme parameter combinations can leave the luminosity
+                # function undefined (NaN) at almost all Muv bins for this
+                # redshift. A spline needs more points than its degree
+                # (k=3 by default, so >=4), otherwise fitting it crashes.
+                # Treat this as a rejected/invalid point instead.
+                if mask.sum() < 4:
+                    lnl[n] = -np.inf
+                    break
                 model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
 
                 total_err = self.noise["sigma"][i] ** 2
+
+                # Only compare against data bins inside the Muv range the
+                # model actually covers. Extrapolating the spline beyond it
+                # can blow up to extremely large/small values (over/under-
+                # flowing a double) for extreme parameter combinations,
+                # which can destabilise samplers (e.g. corrupt MultiNest's
+                # output/ellipsoid construction).
+                in_range = (
+                    (data["Muv"][i] > self.mag_brightest)
+                    & (data["Muv"][i] >= muv[mask].min())
+                    & (data["Muv"][i] <= muv[mask].max())
+                )
 
                 lnl[n] += -0.5 * np.sum(
                     (
                         (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i])) ** 2
                         / total_err
-                    )[data["Muv"][i] > self.mag_brightest]
+                    )[in_range]
                 )
         logger.debug(f"UV LF Likelihood computed: {lnl}")
         return lnl

@@ -856,10 +856,13 @@ class CoreForest(CoreLightConeModule):
         if not lc:
             raise NotImplementedError("A lightcone core is required!")
         lightcone_redshifts = lc.lightcone_redshifts
-        # lightcone_distances is an astropy Quantity (in Mpc) as of newer
-        # 21cmFAST versions; self.bin_size is a plain float in Mpc, so strip
-        # the units here to keep the arithmetic below working as before.
-        lightcone_distances = lc.lightcone_distances.to_value("Mpc")
+        # lightcone_distances is an astropy Quantity (in Mpc) in some
+        # py21cmfast versions, and a plain ndarray (already in Mpc) in
+        # others; self.bin_size is always a plain float in Mpc, so strip
+        # any units here to keep the arithmetic below working either way.
+        lightcone_distances = lc.lightcone_distances
+        if hasattr(lightcone_distances, "to_value"):
+            lightcone_distances = lightcone_distances.to_value("Mpc")
         total_los = lc.user_params.HII_DIM**2
 
         index_right = np.where(
