@@ -62,7 +62,7 @@ if __name__ == "__main__":
     )
 
     datafiles = [
-        location + "/" + model_name + "_mcmc_data_%s.npz" % z for z in core.redshift
+        location + "/" + model_name + f"_mcmc_data_{z}.npz" for z in core.redshift
     ]
 
     likelihood = py21cmmc.likelihood.Likelihood1DPowerCoeval(

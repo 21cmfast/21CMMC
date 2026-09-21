@@ -1,3 +1,5 @@
+"""Shared pytest fixtures for the test suite."""
+
 from pathlib import Path
 
 import pytest
@@ -16,7 +18,7 @@ def cache(tmpdirec) -> Path:
     return pth
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(autouse=True)
 def setup_package():
     txt = "".join(a.decode() for a in global_params.external_table_path)
     txt.replace(r"\x00", "")

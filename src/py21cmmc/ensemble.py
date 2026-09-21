@@ -211,21 +211,19 @@ class EnsembleSampler(emcee.EnsembleSampler):
         except BrokenProcessPool:
             import traceback
 
-            print(
-                """
-BrokenProcessPool exception (most likely an unrecoverable crash in C-code).
-
-  Due to the nature of this exception, it is impossible to know which of the following parameter
-  vectors were responsible for the crash. Running your likelihood function with each set
-  of parameters in serial may help identify the problem.
-"""
+            logger.error(
+                "BrokenProcessPool exception (most likely an unrecoverable crash in C-code).\n\n"
+                "  Due to the nature of this exception, it is impossible to know which of the "
+                "following parameter\n"
+                "  vectors were responsible for the crash. Running your likelihood function with "
+                "each set\n"
+                "  of parameters in serial may help identify the problem.\n"
             )
-            print(
-                "  params:",
-                str(pos if pos is not None else self.pos).replace("\n", "\n          "),
+            logger.error(
+                "  params: %s",
+                str(pos if pos is not None else self.pos).replace("\n", "\n      "),
             )
-            print("  args:", self.args)
-            print("  kwargs:", self.kwargs)
-            print("  exception:\n")
-            traceback.print_exc()
+            logger.error("  args: %s", self.args)
+            logger.error("  kwargs: %s", self.kwargs)
+            logger.error("  exception:\n%s", traceback.format_exc())
             raise

@@ -1,3 +1,5 @@
+"""Tests of the luminosity function likelihood."""
+
 import os
 
 import numpy as np

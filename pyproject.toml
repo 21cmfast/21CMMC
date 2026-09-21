@@ -131,6 +131,18 @@ ignore = [
     "A005",
     "RUF009",
     "B008",
+    # Legacy os.path usage throughout the codebase (file I/O for lightcones/caches).
+    # Migrating to pathlib is a large, invasive change deferred to a follow-up PR.
+    "PTH",
+    # Legacy np.random.* calls. Switching to np.random.Generator changes the RNG
+    # stream and could silently break reproducibility of existing chains/scripts.
+    "NPY002",
+    # `NotAChain` is part of the public API; renaming to `NotAChainError` is a
+    # breaking change deferred to a future major version.
+    "N818",
+    # `cosmoHammer` module name is part of the public API (`py21cmmc.cosmoHammer`);
+    # renaming it is a breaking change deferred to a future major version.
+    "N999",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -143,20 +155,19 @@ ignore = [
     # option is also consulted by PLR0206, which then wrongly treats pytest
     # fixtures as properties and flags their (perfectly normal) parameters.
     "PLR0206",
+    # Tests intentionally use broad `pytest.raises(ValueError)` without `match=`,
+    # and some raises-blocks contain more than one statement (e.g. building an
+    # object then asserting the call raises).
+    "PT011",
+    "PT012",
 ]
 "devel/*.py" = [
   "T",
+  "D",  # devel/ contains ad-hoc debugging scripts, not part of the public package
 ]
 "docs/conf.py" = [
     "A",  # conf.py can shadow builtins
     "ERA",
-]
-"src/py21cmfast/cli.py" = [
-    "D103",  # ignore missing docstrings
-    "T",     # print statements
-]
-"build_cffi.py" = [
-    "T",     # print statements
 ]
 
 [tool.ruff.lint.pydocstyle]

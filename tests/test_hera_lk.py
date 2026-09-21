@@ -1,3 +1,5 @@
+"""Tests of the HERA power-spectrum likelihood."""
+
 from py21cmmc import (
     Likelihood1DPowerLightconeUpper,
     build_computation_chain,

@@ -1,3 +1,5 @@
+"""Tests of the MultiNest sampler integration."""
+
 import numpy as np
 import pymultinest
 import pytest
@@ -14,7 +16,7 @@ def astro_params():
         "L_X": [40.0, 38.0, 42.0, 0.05],
         "NU_X_THRESH": [500.0, 200.0, 1500.0, 20.0],
     }
-    return Params(*[(k, v) for k, v in ap.items()])
+    return Params(*list(ap.items()))
 
 
 @pytest.fixture(scope="module")
@@ -62,7 +64,7 @@ def test_multinest_samples(astro_params, prior):
 
     nest = pymultinest.Analyzer(
         2,
-        outputfiles_basename="./MultiNest/%s" % model_name,
+        outputfiles_basename=f"./MultiNest/{model_name}",
     )
     samples = nest.get_data()
     posterior = nest.get_equal_weighted_posterior()
@@ -105,10 +107,10 @@ def test_multinest():
     }
     mcmc.run_mcmc(
         [
-            mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name="lfz%d" % z)
+            mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name=f"lfz{z:d}")
             for z in redshifts
         ],
-        [mcmc.LikelihoodLuminosityFunction(name="lfz%d" % z) for z in redshifts],
+        [mcmc.LikelihoodLuminosityFunction(name=f"lfz{z:d}") for z in redshifts],
         model_name=model_name,
         params={
             "F_STAR10": F_STAR10,
@@ -121,7 +123,7 @@ def test_multinest():
         **mcmc_options,
     )
 
-    nest = pymultinest.Analyzer(4, outputfiles_basename="./MultiNest/%s" % model_name)
+    nest = pymultinest.Analyzer(4, outputfiles_basename=f"./MultiNest/{model_name}")
     data = nest.get_data()
 
     assert data.shape[1] == 6

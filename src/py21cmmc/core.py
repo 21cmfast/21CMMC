@@ -72,8 +72,7 @@ class ModuleBase:
 
             if not any(any(isinstance(m, r) for r in rc) for m in self._cores):
                 raise ValueError(
-                    "%s needs the %s to be loaded."
-                    % (self.__class__.__name__, rc.__class__.__name__)
+                    f"{self.__class__.__name__} needs the {rc.__class__.__name__} to be loaded."
                 )
 
     @property
@@ -81,8 +80,8 @@ class ModuleBase:
         """Reference to the :class:`~LikelihoodComputationChain` containing this core."""
         try:
             return self._LikelihoodComputationChain
-        except AttributeError:
-            raise NotAChain
+        except AttributeError as e:
+            raise NotAChain from e
 
     @property
     def parameter_names(self):
@@ -166,7 +165,7 @@ class CoreBase(ModuleBase):
                 storage[name] = storage_function(ctx)
             except Exception:
                 logger.error(
-                    "Exception while trying to evaluate storage function %s" % name
+                    f"Exception while trying to evaluate storage function {name}"
                 )
                 raise
 
@@ -312,7 +311,7 @@ class CoreCoevalModule(CoreBase):
     .. warning:: Only scalars and arrays are supported for storage in the chain itself.
     """
 
-    _ignore_attributes = ["keep_data_in_memory"]
+    _ignore_attributes = ("keep_data_in_memory",)
 
     def __init__(
         self,
@@ -384,7 +383,7 @@ class CoreCoevalModule(CoreBase):
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
         if (
-            all(p not in self.cosmo_params.self.keys() for p in self.parameter_names)
+            all(p not in self.cosmo_params.self for p in self.parameter_names)
             and not self.change_seed_every_iter
         ):
             logger.info("Initializing default boxes for the entire chain.")
@@ -432,8 +431,10 @@ class CoreCoevalModule(CoreBase):
         for key in self.ctx_variables:
             try:
                 ctx.add(key, [getattr(c, key) for c in coeval])
-            except AttributeError:
-                raise ValueError(f"ctx_variable {key} not an attribute of Coeval")
+            except AttributeError as e:
+                raise ValueError(
+                    f"ctx_variable {key} not an attribute of Coeval"
+                ) from e
 
     def _update_params(self, params):
         """
@@ -481,7 +482,8 @@ class CoreLightConeModule(CoreCoevalModule):
         if "ctx_variables" in kwargs:
             warnings.warn(
                 "ctx_variables does not apply to the lightcone module (at least not yet). It will "
-                "be ignored."
+                "be ignored.",
+                stacklevel=2,
             )
 
         super().__init__(**kwargs)
@@ -489,7 +491,7 @@ class CoreLightConeModule(CoreCoevalModule):
         self.name = name
 
     def setup(self):
-        """Setup the chain."""
+        """Set up the chain."""
         # If the chain has different parameter truths, we want to use those for our defaults.
         self.astro_params, self.cosmo_params = self._update_params(
             self.chain.createChainContext().getParams()
@@ -501,7 +503,7 @@ class CoreLightConeModule(CoreCoevalModule):
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
         if (
-            all(p not in self.cosmo_params.self.keys() for p in self.parameter_names)
+            all(p not in self.cosmo_params.self for p in self.parameter_names)
             and not self.change_seed_every_iter
         ):
             logger.info("Initializing default boxes for the entire chain.")
@@ -613,10 +615,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
             mturnovers_mini = 10 ** interp1d(
                 z_all, np.array(lc.log10_mturnovers_mini)[::-1]
             )(self.redshift)
-        if isinstance(astro_params, np.ndarray):
-            N = len(astro_params)
-        else:
-            N = 1
+        N = len(astro_params) if isinstance(astro_params, np.ndarray) else 1
         Muv = []
         Mhalo = []
         lfunc = []
@@ -663,9 +662,9 @@ class CoreLuminosityFunction(CoreCoevalModule):
                     "For vectorized case, all parameters should have the same length."
                 )
             ap = []
-            for t in zip(*values):
+            for t in zip(*values, strict=False):
                 apars, cosmo_params = self._update_params(
-                    Params(*[(k, v) for k, v in zip(keys, t)])
+                    Params(*[(k, v) for k, v in zip(keys, t, strict=False)])
                 )
                 ap.append(apars)
             astro_params = ap
@@ -762,8 +761,8 @@ class CoreForest(CoreLightConeModule):
 
         if self.nlos * self.n_realization > self.user_params.HII_DIM**2:
             raise ValueError(
-                "You asked for %d realizations, larger than what the box has (Total los / needed los = %d / %d)! Increase HII_DIM!"
-                % (self.n_realization, self.user_params.HII_DIM**2, self.nlos)
+                f"You asked for {self.n_realization} realizations, larger than what the box has "
+                f"(Total los / needed los = {self.user_params.HII_DIM**2} / {self.nlos})! Increase HII_DIM!"
             )
 
     def setup(self):
@@ -771,7 +770,7 @@ class CoreForest(CoreLightConeModule):
         CoreBase.setup(self)
 
     def tau_GP(self, gamma_bg, delta, temp, redshifts):
-        r"""Calculating the lyman-alpha optical depth in each pixel using the fluctuating GP approximation.
+        r"""Calculate the lyman-alpha optical depth in each pixel using the fluctuating GP approximation.
 
         Parameters
         ----------
@@ -851,7 +850,7 @@ class CoreForest(CoreLightConeModule):
 
     def build_model_data(self, ctx):
         """Compute all data defined by this core and add it to the context."""
-        astro_params, cosmo_params = self._update_params(ctx.getParams())
+        _astro_params, _cosmo_params = self._update_params(ctx.getParams())
 
         lc = ctx.get("lightcone")
         if not lc:
@@ -926,7 +925,7 @@ class CoreForest(CoreLightConeModule):
                 f_rescale = self.find_n_rescale(tau_lyman_alpha, self.mean_flux)
 
             tau_eff[jj] = -np.log(np.mean(np.exp(-tau_lyman_alpha * f_rescale), axis=1))
-        ctx.add("tau_eff_%s" % self.name, tau_eff)
+        ctx.add(f"tau_eff_{self.name}", tau_eff)
 
 
 class CoreCMB(CoreBase):
@@ -1001,7 +1000,7 @@ class CoreCMB(CoreBase):
             from classy import Class
 
             if verbose > 0:
-                print("import CLASS")
+                logger.info("import CLASS")
             global cosmo
             cosmo = Class()
             self.verbose = verbose
@@ -1010,12 +1009,12 @@ class CoreCMB(CoreBase):
             self.z_HeI = z_HeI
             self.z_HeII = z_HeII
             self.use_21cmfast = use_21cmfast
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "You must have compiled the classy.pyx file. Please go to "
                 + "/path/to/class/python and run the command\n "
                 + "python setup.py build"
-            )
+            ) from e
 
     def setup(self):
         """Perform any post-init setup of the object."""
@@ -1101,9 +1100,9 @@ class CoreCMB(CoreBase):
                 "reio_parametrization": "reio_inter",
                 "reio_inter_num": len(xe),
                 "reio_inter_z": ",".join(
-                    ["%.5f" % x for x in redshift_class]
+                    [f"{x:.5f}" for x in redshift_class]
                 ),  # str(redshift_class),
-                "reio_inter_xe": ",".join(["%.5e" % x for x in xe]),
+                "reio_inter_xe": ",".join([f"{x:.5e}" for x in xe]),
                 "input_verbose": self.verbose,
                 "background_verbose": self.verbose,
                 "thermodynamics_verbose": self.verbose,
@@ -1116,7 +1115,7 @@ class CoreCMB(CoreBase):
             }
         else:
             # Update parameters
-            astro_params, cosmo_params = self._update_params(ctx.getParams())
+            astro_params, _cosmo_params = self._update_params(ctx.getParams())
             h = self.cosmo_params.hlittle
             omega_b = self.cosmo_params.OMb * h * h
             omega_cdm = self.cosmo_params.OMm * h * h - omega_b
@@ -1173,7 +1172,7 @@ class CoreCMB(CoreBase):
         cl = cosmo.lensed_cl(int(l_max))
         # convert dimensionless C_l's to C_l in muK**2
         T = cosmo.T_cmb()  # checked
-        for key in cl.keys():
+        for key in cl:
             # All quantities need to be multiplied by this factor, except the
             # phi-phi term, that is already dimensionless
             # phi cross-terms should only be multiplied with this factor once
@@ -1230,18 +1229,22 @@ class Core21cmEMU(CoreBase):
         ),
         cache_dir=None,
         version="latest",
-        store=[],
+        store=None,
         *args,
         **kwargs,
     ):
+        if store is None:
+            store = []
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.ctx_variables = ctx_variables
 
         try:
             from py21cmemu import Emulator, properties
-        except:
-            print("Could not load py21cmemu. Make sure it is installed properly.")
+        except ImportError:
+            logger.warning(
+                "Could not load py21cmemu. Make sure it is installed properly."
+            )
         self.astro_param_keys = (
             "F_STAR10",
             "ALPHA_STAR",
@@ -1320,18 +1323,13 @@ class Core21cmEMU(CoreBase):
                 raise ValueError(
                     "For vectorized case, all parameters should have the same length."
                 )
-            ap = []
-            for t in zip(*values):
-                ap.append(dict(zip(keys, t)))
+            ap = [dict(zip(keys, t, strict=False)) for t in zip(*values, strict=False)]
             astro_params = np.array(ap, dtype=object)
         logger.debug(f"AstroParams: {astro_params}")
 
         theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
         if self.io_options["cache_dir"] is not None:
-            if len(astro_params.shape) == 2:
-                pars = astro_params[0]
-            else:
-                pars = astro_params
+            pars = astro_params[0] if len(astro_params.shape) == 2 else astro_params
             par_vals = [f"{i:0.3e}" for i in list(pars)]
             name = "_".join(par_vals)
             outputs.write(
@@ -1346,7 +1344,7 @@ class Core21cmEMU(CoreBase):
             except AttributeError:
                 try:
                     ctx.add(key + self.name, errors[key])
-                except:
+                except Exception as e:
                     raise ValueError(
                         f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict."
-                    )
+                    ) from e

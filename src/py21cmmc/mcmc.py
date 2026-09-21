@@ -1,5 +1,6 @@
 """High-level functions for running MCMC chains."""
 
+import contextlib
 import logging
 from concurrent.futures import ProcessPoolExecutor
 from os import mkdir, path
@@ -57,7 +58,7 @@ def build_computation_chain(core_modules, likelihood_modules, params=None, setup
     return chain
 
 
-def run_mcmc(
+def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multinest/zeus/ultranest/cosmoHammer), each with its own setup branch
     core_modules,
     likelihood_modules,
     params,
@@ -284,12 +285,12 @@ def run_mcmc(
         datadir = datadir + "/MultiNest/"
         try:
             from pymultinest import run
-        except ImportError:
-            raise ImportError("You need to install pymultinest to use this function!")
-    try:
+        except ImportError as e:
+            raise ImportError(
+                "You need to install pymultinest to use this function!"
+            ) from e
+    with contextlib.suppress(FileExistsError):
         mkdir(datadir)
-    except FileExistsError:
-        pass
 
     if use_zeus:
         ndim = mcmc_options.get(
@@ -329,14 +330,16 @@ def run_mcmc(
 
         try:
             import zeus
-        except ImportError:
-            raise ImportError("You need to install zeus to use this function!")
+        except ImportError as e:
+            raise ImportError("You need to install zeus to use this function!") from e
 
     if use_ultranest:
         try:
             import ultranest
-        except ImportError:
-            raise ImportError("You need to install ultranest to use this function!")
+        except ImportError as e:
+            raise ImportError(
+                "You need to install ultranest to use this function!"
+            ) from e
 
         log_dir = mcmc_options.get("log_dir")
         resume = mcmc_options.get("resume", "subfolder")
@@ -413,12 +416,12 @@ def run_mcmc(
     try:
         with open(file_prefix + ".LCC.yml", "w") as f:
             yaml.dump(chain, f)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- best-effort debug dump, must not abort the run
         logger.warning(
             "Attempt to write out YAML file containing LikelihoodComputationChain failed. "
-            "Boldly continuing..."
+            "Boldly continuing... (%s)",
+            e,
         )
-        print(e)
 
     chain.setup()
     # Set logging levels
@@ -430,7 +433,7 @@ def run_mcmc(
             try:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
-                        Params(*[(k, v) for k, v in zip(params.keys, p)])
+                        Params(*[(k, v) for k, v in zip(params.keys, p, strict=False)])
                     )
                 )
             except ParameterError:
@@ -459,10 +462,10 @@ def run_mcmc(
             )
             return 1
 
-        except OSError:  # pragma: nocover
+        except OSError as e:  # pragma: nocover
             raise ImportError(
                 "You also need to build MultiNest library. See https://johannesbuchner.github.io/PyMultiNest/install.html#id4 for more information."
-            )
+            ) from e
 
     elif use_zeus:
 
@@ -476,7 +479,7 @@ def run_mcmc(
             try:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
-                        Params(*[(k, v) for k, v in zip(params.keys, p)])
+                        Params(*[(k, v) for k, v in zip(params.keys, p, strict=False)])
                     )
                 )
             except ParameterError:
@@ -517,14 +520,18 @@ def run_mcmc(
             if vectorized:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
-                        Params(*[(k, v) for k, v in zip(params.keys, p.T)])
+                        Params(
+                            *[(k, v) for k, v in zip(params.keys, p.T, strict=False)]
+                        )
                     )
                 )
             else:
                 try:
                     return chain.computeLikelihoods(
                         chain.build_model_data(
-                            Params(*[(k, v) for k, v in zip(params.keys, p)])
+                            Params(
+                                *[(k, v) for k, v in zip(params.keys, p, strict=False)]
+                            )
                         )
                     )
                 except ParameterError:

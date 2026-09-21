@@ -1,3 +1,5 @@
+"""Tests of the zeus-mcmc sampler integration."""
+
 import numpy as np
 
 import py21cmmc as p21mc
@@ -12,7 +14,7 @@ def test_zeus():
         change_seed_every_iter=False,
     )
 
-    datafiles = ["data/simple_mcmc_data_%s.npz" % z for z in core.redshift]
+    datafiles = [f"data/simple_mcmc_data_{z}.npz" for z in core.redshift]
 
     likelihood = p21mc.Likelihood1DPowerCoeval(
         datafile=datafiles,
