@@ -1,0 +1,31 @@
+name: Check Distribution Build
+
+on: push
+
+jobs:
+  check-build:
+    name: Twine Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 21CMMC itself is pure-python (no compiled extensions), so no system
+      # C libraries (FFTW/GSL) are needed to build its sdist/wheel -- those
+      # are only required at *install* time, to build 21cmFAST (a runtime
+      # dependency), not to build this package's own distribution.
+      - name: Install Build Tools
+        run: pip install build twine
+
+      - name: Build a binary wheel and source distribution
+        run: |
+          python -m build .
+
+      - name: Check Distribution
+        run: |
+          twine check dist/*
