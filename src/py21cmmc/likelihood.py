@@ -224,9 +224,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                     if hasattr(self, "define_noise"):
                         msg = "If you meant to simulate noise, set simulate=True."
 
-                    raise FileNotFoundError(
-                        f"Could not find noisefile: {fl}. {msg}"
-                    )
+                    raise FileNotFoundError(f"Could not find noisefile: {fl}. {msg}")
 
                 else:
                     try:
