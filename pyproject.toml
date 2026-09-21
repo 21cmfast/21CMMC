@@ -33,7 +33,11 @@ dependencies = [
     # module. Revisit once 21cmFAST is upgraded past v4.
     "matplotlib>=2.1,<3.9",
     "emcee<3",
-    "powerbox>=0.5.7",
+    # powerbox>=0.9.0 requires python>=3.11 and replaced get_power()'s
+    # tuple/bin_ave-based return with a new PowerSpectrum dataclass. This
+    # codebase's likelihood.py still uses the old bin_ave-based API, and we
+    # support python 3.10, so we cap below that rewrite for now.
+    "powerbox>=0.5.7,<0.9.0",
     "cached_property",
     "py21cmemu>=3.0.0",
     "astropy>=5.2.1",

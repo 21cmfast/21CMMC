@@ -107,7 +107,7 @@ requires-dist = [
     { name = "nbsphinx", marker = "extra == 'docs'" },
     { name = "numpy" },
     { name = "numpydoc", marker = "extra == 'docs'" },
-    { name = "powerbox", specifier = ">=0.5.7" },
+    { name = "powerbox", specifier = ">=0.5.7,<0.9.0" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "py21cmemu", specifier = ">=3.0.0" },
     { name = "pymultinest", marker = "extra == 'samplers'" },
