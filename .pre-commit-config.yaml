@@ -1,4 +1,4 @@
-exclude: '(^docs/conf.py|^user_data/External_tables/)'
+exclude: '(^docs/conf.py|^user_data/External_tables/|^devel/)'
 
 ci:
   autoupdate_schedule: 'monthly'
