@@ -31,7 +31,7 @@ dependencies = [
     "emcee<3",
     "powerbox>=0.5.7",
     "cached_property",
-    "21cmFAST",
+    "21cmFAST<4.0.0",
     "pymultinest",
     "ultranest",
     "py21cmemu>=1.0.8",
