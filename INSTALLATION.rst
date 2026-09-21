@@ -1,15 +1,17 @@
 Installation
 ============
 
-As may be expected, ``21CMMC`` depends on ``21cmFAST``, and this has some non-python
-dependencies. Thus, you must ensure that these dependencies (usually system-wide ones)
-are installed *before* attempting to install ``21CMMC``. See
-https://21cmfast.readthedocs.org/en/latest/installation for details on these dependencies.
+``21CMMC`` is a pure-Python MCMC framework built around ``21cmFAST``, and currently
+depends on it directly. ``21cmFAST`` has some non-python (compiled) dependencies,
+so you must ensure these are installed *before* attempting to install ``21CMMC``.
+See https://21cmfast.readthedocs.io/en/latest/installation.html for details. Note
+that the current codebase does not yet support ``21cmFAST`` v4, so it is pinned to
+``21cmFAST<4.0.0`` (support for v4 -- and making ``21cmFAST`` an optional dependency
+-- is planned for a future PR).
 
-To use the MultiNest sampler, you will also need to install ``multinest`` and its
-Python interface ``pymultinest``.
-
-Then follow the instructions below, depending on whether you are a user or developer.
+To use the MultiNest sampler, you will also need to install the compiled ``multinest``
+library and its Python interface ``pymultinest``. These are most easily installed via
+``conda``, since they include non-python compiled components.
 
 For Users
 ---------
@@ -17,32 +19,40 @@ For Users
 .. note:: ``conda`` users may want to pre-install the following packages before running
           the below installation commands::
 
-            conda install numpy scipy click pyyaml cffi astropy h5py
+            conda install numpy scipy click pyyaml cffi astropy h5py 21cmfast
 
-
-If you are confident that the non-python dependencies are installed, you can simply
-install ``21CMMC`` in the usual fashion::
+If you are confident that the non-python dependencies (``21cmFAST`` and, if desired,
+``multinest``) are installed, you can simply install ``21CMMC`` in the usual fashion::
 
     pip install 21CMMC
 
-Note that if ``21cmFAST`` is not installed, it will be installed automatically. There
-are several environment variables which control the compilation of ``21cmFAST``, and these
-can be set during this call. See the above installation docs for details.
+or, using `uv <https://docs.astral.sh/uv/>`_::
+
+    uv pip install 21CMMC
+
+If you would also like to install the samplers (``pymultinest``, ``ultranest``,
+``zeus-mcmc``), use the relevant extra::
+
+    pip install "21CMMC[samplers]"
 
 For Developers
 --------------
-If you are developing ``21CMMC``, we highly recommend using `conda` to manage your
-environment, and setting up an isolated environment. If this is the case, setting up
-a full environment (with all testing and documentation dependencies) should be as easy
-as (from top-level dir)::
+If you are developing ``21CMMC``, we recommend using `uv <https://docs.astral.sh/uv/>`_
+to manage your environment. After cloning the repository::
 
-    conda env create -f environment_dev.yml
+    uv sync --extra dev
 
-Otherwise, if you are using `pip`::
+This creates a ``.venv`` with all testing, documentation and sampler dependencies
+installed, along with the pre-commit hooks configured via ``ruff``.
 
-    pip install -r requirements_dev.txt
-    pip install -e .
+Because ``multinest`` and ``21cmFAST`` have non-python (compiled) dependencies, we
+recommend using ``conda``/``mamba`` to install those pieces (and any of their system
+dependencies) before installing ``21CMMC`` itself, e.g.::
 
-And if you would like to also compile documentation::
+    conda env create -f ci/test-env.yml
+    conda activate test-suite
+    pip install -e ".[dev]"
 
-    pip install -r docs/requirements.txt
+This mirrors the environment used in continuous integration (see
+`ci/test-env.yml <ci/test-env.yml>`_).
+

@@ -42,10 +42,11 @@ The difference between members and non-members only applies to the first step
 of the development process.
 
 Note that it is highly recommended to work in an isolated python environment with
-all requirements installed from ``requirements_dev.txt``. This will also ensure that
-pre-commit hooks will run that enforce the ``black`` coding style. If you do not
-install these requirements, you must manually run black before committing your changes,
-otherwise your changes will likely fail continuous integration.
+all development dependencies installed (via the ``[dev]`` extra, see below). This
+will also ensure that pre-commit hooks will run that enforce the ``ruff`` coding
+style. If you do not install these requirements, you must manually run ``ruff``
+before committing your changes, otherwise your changes will likely fail continuous
+integration.
 
 As a *member*:
 
@@ -62,24 +63,25 @@ As a *non-member*:
 
 The following steps are the same for both *members* and *non-members*:
 
-2. Install a fresh new isolated environment. This can be either a basic ``virtualenv``
-   or a ``conda`` env (suggested). So either::
+2. Install a fresh new isolated environment. This can be a ``conda`` env, or a
+   ``uv``-managed virtual environment (suggested). So either::
 
-       virtualenv ~/21cmmc
-       source ~/21cmmc/bin/activate
+       conda create -n 21cmmc python=3.11
+       conda activate 21cmmc
 
    or::
 
-       conda create -n 21cmmc python=3
-       conda activate 21cmmc
+       uv venv --python 3.11
+       source .venv/bin/activate
 
-3. Install the *development* requirements for the project. If using the basic `virtualenv`::
+3. Install the *development* requirements for the project, using
+   `uv <https://docs.astral.sh/uv/>`_ (suggested)::
 
-    pip install -r requirements_dev.txt
+    uv pip install -e ".[dev]"
 
-   or if using `conda` (suggested)::
+   or plain ``pip``::
 
-    conda env update -f environment.yml
+    pip install -e ".[dev]"
 
 4. Install pre-commit hooks::
 
@@ -92,10 +94,11 @@ The following steps are the same for both *members* and *non-members*:
    Now you can make your changes locally. **Note: as a member, you _must_ do step 5. If you
    make changes on master, you will _not_ be able to push them**.
 
-6. When you're done making changes, run all the checks, doc builder and spell checker
-   with `tox <http://tox.readthedocs.io/en/latest/install.html>`_ one command::
+6. When you're done making changes, run the linter/formatter and the test suite::
 
-    tox
+    ruff check .
+    ruff format .
+    pytest
 
 7. Commit your changes and push your branch to GitHub::
 
@@ -121,8 +124,4 @@ Tips
 
 To run a subset of tests::
 
-    tox -e envname -- py.test -k test_myfeature
-
-To run all the test environments in *parallel* (you need to ``pip install detox``)::
-
-    detox
+    pytest -k test_myfeature

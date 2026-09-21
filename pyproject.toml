@@ -10,7 +10,7 @@ authors = [
     {name="Steven Murray", email='steven.murray@sns.it'},
 ]
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.10,<3.13"
 license = {text = "MIT"}
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -18,10 +18,9 @@ classifiers = [
     "Operating System :: POSIX",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
@@ -33,11 +32,12 @@ dependencies = [
     "emcee<3",
     "powerbox>=0.5.7",
     "cached_property",
-    "21cmFAST",
-    "pymultinest",
-    "ultranest",
     "py21cmemu>=1.0.8",
     "astropy>=5.2.1",
+    # 21cmFAST has heavy, non-python compiled dependencies that are best
+    # installed via conda. The current codebase does not yet support 21cmFAST
+    # v4, so it is pinned below v4. This will be made optional in a future PR.
+    "21cmFAST<4.0.0",
 ]
 dynamic = [
     "version",
@@ -47,6 +47,7 @@ dynamic = [
 samplers = [
   "pymultinest",
   "ultranest",
+  "zeus-mcmc",
 ]
 test = [
   "pytest",
@@ -61,7 +62,7 @@ docs = [
 ]
 dev = [
   "pre-commit",
-  "21cmMC[test,docs]"
+  "21cmMC[test,docs,samplers]"
 ]
 
 [tool.setuptools_scm]
@@ -72,31 +73,102 @@ fallback_version = "0.0.0"
 # [tool.setuptools]
 # packages = ["21CMMC"]
 
-[tool.black]
-include = '\.pyi?$'
-target-version = ['py38', 'py39', 'py310', 'py311']
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.tox
-  | \.venv
-  | _build
-  | build
-  | dist
-)/
-'''
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+exclude = [
+  "*.ipynb",
+]
 
-[tool.isort]
-line_length = 88
-indent = '    '
-skip = ['.tox', '.venv', 'build', 'dist']
-known_standard_library = ['setuptools', 'pkg_resources']
-known_test = 'pytest'
-known_first_party = 'py21cmmc'
-sections = ['FUTURE','STDLIB','COMPAT','TEST','THIRDPARTY','FIRSTPARTY','LOCALFOLDER']
-default_section = 'THIRDPARTY'
-profile = 'black'
+[tool.ruff.lint]
+extend-select = [
+  "UP",   # pyupgrade
+  "E",    # pycodestyle
+  "W",    # pycodestyle warning
+  "F",    # pyflakes
+  "C90",  # mccabe complexity
+  "I",    # isort
+  "N",    # pep8-naming
+  "D",    # docstyle
+  # "ANN"   # type annotations
+  "B",    # bugbear
+  "A",    # builtins
+  "C4",   # comprehensions
+  "DTZ",  # datetime
+  "FA",   # future annotations
+  "PIE",  # flake8-pie
+  "T",    # print statements
+  "PT",   # pytest-style
+  "Q",    # quotes
+  "SIM",  # simplify
+  "PTH",  # use Pathlib
+  "ERA",  # kill commented code
+  "NPY",  # numpy-specific rules
+  "PERF", # performance
+  # "FURB", # refurb
+  "RUF",  # ruff-specific rules
+]
+ignore = [
+    "DTZ007",   # use %z in strptime
+    "DTZ005",
+    "E203",
+    "E266",
+    "E501",
+    "F403",
+    #"F401",
+    "E231",
+    # Naming upper/lowercase -- too hard right now.
+    "N803",
+    # Naming upper/lowercase -- too hard right now.
+    "N806",
+    # Naming upper/lowercase -- too hard right now.
+    "N802",
+    # Naming mixed case
+    "N815",
+    # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
+#    "D401",
+    # Module shadowing a builtin
+    "A005",
+    "RUF009",
+    "B008",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "D103",  # ignore missing docstring in tests
+    "DTZ",   # ignore datetime in tests
+    "T",     # print statements
+    # `pytest.fixture` is listed in lint.pydocstyle.property-decorators (so that
+    # fixtures get the relaxed docstring treatment properties get), but that
+    # option is also consulted by PLR0206, which then wrongly treats pytest
+    # fixtures as properties and flags their (perfectly normal) parameters.
+    "PLR0206",
+]
+"devel/*.py" = [
+  "T",
+]
+"docs/conf.py" = [
+    "A",  # conf.py can shadow builtins
+    "ERA",
+]
+"src/py21cmfast/cli.py" = [
+    "D103",  # ignore missing docstrings
+    "T",     # print statements
+]
+"build_cffi.py" = [
+    "T",     # print statements
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = 'numpy'
+property-decorators = [
+    "property",
+    "cached_property",
+    "pytest.fixture"
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 21
 
 [tool.pytest.ini_options]
 testpaths = "tests"
@@ -114,4 +186,9 @@ addopts = [
   "--doctest-modules",
   "--doctest-glob=\\*.rst",
   "--tb=short",
+]
+
+[dependency-groups]
+dev = [
+    "ipython",
 ]
