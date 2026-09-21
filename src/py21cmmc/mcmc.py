@@ -262,6 +262,81 @@ def run_mcmc(
         or just ellipsoidal sampling (faster for high-dimensional, gaussian-like problems)
         or a axis-aligned ellipsoid (fastest, to be combined with slice sampling).
 
+        If use_nautilus, parameters required by Nautilus (both for
+        :class:`nautilus.Sampler` and its ``run()`` method) as shown below
+        should be provided here.
+    n_live : int, optional
+        Number of live points. Default is 2000.
+    n_update : int, optional
+        The maximum number of additions to the live set before a new bound
+        is created. Default is `n_live`.
+    enlarge_per_dim : float, optional
+        Along each dimension, outer ellipsoidal bounds are enlarged by this
+        factor. Default is 1.1.
+    n_points_min : int, optional
+        Minimum number of points each ellipsoid should have. Default is
+        ``n_dim + 50``.
+    split_threshold: float, optional
+        Threshold used for splitting the multi-ellipsoidal bounds. Default
+        is 100.
+    n_networks : int, optional
+        Number of networks used in the estimator. Default is 4.
+    neural_network_kwargs : dict, optional
+        Non-default keyword arguments passed to the constructor of
+        `MLPRegressor`.
+    prior_args : list, optional
+        Additional arguments passed to the prior function.
+    prior_kwargs : dict, optional
+        Additional keyword arguments passed to the prior function.
+    likelihood_args : list, optional
+        Additional arguments passed to the likelihood function.
+    likelihood_kwargs : dict, optional
+        Additional keyword arguments passed to the likelihood function.
+    n_batch : int, optional
+        Number of likelihood evaluations that are performed at each step.
+    n_like_new_bound : int, optional
+        The maximum number of likelihood calls before a new bounds is
+        created. If None, use 10 times `n_live`.
+    vectorized : bool, optional
+        If True, the likelihood function can receive multiple input sets at
+        once. Default is False.
+    pass_dict : bool or None, optional
+        If True, the likelihood function expects model parameters as
+        dictionaries. Default is to set it to True since ``prior`` is a
+        :class:`nautilus.Prior` instance.
+    seed : int, optional
+        Seed for random number generation used for reproducible results.
+    blobs_dtype : object, optional
+        Object that can be converted to a data type object describing the
+        blobs.
+    filepath : str or `pathlib.Path`, optional
+        Path to the file where results are saved.
+    resume : bool, optional
+        If True, resume from previous run if `filepath` exists. Default is
+        True.
+    post_only : bool, optional
+        If True, skip calling ``sampler.run()`` and only return the (already
+        computed/resumed) posterior. Default is False.
+    f_live : float, optional
+        Maximum fraction of the evidence contained in the live set before
+        building the initial shells terminates. Default is 0.01.
+    n_shell : int, optional
+        Minimum number of points in each shell. Default is 1.
+    n_eff : float, optional
+        Minimum effective sample size. Default is 10000.
+    n_like_max : int, optional
+        Maximum total number of likelihood evaluations. Default is infinity.
+    timeout : float, optional
+        Timeout interval in seconds. Default is infinity.
+    discard_exploration : bool, optional
+        Whether to discard points drawn in the exploration phase. Default is
+        False.
+    equal_weight : bool, optional
+        If True, return an equally weighted posterior. Default is True.
+    equal_weight_boost : float, optional
+        Boost factor for the effective sample size when equalizing weights.
+        Default is 10.
+
     Returns
     -------
     sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
@@ -272,7 +347,7 @@ def run_mcmc(
     file_prefix = path.join(datadir, model_name)
 
     # check that only one sampler is specified
-    if sum([use_multinest, use_ultranest, use_zeus]) > 1:
+    if sum([use_multinest, use_ultranest, use_zeus, use_nautilus]) > 1:
         raise ValueError("You cannot use more than one sampler at the time!")
 
     if use_multinest:
@@ -418,6 +493,11 @@ def run_mcmc(
         discard_exploration = mcmc_options.get("discard_exploration", False)
         equal_weight_boost = mcmc_options.get("equal_weight_boost", 10)
         equal_weight = mcmc_options.get("equal_weight", True)
+        f_live = mcmc_options.get("f_live", 0.01)
+        n_shell = mcmc_options.get("n_shell", 1)
+        n_eff = mcmc_options.get("n_eff", 10000)
+        n_like_max = mcmc_options.get("n_like_max", np.inf)
+        timeout = mcmc_options.get("timeout", np.inf)
 
     # Setup parameters.
     if not isinstance(params, Params):
@@ -651,8 +731,8 @@ def run_mcmc(
             from nautilus import Prior
 
             prior = Prior()
-            for p in params.keys():
-                prior.add_parameter(p, dist=(params[p][1], params[p][2]))
+            for p in params.keys:
+                prior.add_parameter(p, dist=(params.get(p)[1], params.get(p)[2]))
         sampler = nautilus.Sampler(
             prior=prior,
             likelihood=likelihood,
@@ -679,7 +759,15 @@ def run_mcmc(
             resume=resume,
         )
         if not post_only:
-            sampler.run(verbose=verbose, discard_exploration=discard_exploration)
+            sampler.run(
+                f_live=f_live,
+                n_shell=n_shell,
+                n_eff=n_eff,
+                n_like_max=n_like_max,
+                discard_exploration=discard_exploration,
+                timeout=timeout,
+                verbose=verbose,
+            )
 
         return sampler, sampler.posterior(
             equal_weight=equal_weight, equal_weight_boost=equal_weight_boost

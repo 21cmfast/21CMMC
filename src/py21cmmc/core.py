@@ -1340,7 +1340,7 @@ class Core21cmEMU(CoreBase):
                         values.append(astro_params[k])
                     except KeyError:
                         if k == "L_X_MINI":
-                            values.append(ap["L_X"])
+                            values.append(astro_params["L_X"])
                         else:
                             values.append(self.astro_param_defaults[k])
         elif isinstance(astro_params, p21.AstroParams):

@@ -18,6 +18,7 @@ dependencies:
   - multinest
   - ultranest
   - pymultinest
+  - nautilus-sampler
   - zeus-mcmc
   - pip
   - 21cmFAST
@@ -26,3 +27,8 @@ dependencies:
     - powerbox
     - cached_property
     - pre-commit
+    # tuesday-eor and pspec-likelihood are unconditionally/optionally
+    # imported by py21cmmc.core / py21cmmc.likelihood respectively, and
+    # aren't available on conda-forge, so they must be installed via pip.
+    - tuesday-eor
+    - pspec-likelihood

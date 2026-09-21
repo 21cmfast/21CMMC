@@ -26,7 +26,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.8, 3.9, "3.10", "3.11"]
+        # tuesday-eor (a new hard dependency, needed by py21cmmc.core) requires
+        # Python >=3.10, and pyproject.toml's requires-python has been bumped
+        # to match, so 3.8/3.9 are no longer supported.
+        python-version: ["3.10", "3.11"]
     defaults:
       run:
         # Adding -l {0} ensures conda can be found properly in each step

@@ -10,7 +10,7 @@ authors = [
     {name="Steven Murray", email='steven.murray@sns.it'},
 ]
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -18,8 +18,6 @@ classifiers = [
     "Operating System :: POSIX",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -38,6 +36,10 @@ dependencies = [
     "ultranest",
     "py21cmemu>=1.0.8",
     "astropy>=5.2.1",
+    # Required (unconditionally imported) by py21cmmc.core for the
+    # Core21cmEMU 2D->1D power spectrum conversion (cylindrical_to_spherical).
+    # tuesday-eor requires Python >=3.10, hence the bump above.
+    "tuesday-eor",
 ]
 dynamic = [
     "version",
@@ -48,6 +50,9 @@ samplers = [
   "pymultinest",
   "ultranest",
   "nautilus-sampler",
+]
+likelihoods = [
+  "pspec-likelihood",
 ]
 test = [
   "pytest",
@@ -62,7 +67,7 @@ docs = [
 ]
 dev = [
   "pre-commit",
-  "21cmMC[test,docs]"
+  "21cmMC[test,docs,samplers,likelihoods]"
 ]
 
 [tool.setuptools_scm]
@@ -75,7 +80,7 @@ fallback_version = "0.0.0"
 
 [tool.black]
 include = '\.pyi?$'
-target-version = ['py38', 'py39', 'py310', 'py311']
+target-version = ['py310', 'py311']
 exclude = '''
 /(
     \.git

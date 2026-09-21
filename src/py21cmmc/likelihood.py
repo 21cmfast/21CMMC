@@ -1,7 +1,6 @@
 """Module containing 21CMMC likelihoods."""
 import logging
 import numpy as np
-import pspec_likelihood as pslike
 from astropy import cosmology
 from astropy import units as un
 from cached_property import cached_property
@@ -930,7 +929,7 @@ class LikelihoodArcade(LikelihoodBase):
         # If redshift is provided, evaluate the arcade model now
         # Otherwise will be evaluated every time on emulator zs
         if redshift is not None:
-            self.arcade = get_T_arcade(redshift)
+            self.arcade = self.get_T_arcade(redshift)
 
     def get_T_arcade(self, z):
         """
@@ -1581,46 +1580,6 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             return -0.5 * ((data - model) / sigma) ** 2
         else:
             return 0
-
-
-class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
-    """
-    A likelihood based on the measured neutral fraction at a range of redshifts.
-
-    The log-likelihood statistic is a simple chi^2.
-    """
-
-    required_cores = (
-        (
-            core.CoreLightConeModule,
-            core.CoreCoevalModule,
-            core.CoreCMB,
-            core.Core21cmEMU,
-        ),
-    )
-    threshold = 0.06
-
-    def __init__(self, redshift=5.9, xHI=0.06, xHI_sigma=0.05):
-        """
-        Neutral fraction likelihood/prior.
-
-
-        Parameters
-        ----------
-        redshift : float or list of floats
-            Redshift(s) at which the neutral fraction has been measured.
-        xHI : float or list of floats
-            Measured values of the neutral fraction, corresponding to `redshift`.
-        xHI_sigma : float or list of floats
-            Two-sided uncertainty of measurements.
-        """
-        super().__init__(redshift=redshift, xHI=xHI, xHI_sigma=xHI_sigma)
-
-    def lnprob(self, model, data, sigma):
-        """Compute the log prob given a model, data and error."""
-        model = np.clip(model, 0, 1)
-
-        return -0.5 * ((data - model) / sigma) ** 2
 
 
 class LikelihoodNeutralFractionTwoSided(LikelihoodNeutralFraction):
@@ -2570,6 +2529,9 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
             import pspec_likelihood as pslike
         except ImportError:
             raise ImportError("pspec_likelihood is not installed.")
+        # Store the module on the instance so it's also available in
+        # reduce_data(), which is called separately from __init__.
+        self.pslike = pslike
         self.name = name
         self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
         if lk.lower() == "upper_limit":
@@ -2681,7 +2643,7 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
                         kperpwf_1d = self.data[0]["kperpwf" + band_name]
                         kparwf_flat = np.tile(kparwf_1d, len(kperpwf_1d))
                         kperpwf_flat = np.repeat(kperpwf_1d, len(kparwf_1d))
-                    dmi = pslike.DataModelInterface(
+                    dmi = self.pslike.DataModelInterface(
                         cosmology=cosmology.Planck18,
                         redshift=band,
                         power_spectrum=self.data[0][band_name][field, ..., 0].flatten()

@@ -1,0 +1,202 @@
+&id001 !!python/object:py21cmmc.cosmoHammer.LikelihoodComputationChain
+_coreModules: !!python/object/apply:collections.deque
+  listitems:
+  - !!python/object:py21cmmc.core.CoreCoevalModule
+    _LikelihoodComputationChain: *id001
+    _is_setup: false
+    astro_params: !!python/object:py21cmfast.inputs.AstroParams
+      ALPHA_ESC: -0.5
+      ALPHA_STAR: 0.5
+      ALPHA_STAR_MINI: 0.5
+      A_LW: 2.0
+      A_VCB: 1.0
+      BETA_LW: 0.6
+      BETA_VCB: 1.8
+      F_ESC10: -1.0
+      F_ESC7_MINI: -2.0
+      F_H2_SHIELD: 0.0
+      F_STAR10: -1.3
+      F_STAR7_MINI: -2.0
+      HII_EFF_FACTOR: 30.0
+      INHOMO_RECO: false
+      ION_Tvir_MIN: 4.69897
+      L_X: 40.0
+      L_X_MINI: 40.0
+      M_TURN: 8.7
+      N_RSD_STEPS: 20
+      X_RAY_SPEC_INDEX: 1.0
+      _NU_X_THRESH: 500.0
+      _R_BUBBLE_MAX: null
+      _X_RAY_Tvir_MIN: null
+      _name: AstroParams
+      _t_STAR: 0.5
+    change_seed_every_iter: false
+    cosmo_params: !!python/object:py21cmfast.inputs.CosmoParams
+      OMb: 0.04897468161869667
+      OMm: 0.30964144154550644
+      POWER_INDEX: 0.9665
+      SIGMA_8: 0.8102
+      _base_cosmo: !astropy.cosmology.FlatLambdaCDM
+        H0: !astropy.units.Quantity
+          unit: !astropy.units.Unit
+            unit: km / (Mpc s)
+          value: 67.66
+        Neff: 3.046
+        Ob0: 0.04897468161869667
+        Om0: 0.30964144154550644
+        Tcmb0: !astropy.units.Quantity
+          unit: !astropy.units.Unit
+            unit: K
+          value: 2.7255
+        m_nu: !astropy.units.Quantity
+          unit: !astropy.units.Unit
+            unit: eV
+          value: !numpy.ndarray
+            buffer: !!binary |
+              QUFBQUFBQUFBQUFBQUFBQUFBQUFBTGdlaGV0UnVLNC8=
+            dtype: float64
+            order: C
+            shape: !!python/tuple
+            - 3
+        meta: !!python/tuple
+        - !!python/tuple
+          - Oc0
+          - 0.2589
+        - !!python/tuple
+          - n
+          - 0.9667
+        - !!python/tuple
+          - sigma8
+          - 0.8159
+        - !!python/tuple
+          - tau
+          - 0.066
+        - !!python/tuple
+          - z_reion
+          - !astropy.units.Quantity
+            unit: !astropy.units.Unit
+              unit: redshift
+            value: 8.8
+        - !!python/tuple
+          - t0
+          - !astropy.units.Quantity
+            unit: !astropy.units.Unit
+              unit: Gyr
+            value: 13.799
+        - !!python/tuple
+          - reference
+          - Planck Collaboration 2016, A&A, 594, A13 (Paper XIII), Table 4 (TT, TE,
+            EE + lowP + lensing + ext)
+        name: Planck18
+      _name: CosmoParams
+      hlittle: 0.6766
+    ctx_variables: !!python/tuple
+    - brightness_temp
+    - xH_box
+    flag_options: !!python/object:py21cmfast.inputs.FlagOptions
+      APPLY_RSDS: true
+      FIX_VCB_AVG: false
+      USE_CMB_HEATING: true
+      USE_LYA_HEATING: true
+      USE_MINI_HALOS: false
+      _INHOMO_RECO: false
+      _M_MIN_in_Mass: false
+      _PHOTON_CONS: false
+      _SUBCELL_RSD: false
+      _USE_HALO_FIELD: false
+      _USE_MASS_DEPENDENT_ZETA: false
+      _USE_TS_FLUCT: false
+      _name: FlagOptions
+    global_params: {}
+    initial_conditions_seed: null
+    io_options:
+      cache_dir: null
+      cache_mcmc: false
+      store: {}
+    redshift:
+    - 7
+    - 8
+    - 9
+    regenerate: false
+    store: {}
+    user_params: !!python/object:py21cmfast.inputs.UserParams
+      BOX_LEN: 125.0
+      HII_DIM: 50
+      KEEP_3D_VELOCITIES: false
+      MINIMIZE_MEMORY: false
+      NO_RNG: false
+      N_THREADS: 1
+      PERTURB_ON_HIGH_RES: false
+      USE_2LPT: true
+      USE_FFTW_WISDOM: false
+      USE_RELATIVE_VELOCITIES: false
+      _DIM: null
+      _FAST_FCOLL_TABLES: false
+      _HMF: 1
+      _NON_CUBIC_FACTOR: 1.0
+      _POWER_SPECTRUM: 0
+      _USE_INTERPOLATION_TABLES: null
+      _name: UserParams
+_likelihoodModules: !!python/object/apply:collections.deque
+  listitems:
+  - !!python/object:py21cmmc.likelihood.Likelihood1DPowerCoeval
+    _LikelihoodComputationChain: *id001
+    _emulate: false
+    _is_setup: false
+    _simulate: true
+    _use_data: true
+    data: null
+    datafile:
+    - data/simple_mcmc_data_7.npz
+    - data/simple_mcmc_data_8.npz
+    - data/simple_mcmc_data_9.npz
+    error_on_model: true
+    ignore_k_zero: false
+    ignore_kpar_zero: false
+    ignore_kperp_zero: true
+    logk: false
+    max_k: 1.0
+    min_k: 0.1
+    model_uncertainty: 0.15
+    n_psbins: null
+    name: ''
+    noise: null
+    noisefile: null
+_setup: false
+max: !numpy.ndarray
+  buffer: !!binary |
+    QUFBQUFBQUFTVUFBQUFBQUFBQVlRQT09
+  dtype: float64
+  order: C
+  shape: !!python/tuple
+  - 2
+min: !numpy.ndarray
+  buffer: !!binary |
+    QUFBQUFBQUFKRUFBQUFBQUFBQVFRQT09
+  dtype: float64
+  order: C
+  shape: !!python/tuple
+  - 2
+params: !!python/object:py21cmmc.cosmoHammer.Params
+  HII_EFF_FACTOR:
+  - 30.0
+  - 10.0
+  - 50.0
+  - 3.0
+  ION_Tvir_MIN:
+  - 4.7
+  - 4
+  - 6
+  - 0.1
+  _keys:
+  - HII_EFF_FACTOR
+  - ION_Tvir_MIN
+  _values: !numpy.ndarray
+    buffer: !!binary |
+      QUFBQUFBQUFQa0FBQUFBQUFBQWtRQUFBQUFBQUFFbEFBQUFBQUFBQUNFRE56TXpNek13U1FBQUFB
+      QUFBQUJCQUFBQUFBQUFBR0VDYW1abVptWm01UHc9PQ==
+    dtype: float64
+    order: C
+    shape: !!python/tuple
+    - 2
+    - 4
