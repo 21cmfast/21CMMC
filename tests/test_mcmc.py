@@ -619,3 +619,19 @@ def test_forest(lc_core_lowz, lc_core_lowz_ctx):
 
     model = lk.reduce_data(lc_core_lowz_ctx)
     assert not np.all(model == 0)
+
+
+def test_to_mpc_value():
+    from astropy import units as u
+
+    from py21cmmc.core import _to_mpc_value
+
+    arr = np.array([1.0, 2.0, 3.0])
+
+    # A plain ndarray (as returned by some py21cmfast versions) is passed
+    # through unchanged.
+    assert np.array_equal(_to_mpc_value(arr), arr)
+
+    # An astropy Quantity (as returned by other py21cmfast versions) has its
+    # units stripped, yielding the same plain values.
+    assert np.allclose(_to_mpc_value(arr * u.Mpc), arr)

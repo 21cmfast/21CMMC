@@ -22,6 +22,19 @@ from . import _utils as ut
 logger = logging.getLogger("21cmFAST")
 
 
+def _to_mpc_value(distances):
+    """Return lightcone comoving distances as a plain array of Mpc values.
+
+    ``LightCone.lightcone_distances`` is an astropy ``Quantity`` (in Mpc) in
+    some ``py21cmfast`` versions, and a plain ``ndarray`` (already in Mpc) in
+    others. This strips any units, if present, so downstream arithmetic with
+    plain floats works either way.
+    """
+    if hasattr(distances, "to_value"):
+        return distances.to_value("Mpc")
+    return distances
+
+
 class NotSetupError(AttributeError):
     """Exception for when a Core has not yet been setup."""
 
@@ -856,13 +869,7 @@ class CoreForest(CoreLightConeModule):
         if not lc:
             raise NotImplementedError("A lightcone core is required!")
         lightcone_redshifts = lc.lightcone_redshifts
-        # lightcone_distances is an astropy Quantity (in Mpc) in some
-        # py21cmfast versions, and a plain ndarray (already in Mpc) in
-        # others; self.bin_size is always a plain float in Mpc, so strip
-        # any units here to keep the arithmetic below working either way.
-        lightcone_distances = lc.lightcone_distances
-        if hasattr(lightcone_distances, "to_value"):
-            lightcone_distances = lightcone_distances.to_value("Mpc")
+        lightcone_distances = _to_mpc_value(lc.lightcone_distances)
         total_los = lc.user_params.HII_DIM**2
 
         index_right = np.where(
