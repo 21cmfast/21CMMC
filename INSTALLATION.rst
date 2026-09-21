@@ -55,4 +55,3 @@ dependencies) before installing ``21CMMC`` itself, e.g.::
 
 This mirrors the environment used in continuous integration (see
 `ci/test-env.yml <ci/test-env.yml>`_).
-

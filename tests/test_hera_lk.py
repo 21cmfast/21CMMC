@@ -1,14 +1,7 @@
-import numpy as np
-
 from py21cmmc import (
     Likelihood1DPowerLightconeUpper,
-    LikelihoodPlanck,
-    analyse,
     build_computation_chain,
     core,
-    likelihood,
-    mcmc,
-    run_mcmc,
 )
 
 
