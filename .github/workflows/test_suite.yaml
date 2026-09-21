@@ -74,6 +74,16 @@ jobs:
           conda list
 
       - name: Run Tests
+        # KMP_DUPLICATE_LIB_OK works around an OpenMP "already initialized"
+        # abort (SIGABRT / exit 134) seen on macOS. Building 21cmFAST from
+        # source here (rather than installing a prebuilt conda-forge binary)
+        # links it against conda's own OpenMP runtime, which can conflict
+        # with the bundled OpenMP runtime shipped inside torch (imported in
+        # tests/conftest.py) even though that file already imports torch
+        # first to mitigate this. Setting this env var makes the duplicate
+        # runtime a non-fatal warning instead of a hard abort.
+        env:
+          KMP_DUPLICATE_LIB_OK: "TRUE"
         run: |
           python -m pytest --cov=py21cmmc --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
 
