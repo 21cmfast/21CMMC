@@ -1628,6 +1628,14 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
         return lnl
 
 
+# Samplers such as ultranest require every returned log-likelihood to be
+# finite (they reject -inf/nan outright, aborting the run), while MultiNest
+# can become numerically unstable (corrupting its own text output) when fed
+# extremely large-magnitude but technically-finite values. Floor rejected/
+# extreme points to this large-but-safe finite value instead.
+_LOGLIKE_FLOOR = -1e10
+
+
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     r"""
     Likelihood based on Chi^2 comparison to luminosity function data.
@@ -1829,7 +1837,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                 # (k=3 by default, so >=4), otherwise fitting it crashes.
                 # Treat this as a rejected/invalid point instead.
                 if mask.sum() < 4:
-                    lnl[n] = -np.inf
+                    lnl[n] = _LOGLIKE_FLOOR
                     break
                 model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
 
@@ -1853,6 +1861,13 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                         / total_err
                     )[in_range]
                 )
+
+            # Guard against non-finite (-inf/nan) or absurdly-extreme values,
+            # e.g. from spline overshoot when fitting an ill-conditioned
+            # luminosity function -- see module-level comment on
+            # _LOGLIKE_FLOOR.
+            if not np.isfinite(lnl[n]) or lnl[n] < _LOGLIKE_FLOOR:
+                lnl[n] = _LOGLIKE_FLOOR
         logger.debug(f"UV LF Likelihood computed: {lnl}")
         return lnl
 
