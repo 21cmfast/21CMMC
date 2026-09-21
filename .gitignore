@@ -47,3 +47,14 @@ MultiNest/*
 LuminosityLikelihood*
 Prior*
 _version.py
+
+# test_zeus() (tests/test_zeus.py) writes its mock data/chain-config
+# artifacts directly into data/ (relative path, not a tmp dir); these are
+# regenerated on every test run and shouldn't be committed.
+data/SimpleTest.LCC.yml
+data/simple_mcmc_data_*.npz
+data/simple_mcmc_data_*.npz.bk
+
+# Stray file previously produced by a bug in Likelihood1DPowerLightcone's
+# default datafile="" (fixed to default to None); ignore defensively.
+/.npz

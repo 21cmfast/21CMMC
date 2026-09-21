@@ -683,7 +683,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     required_cores = ((core.CoreLightConeModule, core.Core21cmEMU),)
 
-    def __init__(self, *args, datafile="", nchunks=1, **kwargs):
+    def __init__(self, *args, datafile=None, nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
         self.nchunks = nchunks
         self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
@@ -2165,7 +2165,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
 
     def __init__(
         self,
-        datafile="",
+        datafile=None,
         data=None,
         name="",
         *args,

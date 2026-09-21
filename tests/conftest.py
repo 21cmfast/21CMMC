@@ -3,6 +3,13 @@
 from pathlib import Path
 
 import pytest
+
+# On macOS, py21cmfast's compiled extension links against an OpenMP runtime
+# (e.g. Homebrew's libomp). If it initializes OpenMP before torch (imported
+# indirectly via py21cmemu) gets a chance to initialize its own bundled
+# runtime, the two can conflict and segfault. Importing torch first avoids
+# this, so it must stay above the py21cmfast import below.
+import torch  # noqa: F401
 from py21cmfast import global_params
 
 
