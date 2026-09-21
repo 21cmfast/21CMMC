@@ -1,8 +1,4 @@
-from py21cmmc import (
-    LikelihoodPspec,
-    build_computation_chain,
-    core,
-)
+from py21cmmc import LikelihoodPspec, build_computation_chain, core
 
 
 def test_pspec_lk():
