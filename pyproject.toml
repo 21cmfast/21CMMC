@@ -35,7 +35,7 @@ dependencies = [
     "emcee<3",
     "powerbox>=0.5.7",
     "cached_property",
-    "py21cmemu>=1.0.8",
+    "py21cmemu>=3.0.0",
     "astropy>=5.2.1",
     # 21cmFAST has heavy, non-python compiled dependencies that are best
     # installed via conda. The current codebase does not yet support 21cmFAST

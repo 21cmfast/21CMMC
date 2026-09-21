@@ -1197,8 +1197,12 @@ class Core21cmEMU(CoreBase):
          The redshift(s) at which to evaluate the summary statistics.
     astro_params : dict or :class:`~py21cmfast.AstroParams`
         Astrophysical parameters of reionization model according to Park+19 parametrization.
-    version : str, optional
-        Emulator version to use, defaults to 'latest'.
+
+    Notes
+    -----
+    This core only supports the original 'acg' (v1, 9-parameter) 21cmEMU model.
+    Support for the newer 'radio' (v2) and 'mcg' (v3) emulator models is not
+    yet implemented.
     """
 
     def __init__(
@@ -1228,7 +1232,6 @@ class Core21cmEMU(CoreBase):
             "tau_err",
         ),
         cache_dir=None,
-        version="latest",
         store=None,
         *args,
         **kwargs,
@@ -1240,11 +1243,14 @@ class Core21cmEMU(CoreBase):
         self.ctx_variables = ctx_variables
 
         try:
-            from py21cmemu import Emulator, properties
+            from py21cmemu import Emulator
+            from py21cmemu.properties import emulator_properties
         except ImportError:
             logger.warning(
                 "Could not load py21cmemu. Make sure it is installed properly."
             )
+        # This core only supports the 'acg' (v1, 9-parameter) emulator for now.
+        emu_properties = emulator_properties(emulator="acg")
         self.astro_param_keys = (
             "F_STAR10",
             "ALPHA_STAR",
@@ -1264,16 +1270,16 @@ class Core21cmEMU(CoreBase):
         else:
             self.astro_params = p21.AstroParams()
 
-        self.cosmo_params = p21.CosmoParams(properties.COSMO_PARAMS)
-        self.flag_options = p21.FlagOptions(properties.FLAG_OPTIONS)
-        self.user_params = p21.UserParams(properties.USER_PARAMS)
+        self.cosmo_params = p21.CosmoParams(emu_properties.cosmo_params)
+        self.flag_options = p21.FlagOptions(emu_properties.flag_options)
+        self.user_params = p21.UserParams(emu_properties.user_params)
         self.global_params = global_params or {}
         self.io_options = {
             "store": store,  # which summaries to store
             "cache_dir": cache_dir,  # where the stored data will be written
         }
 
-        self.emulator = Emulator(version=version)
+        self.emulator = Emulator(emulator="acg")
 
     def _update_params(self, params):
         """
