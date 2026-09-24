@@ -4,6 +4,7 @@ import numpy as np
 
 import py21cmmc as p21mc
 from py21cmmc import mcmc
+import shutil
 
 
 def test_zeus():
@@ -14,7 +15,7 @@ def test_zeus():
         change_seed_every_iter=False,
     )
 
-    datafiles = [f"data/simple_mcmc_data_{z}.npz" for z in core.redshift]
+    datafiles = [f"tmp/simple_mcmc_data_{z}.npz" for z in core.redshift]
 
     likelihood = p21mc.Likelihood1DPowerCoeval(
         datafile=datafiles,
@@ -30,7 +31,7 @@ def test_zeus():
     chain = mcmc.run_mcmc(
         core,
         likelihood,
-        datadir="data",
+        datadir="tmp",
         model_name=model_name,
         params={
             "HII_EFF_FACTOR": [30.0, 10.0, 50.0, 3.0],
@@ -51,3 +52,4 @@ def test_zeus():
 
 if __name__ == "__main__":
     test_zeus()
+    shutil.rmtree("tmp")

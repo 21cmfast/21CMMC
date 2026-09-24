@@ -1,16 +1,4 @@
 name: Publish Python distributions to PyPI
-
-# Adapted from 21cmFAST's deploy.yaml:
-# https://github.com/21cmfast/21cmFAST/blob/main/.github/workflows/deploy.yaml
-#
-# NOTE: this uses PyPI "trusted publishing" (OIDC), so no PYPI_API_TOKEN
-# secret is needed here -- but a maintainer *must* first register this
-# repo/workflow as a trusted publisher for the "21cmMC" project at
-# https://pypi.org/manage/project/21cmMC/settings/publishing/ (and,
-# optionally, on TestPyPI too) before this workflow can actually publish
-# anything. Until that's done, this job will simply fail at the publish
-# step -- it cannot accidentally publish without it.
-
 on:
   release:
     types: [published, edited]
@@ -33,8 +21,6 @@ jobs:
       - name: Install Build Tools
         run: pip install build
 
-      # 21CMMC itself is pure-python (no compiled extensions), so we can
-      # build both a source distribution and a universal wheel here.
       - name: Build a source distribution and wheel
         run: |
           python -m build .
