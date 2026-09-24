@@ -47,3 +47,7 @@ MultiNest/*
 LuminosityLikelihood*
 Prior*
 _version.py
+
+# Stray file previously produced by a bug in Likelihood1DPowerLightcone's
+# default datafile="" (fixed to default to None); ignore defensively.
+/.npz

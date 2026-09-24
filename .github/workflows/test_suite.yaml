@@ -26,36 +26,24 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.8, 3.9, "3.10", "3.11"]
+        python-version: ["3.10","3.11", "3.12"]
     defaults:
       run:
         # Adding -l {0} ensures conda can be found properly in each step
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Cache conda
-        uses: actions/cache@v2
-        env:
-          # Increase this value to reset cache if ci/tests.yaml has not changed
-          CACHE_NUMBER: 0
-        with:
-          path: ~/conda_pkgs_dir
-          key:
-            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ matrix.python-version }}-${{ hashFiles('ci/tests.yaml', 'setup.cfg') }}
-
       - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v2.2.0
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          # auto-update-conda: true
           miniconda-version: "latest"
           python-version: ${{ matrix.python-version }}
-          environment-file: ci/test-env.yml
+          channels: conda-forge,defaults
           activate-environment: ${{ env.ENV_NAME }}
           channel-priority: strict
-          use-only-tar-bz2: true
 
       - name: Conda Info
         run: |
@@ -66,22 +54,41 @@ jobs:
             exit 1;
           fi
 
+      # 21cmFAST is a direct (core) dependency of 21CMMC, pinned to <4.0.0 since
+      # this codebase does not yet support 21cmFAST v4. It has heavy non-python
+      # compiled dependencies (FFTW, GSL) that are best installed via conda, and
+      # then built against when pip builds 21cmFAST from source below. MultiNest
+      # (the native library used by pymultinest) is also only installable via
+      # conda.
+      - name: Install Non-Python Dependencies
+        run: |
+          conda install pip fftw gsl compilers pkg-config multinest
+
       - name: Install 21CMMC
-#        if: matrix.os == 'ubuntu-latest'
         run: |
           echo $(which pip)
-          pip install .[test]
+          pip install ".[test,samplers]"
 
       - name: List Environment
         run: |
           conda list
 
       - name: Run Tests
+        # KMP_DUPLICATE_LIB_OK works around an OpenMP "already initialized"
+        # abort (SIGABRT / exit 134) seen on macOS. Building 21cmFAST from
+        # source here (rather than installing a prebuilt conda-forge binary)
+        # links it against conda's own OpenMP runtime, which can conflict
+        # with the bundled OpenMP runtime shipped inside torch (imported in
+        # tests/conftest.py) even though that file already imports torch
+        # first to mitigate this. Setting this env var makes the duplicate
+        # runtime a non-fatal warning instead of a hard abort.
+        env:
+          KMP_DUPLICATE_LIB_OK: "TRUE"
         run: |
           python -m pytest --cov=py21cmmc --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
           flags: unittests

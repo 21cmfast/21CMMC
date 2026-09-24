@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+"""Sphinx configuration for building the py21cmmc documentation."""
 
 import os
 from importlib.metadata import version as _version
@@ -35,8 +34,8 @@ master_doc = "index"
 project = "21CMMC"
 year = "2020"
 author = "The 21cmFAST Collaboration"
-copyright = "{0}, {1}".format(year, author)
-version = release = _version('21cmMC')
+copyright = f"{year}, {author}"
+version = release = _version("21cmMC")
 templates_path = ["templates"]
 
 pygments_style = "trac"
@@ -51,8 +50,8 @@ html_theme = "furo"
 html_use_smartypants = True
 html_last_updated_fmt = "%b %d, %Y"
 html_split_index = False
-#html_sidebars = {"**": ["searchbox.html", "globaltoc.html", "sourcelink.html"]}
-html_short_title = "%s-%s" % (project, version)
+# html_sidebars = {"**": ["searchbox.html", "globaltoc.html", "sourcelink.html"]}
+html_short_title = f"{project}-{version}"
 
 napoleon_use_ivar = True
 napoleon_use_rtype = False

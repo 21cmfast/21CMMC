@@ -14,7 +14,10 @@ dependencies:
   - scipy
   - astropy>=2.0
   - h5py>=2.8.0
-  - matplotlib
+  # matplotlib is capped below 3.9 because that release removed
+  # plt.register_cmap, which is still used by 21cmFAST<4.0.0's plotting
+  # module. Revisit once 21cmFAST is upgraded past v4.
+  - matplotlib<3.9
   - multinest
   - ultranest
   - pymultinest

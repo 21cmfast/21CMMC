@@ -1,11 +1,6 @@
-import pytest
-
-import numpy as np
-from py21cmfast._utils import ParameterError
+"""Tests of the UltraNest sampler integration."""
 
 import py21cmmc as mcmc
-from py21cmmc.cosmoHammer import Params
-from py21cmmc.likelihood import LikelihoodBase
 
 
 def test_ultranest_21cmemu():
@@ -29,7 +24,7 @@ def test_ultranest_21cmemu():
         "frac_remain": 0.2,
         "Lepsilon": 0.1,
     }
-    sampler, result = mcmc.run_mcmc(
+    _sampler, result = mcmc.run_mcmc(
         [mcmc.Core21cmEMU()],
         [mcmc.LikelihoodLuminosityFunction(z=z) for z in redshifts],
         model_name=model_name,
@@ -67,12 +62,12 @@ def test_ultranest_21cmfast():
         "frac_remain": 0.2,
         "Lepsilon": 0.1,
     }
-    sampler, result = mcmc.run_mcmc(
+    _sampler, result = mcmc.run_mcmc(
         [
-            mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name="lfz%d" % z)
+            mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name=f"lfz{z:d}")
             for z in redshifts
         ],
-        [mcmc.LikelihoodLuminosityFunction(name="lfz%d" % z) for z in redshifts],
+        [mcmc.LikelihoodLuminosityFunction(name=f"lfz{z:d}") for z in redshifts],
         model_name=model_name,
         params={
             "F_STAR10": F_STAR10,

@@ -1,8 +1,13 @@
+"""Tests of the 21cmEMU emulator integration."""
+
+
 def test_emulator_runs():
     import numpy as np
     from py21cmemu import Emulator
 
-    emu = Emulator()
+    # This codebase currently only supports the 'acg' (v1, 9-parameter)
+    # emulator model; the default is now 'mcg' (v3, 11 parameters).
+    emu = Emulator(emulator="acg")
     emu.predict(np.random.rand(9))
 
 

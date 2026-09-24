@@ -10,7 +10,7 @@ authors = [
     {name="Steven Murray", email='steven.murray@sns.it'},
 ]
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.10,<3.15"
 license = {text = "MIT"}
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -18,10 +18,9 @@ classifiers = [
     "Operating System :: POSIX",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
@@ -29,15 +28,23 @@ dependencies = [
     "numpy",
     "cosmoHammer",
     "scipy",
-    "matplotlib>=2.1",
+    # matplotlib is capped below 3.9 because that release removed
+    # plt.register_cmap, which is still used by 21cmFAST<4.0.0's plotting
+    # module. Revisit once 21cmFAST is upgraded past v4.
+    "matplotlib>=2.1,<3.9",
     "emcee<3",
-    "powerbox>=0.5.7",
+    # powerbox>=0.9.0 requires python>=3.11 and replaced get_power()'s
+    # tuple/bin_ave-based return with a new PowerSpectrum dataclass. This
+    # codebase's likelihood.py still uses the old bin_ave-based API, and we
+    # support python 3.10, so we cap below that rewrite for now.
+    "powerbox>=0.5.7,<0.9.0",
     "cached_property",
-    "21cmFAST",
-    "pymultinest",
-    "ultranest",
-    "py21cmemu>=1.0.8",
+    "py21cmemu>=3.0.0",
     "astropy>=5.2.1",
+    # 21cmFAST has heavy, non-python compiled dependencies that are best
+    # installed via conda. The current codebase does not yet support 21cmFAST
+    # v4, so it is pinned below v4. This will be made optional in a future PR.
+    "21cmFAST<4.0.0",
 ]
 dynamic = [
     "version",
@@ -47,6 +54,7 @@ dynamic = [
 samplers = [
   "pymultinest",
   "ultranest",
+  "zeus-mcmc",
 ]
 test = [
   "pytest",
@@ -61,7 +69,7 @@ docs = [
 ]
 dev = [
   "pre-commit",
-  "21cmMC[test,docs]"
+  "21cmMC[test,docs,samplers]"
 ]
 
 [tool.setuptools_scm]
@@ -72,31 +80,113 @@ fallback_version = "0.0.0"
 # [tool.setuptools]
 # packages = ["21CMMC"]
 
-[tool.black]
-include = '\.pyi?$'
-target-version = ['py38', 'py39', 'py310', 'py311']
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.tox
-  | \.venv
-  | _build
-  | build
-  | dist
-)/
-'''
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+exclude = [
+  "*.ipynb",
+]
 
-[tool.isort]
-line_length = 88
-indent = '    '
-skip = ['.tox', '.venv', 'build', 'dist']
-known_standard_library = ['setuptools', 'pkg_resources']
-known_test = 'pytest'
-known_first_party = 'py21cmmc'
-sections = ['FUTURE','STDLIB','COMPAT','TEST','THIRDPARTY','FIRSTPARTY','LOCALFOLDER']
-default_section = 'THIRDPARTY'
-profile = 'black'
+[tool.ruff.lint]
+extend-select = [
+  "UP",   # pyupgrade
+  "E",    # pycodestyle
+  "W",    # pycodestyle warning
+  "F",    # pyflakes
+  "C90",  # mccabe complexity
+  "I",    # isort
+  "N",    # pep8-naming
+  "D",    # docstyle
+  # "ANN"   # type annotations
+  "B",    # bugbear
+  "A",    # builtins
+  "C4",   # comprehensions
+  "DTZ",  # datetime
+  "FA",   # future annotations
+  "PIE",  # flake8-pie
+  "T",    # print statements
+  "PT",   # pytest-style
+  "Q",    # quotes
+  "SIM",  # simplify
+  "PTH",  # use Pathlib
+  "ERA",  # kill commented code
+  "NPY",  # numpy-specific rules
+  "PERF", # performance
+  # "FURB", # refurb
+  "RUF",  # ruff-specific rules
+]
+ignore = [
+    "DTZ007",   # use %z in strptime
+    "DTZ005",
+    "E203",
+    "E266",
+    "E501",
+    "F403",
+    #"F401",
+    "E231",
+    # Naming upper/lowercase -- too hard right now.
+    "N803",
+    # Naming upper/lowercase -- too hard right now.
+    "N806",
+    # Naming upper/lowercase -- too hard right now.
+    "N802",
+    # Naming mixed case
+    "N815",
+    # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
+#    "D401",
+    # Module shadowing a builtin
+    "A005",
+    "RUF009",
+    "B008",
+    # Legacy os.path usage throughout the codebase (file I/O for lightcones/caches).
+    # Migrating to pathlib is a large, invasive change deferred to a follow-up PR.
+    "PTH",
+    # Legacy np.random.* calls. Switching to np.random.Generator changes the RNG
+    # stream and could silently break reproducibility of existing chains/scripts.
+    "NPY002",
+    # `NotAChain` is part of the public API; renaming to `NotAChainError` is a
+    # breaking change deferred to a future major version.
+    "N818",
+    # `cosmoHammer` module name is part of the public API (`py21cmmc.cosmoHammer`);
+    # renaming it is a breaking change deferred to a future major version.
+    "N999",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "D103",  # ignore missing docstring in tests
+    "DTZ",   # ignore datetime in tests
+    "T",     # print statements
+    # `pytest.fixture` is listed in lint.pydocstyle.property-decorators (so that
+    # fixtures get the relaxed docstring treatment properties get), but that
+    # option is also consulted by PLR0206, which then wrongly treats pytest
+    # fixtures as properties and flags their (perfectly normal) parameters.
+    "PLR0206",
+    # Tests intentionally use broad `pytest.raises(ValueError)` without `match=`,
+    # and some raises-blocks contain more than one statement (e.g. building an
+    # object then asserting the call raises).
+    "PT011",
+    "PT012",
+]
+"devel/*.py" = [
+  "T",
+  "D",  # devel/ contains ad-hoc debugging scripts, not part of the public package
+]
+"docs/conf.py" = [
+    "A",  # conf.py can shadow builtins
+    "ERA",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = 'numpy'
+property-decorators = [
+    "property",
+    "cached_property",
+    "pytest.fixture"
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 21
 
 [tool.pytest.ini_options]
 testpaths = "tests"
@@ -114,4 +204,9 @@ addopts = [
   "--doctest-modules",
   "--doctest-glob=\\*.rst",
   "--tb=short",
+]
+
+[dependency-groups]
+dev = [
+    "ipython",
 ]
