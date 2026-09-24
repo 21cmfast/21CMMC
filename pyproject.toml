@@ -10,7 +10,7 @@ authors = [
     {name="Steven Murray", email='steven.murray@sns.it'},
 ]
 readme = "README.rst"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10,<3.14"
 license = {text = "MIT"}
 classifiers = [
     "License :: OSI Approved :: MIT License",
