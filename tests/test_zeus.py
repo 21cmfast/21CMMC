@@ -1,7 +1,5 @@
 """Tests of the zeus-mcmc sampler integration."""
 
-import shutil
-
 import numpy as np
 
 import py21cmmc as p21mc
