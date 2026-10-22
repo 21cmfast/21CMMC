@@ -1268,7 +1268,7 @@ class LikelihoodPlanck(LikelihoodBase):
         self,
         *args,
         tau_mean=0.0569,
-        tau_sigma_u=0.0073,
+        tau_sigma_u=0.0081,
         tau_sigma_l=0.0066,
         **kwargs,
     ):
@@ -1542,21 +1542,18 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         n = xHI.shape[0]
         lnprob = np.zeros(n)
         for i in range(n):
+            has_err = np.sum(xHI_err[i, :]) > 0
             if self._require_spline:
-                try:
-                    model_spline = InterpolatedUnivariateSpline(
-                        model["redshifts"], xHI[i, :], k=1
-                    )
-                except:
-                    print(xHI.shape, n)
-
-                if np.sum(model["err"]) > 0:
+                model_spline = InterpolatedUnivariateSpline(
+                    model["redshifts"], xHI[i, :], k=1
+                )
+                if has_err:
                     err_spline = InterpolatedUnivariateSpline(
                         model["redshifts"], xHI_err[i, :], k=1
                     )
 
             for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
-                if np.sum(xHI_err[i, :]) > 0:
+                if has_err:
                     sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2)
                 else:
                     sigma_t = sigma
@@ -1739,6 +1736,14 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
         return lnl
 
 
+# Built-in UV LFs in the ``data`` folder: file prefix and redshifts of the data.
+UVLF_DATA = {
+    "HST": ("LF", [6, 7, 8, 10]),  # Bouwens+15,16; Oesch+17
+    "Donnan24": ("Donnan24_LF", [9, 10, 11, 12.5, 14.5]),  # JWST, Donnan+24
+    "Chemerynska26": ("Chemerynska26_LF", [9, 10, 11, 13]),  # JWST GLIMPSE
+}
+
+
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     r"""
     Likelihood based on Chi^2 comparison to luminosity function data.
@@ -1757,10 +1762,12 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         at different redshifts to have different numbers of Muv bins, you
         should create multiple files, and create a separate core/likelihood
         instance pair for each, pairing them by ``name``.
-        A set of default LFs (z=6,7,8,10; Bouwens+15,16; Oesch+17) are provided
-        in the folder ``data`` where datafile and noisefile (see below) are named
-        LF_lfuncs_z*.npz and LF_sigmas_z*.npz. To use these files, a separate
-        core/likelihood instance pair for each redshift is required.
+        If not given, a built-in LF is used (see ``telescope`` and ``jwst_lf``):
+        HST (z=6,7,8,10; Bouwens+15,16; Oesch+17), JWST Donnan+24
+        (z=9,10,11,12.5,14.5) or JWST GLIMPSE Chemerynska+26 (z=9,10,11,13). They are
+        in the folder ``data``, named <prefix>_lfuncs_z*.npz and <prefix>_sigmas_z*.npz
+        (prefixes in ``UVLF_DATA``). To use these files, a separate core/likelihood
+        instance pair for each redshift is required.
     noisefile : str, optional
         Noise should be a `.npz` file with a single array 'sigma` which gives the
         error at each of the `Muv` bins in the `datafile`. If 1D, it must have the
@@ -1771,12 +1778,34 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     name : str, optional
         A name for the instance. This is used to pair it with a particular core
         instance.
+    telescope : str, optional
+        'HST' or 'JWST': which of the built-in data sets to use.
+    jwst_lf : str, optional
+        With telescope='JWST', which built-in JWST LF to use: 'Donnan24' (default)
+        or 'Chemerynska26'.
+    z : float, optional
+        Redshift of the data, required with :class:`~py21cmmc.core.Core21cmEMU`. It must lie
+        within the redshifts the emulator predicts UV LFs at (``Core21cmEMU.uvlf_redshifts``),
+        otherwise a ValueError is raised: the model UV LF is never extrapolated in z.
+    interpolate_z : bool, optional
+        With :class:`~py21cmmc.core.Core21cmEMU` only. If True (default), the model log10 UV LF
+        is interpolated linearly in z between the two closest emulated redshifts (exact at an
+        emulated redshift). If False, the emulated redshift closest to int(z) is used instead
+        (the previous behaviour).
     """
 
     required_cores = ((core.CoreLuminosityFunction, core.Core21cmEMU),)
 
     def __init__(
-        self, *args, name="", telescope="HST", mag_brightest=-20.0, z=None, **kwargs
+        self,
+        *args,
+        name="",
+        telescope="HST",
+        jwst_lf="Donnan24",
+        mag_brightest=-20.0,
+        z=None,
+        interpolate_z=True,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         if self.datafile is not None and len(self.datafile) != 1:
@@ -1789,73 +1818,53 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             )
         # This argument is for the emulator to know which z bin this likelihood is for.
         self.z = z
+        self.interpolate_z = interpolate_z
         self.name = str(name)
         self.mag_brightest = mag_brightest
         if telescope != "HST" and telescope != "JWST":
             raise ValueError("Telescope can only be HST or JWST")
+        if jwst_lf not in ("Donnan24", "Chemerynska26"):
+            raise ValueError("jwst_lf can only be Donnan24 or Chemerynska26")
         self.telescope = telescope
+        self.jwst_lf = jwst_lf
 
     def setup(self):
         """Setup instance."""
         if isinstance(self.paired_core, core.Core21cmEMU):
             if self.z is None:
                 raise ValueError(
-                    "Must specify which z bin out of [6, 7, 8, 10] the likelihood is comparing to the data."
+                    "Must specify the redshift z of the data the likelihood is comparing to "
+                    "(within the redshifts the emulator predicts UV LFs at)."
                 )
+            # No extrapolation in z: fail here rather than at the first likelihood call.
+            core.Core21cmEMU.check_uvlf_redshifts(
+                self.redshifts, self.paired_core.uvlf_redshifts
+            )
 
         if not self._simulate:
+            lf_data = "HST" if self.telescope == "HST" else self.jwst_lf
+            prefix, redshifts = UVLF_DATA[lf_data]
+            z = self.redshifts[0]
             if self.datafile is None:
                 if len(self.redshifts) != 1:
                     raise ValueError(
                         "to use the provided LFs, a separate core/likelihood instance pair for each redshift is required!"
                     )
-                if self.telescope == "HST" and self.redshifts[0] not in [6, 7, 8, 10]:
+                if z not in redshifts:
                     raise ValueError(
-                        "Only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
+                        f"Only {lf_data} LFs at z = {redshifts} are provided! use your own LF :)"
                     )
-                if self.telescope == "JWST" and self.redshifts[0] not in [
-                    9,
-                    10,
-                    11,
-                    12.5,
-                    14.5,
-                ]:
-                    raise ValueError(
-                        "Only LFs at z=9,10,11, 12.5 and 14.5 are provided! use your own LF :)"
+                self.datafile = [
+                    path.join(
+                        path.dirname(__file__), "data", f"{prefix}_lfuncs_z{int(z)}.npz"
                     )
-                if self.telescope == "HST":
-                    self.datafile = [
-                        path.join(
-                            path.dirname(__file__),
-                            "data",
-                            "LF_lfuncs_z%d.npz" % self.redshifts[0],
-                        )
-                    ]
-                else:
-                    self.datafile = [
-                        path.join(
-                            path.dirname(__file__),
-                            "data",
-                            "Donnan24_LF_lfuncs_z%d.npz" % self.redshifts[0],
-                        )
-                    ]
+                ]
             if self.noisefile is None:
-                if self.telescope == "HST":
-                    self.noisefile = [
-                        path.join(
-                            path.dirname(__file__),
-                            "data",
-                            "LF_sigmas_z%d.npz" % self.redshifts[0],
-                        )
-                    ]
-                else:
-                    self.noisefile = [
-                        path.join(
-                            path.dirname(__file__),
-                            "data",
-                            "Donnan24_LF_sigmas_z%d.npz" % self.redshifts[0],
-                        )
-                    ]
+                self.noisefile = [
+                    path.join(
+                        path.dirname(__file__), "data", f"{prefix}_sigmas_z{int(z)}.npz"
+                    )
+                ]
         super().setup()
 
         # We only allow one datafile, so get the data out of it
@@ -1863,6 +1872,15 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         self.data = self.data[0]
         if self.noise is not None:
             self.noise = self.noise[0]
+
+        # A data set with no bin fainter than mag_brightest would silently add nothing.
+        if not self._simulate and not np.any(
+            np.asarray(self.data["Muv"], dtype=float) > self.mag_brightest
+        ):
+            raise ValueError(
+                f"No UV LF bin at z = {self.z} is fainter than "
+                f"mag_brightest = {self.mag_brightest}: this likelihood would contribute nothing."
+            )
 
     def _read_data(self):
         data = super()._read_data()
@@ -1918,20 +1936,29 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """Reduce simulated model data."""
         if isinstance(self.paired_core, core.Core21cmEMU):
             final_data = {}
-            shape = ctx.get("UVLFs").shape
-            self.zidx = np.argmin(abs(ctx.get("UVLF_redshifts") - int(self.z)))
-            if len(shape) == 3:
-                final_data["lfunc"] = ctx.get("UVLFs")[:, self.zidx, :].reshape(
-                    (shape[0], 1, shape[-1])
+            # (nparams, n_z, n_Muv) or (n_z, n_Muv)
+            uvlfs = ctx.get("UVLFs" + self.name)
+            uvlf_zs = ctx.get("UVLF_redshifts" + self.name)
+            if self.interpolate_z:
+                # log10 phi linear in z between the two closest emulated redshifts (exact at an
+                # emulated z); raises a ValueError outside the emulated redshifts.
+                lfunc = core.Core21cmEMU.interpolate_uvlf(
+                    uvlfs, uvlf_zs, self.redshifts
                 )
             else:
-                final_data["lfunc"] = ctx.get("UVLFs")[self.zidx, :].reshape([1, -1])[
-                    np.newaxis, ...
+                # Emulated redshift closest to int(z) (previous behaviour).
+                zs = np.asarray(getattr(uvlf_zs, "value", uvlf_zs), dtype=float)
+                self.zidx = np.argmin(abs(zs - int(self.z)))
+                lfunc = np.asarray(getattr(uvlfs, "value", uvlfs), dtype=float)[
+                    ..., [self.zidx], :
                 ]
-            # Add two dimensions for nparams
+            if lfunc.ndim == 2:
+                # Add the nparams dimension
+                lfunc = lfunc[np.newaxis, ...]
+            final_data["lfunc"] = lfunc
             N = final_data["lfunc"].shape[0]
             final_data["Muv"] = np.array(
-                list(ctx.get("Muv").reshape([1, -1])[np.newaxis, ...]) * N
+                list(ctx.get("Muv" + self.name).reshape([1, -1])[np.newaxis, ...]) * N
             )
             # TODO check if error is Gaussian and incorporate it properly
             return final_data
@@ -2310,10 +2337,12 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     ----------
     datafile : str, optional
         Input data should be in a `.npz` file, and contain the following fields:
+
         * ``z_bands``: the redshift of the observation bands
-        * ``bandx``: the power spectrum upper limits at redshift x
+        * ``bandx``: the power spectrum upper limits at redshift x, shape
+          (fields, k bins, 3) = [k (1/Mpc), Delta^2 (mK^2), variance (mK^4)]
         * ``wfbandx``: the window function for band x
-        * ``kwfbandx``: the k values [/Mpc] of the window function for band x
+        * ``kwfbandx``: the k values (1/Mpc) of the window function for band x
     """
 
     def __init__(
@@ -2503,14 +2532,41 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         return paired[0]
 
 
+def _k_littleh(k):
+    """Data-file k [1/Mpc] as h/Mpc, the units pspec_likelihood works in."""
+    return (np.asarray(k) / un.Mpc).to(
+        cosmology.units.littleh / un.Mpc,
+        cosmology.units.with_H0(cosmology.Planck18.H0),
+    )
+
+
 class LikelihoodPspec(Likelihood1DPowerLightcone):
     r"""
-    Likelihood based on Chi^2 comparison of a 21 cm PS model to HERA H1C upper limit data.
+    Likelihood of 21 cm PS data (e.g. HERA) computed with ``pspec_likelihood``.
 
     Parameters
     ----------
-    datafiles : list
-        list of strings with paths to h5 files containing UVPSpec objects for one frequency
+    datafile : str, optional
+        Input data in a `.npz` file, in the same format as for
+        :class:`Likelihood1DPowerLightconeUpper`:
+
+        * ``z_bands``: the redshift of the observation bands
+        * ``bandx``: shape (fields, k bins, 3) =
+          [k (1/Mpc), Delta^2 (mK^2), variance (mK^4)]
+        * ``wfbandx``: the window function for band x
+        * ``kwfbandx``: the k values (1/Mpc) of the window function for band x
+        * ``covbandx`` (optional): the covariance (mK^4) of each field of band x
+
+        As everywhere in 21CMMC, all k are in 1/Mpc. They are converted to h/Mpc
+        (astropy Planck18) only to be passed to ``pspec_likelihood``.
+    lk : str, optional
+        'upper_limit' (the HERA likelihood: a positive systematic with a flat prior
+        on [0, inf) is marginalised in each bin) or 'gaussian'.
+    systematics : :class:`~py21cmmc.systematics.Systematics`, optional
+        A prior on a positive systematic power in each bin, e.g.
+        ``systematics.HalfNormal(scale=1)``. If given, the systematic is marginalised
+        analytically in each bin and ``lk`` is not used. Requires a diagonal
+        covariance. ``systematics.Flat(np.inf)`` is the same as lk='upper_limit'.
     """
 
     def __init__(
@@ -2519,6 +2575,7 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         data=None,
         lk="upper_limit",
         name="",
+        systematics=None,
         *args,
         **kwargs,
     ):
@@ -2538,6 +2595,7 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
             self.lk = pslike.Gaussian
         else:
             raise ValueError(f"Accepted lk is gaussian or upper_limit, got {lk}.")
+        self.systematics = systematics
 
     @classmethod
     def from_builtin_data(cls, datafile="", **kwargs):
@@ -2650,25 +2708,17 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
                         else self.data[0][band_name][field, ..., 1] * un.mK**2,
                         window_function=self.data[0]["wf" + band_name][field],
                         covariance=cov * un.mK**4,
-                        kpar_bins_obs=kpar_flat * cosmology.units.littleh / un.Mpc
+                        kpar_bins_obs=_k_littleh(kpar_flat)
                         if use_2d_ps
-                        else self.data[0][band_name][field, :, 0]
-                        * cosmology.units.littleh
-                        / un.Mpc,
-                        kperp_bins_obs=kperp_flat * cosmology.units.littleh / un.Mpc
-                        if use_2d_ps
-                        else None,
+                        else _k_littleh(self.data[0][band_name][field, :, 0]),
+                        kperp_bins_obs=_k_littleh(kperp_flat) if use_2d_ps else None,
                         theory_uses_little_h=False,
                         theory_uses_spherical_k=not use_2d_ps,
                         theory_model=theory_model,
-                        kpar_bins_theory=kparwf_flat * cosmology.units.littleh / un.Mpc
+                        kpar_bins_theory=_k_littleh(kparwf_flat)
                         if use_2d_ps
-                        else self.data[0]["kwf" + band_name]
-                        * cosmology.units.littleh
-                        / un.Mpc,
-                        kperp_bins_theory=kperpwf_flat
-                        * cosmology.units.littleh
-                        / un.Mpc
+                        else _k_littleh(self.data[0]["kwf" + band_name]),
+                        kperp_bins_theory=_k_littleh(kperpwf_flat)
                         if use_2d_ps
                         else None,
                     )
@@ -2696,10 +2746,30 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         N = len(model)
         lnl = np.zeros(N)
         for i in range(N):
-            likes = [self.lk(model=dmi) for dmi in model[i]]
-            lnl[i] = np.nansum(np.array([_like_.loglike([], None) for _like_ in likes]))
+            if self.systematics is None:
+                likes = [self.lk(model=dmi) for dmi in model[i]]
+                lnl[i] = np.nansum(
+                    np.array([_like_.loglike([], None) for _like_ in likes])
+                )
+            else:
+                lnl[i] = np.nansum([self.marginal_loglike(dmi) for dmi in model[i]])
         logger.debug(f"Total HERA PS upper Likelihood computed: {lnl}")
         return lnl
+
+    def marginal_loglike(self, dmi):
+        """Log-likelihood of one band with the systematic marginalised in each bin."""
+        cov = dmi.covariance.to_value(un.mK**4)
+        if np.any(cov != np.diag(np.diag(cov))):
+            raise ValueError("systematics requires a diagonal covariance.")
+        d = dmi.power_spectrum.to_value(un.mK**2)
+        m = dmi.compute_model([], None).to_value(un.mK**2)
+        sigma = np.sqrt(np.diag(cov))
+        k = dmi.spherical_kbins_obs.to_value(
+            1 / un.Mpc, cosmology.units.with_H0(dmi.cosmology.H0)
+        )
+        # bins with zero variance are not used, as in pspec_likelihood
+        ok = sigma > 0
+        return np.sum(self.systematics.lnlike(d[ok], m[ok], sigma[ok], k[ok]))
 
     @cached_property
     def paired_core(self):

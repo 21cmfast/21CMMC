@@ -361,7 +361,7 @@ def run_mcmc(
         multimodal = mcmc_options.get("multimodal", True)
         write_output = mcmc_options.get("write_output", True)
         datadir = datadir + "/MultiNest/"
-        verbose = mcmc_options.get("vectorize", True)
+        verbose = mcmc_options.get("verbose", True)
         try:
             from pymultinest import run
         except ImportError:
@@ -402,7 +402,7 @@ def run_mcmc(
         pool = mcmc_options.get("pool", None)
         vectorize = mcmc_options.get("vectorize", False)
         blobs_dtype = mcmc_options.get("blobs_dtype", None)
-        verbose = mcmc_options.get("vectorize", True)
+        verbose = mcmc_options.get("verbose", True)
         check_walkers = mcmc_options.get("check_walkers", True)
         shuffle_ensemble = mcmc_options.get("shuffle_ensemble", True)
         light_mode = mcmc_options.get("light_mode", False)
@@ -711,21 +711,18 @@ def run_mcmc(
     elif use_nautilus:
 
         def likelihood(p):
-            if vectorized:
-                return chain.computeLikelihoods(
-                    chain.build_model_data(
-                        Params(*[(k, v) for k, v in zip(p.keys(), p.values())])
-                    )
-                )
+            # A dict if the prior is a nautilus.Prior (and pass_dict is not False),
+            # otherwise an array of shape (n_dim,), or (n, n_dim) if vectorized.
+            if isinstance(p, dict):
+                p = Params(*p.items())
             else:
-                try:
-                    return chain.computeLikelihoods(
-                        chain.build_model_data(
-                            Params(*[(k, v) for k, v in zip(p.keys(), p.values())])
-                        )
-                    )
-                except ParameterError:
-                    return -np.inf
+                p = Params(*zip(params.keys, np.asarray(p).T))
+            if vectorized:
+                return chain.computeLikelihoods(chain.build_model_data(p))
+            try:
+                return chain.computeLikelihoods(chain.build_model_data(p))
+            except ParameterError:
+                return -np.inf
 
         if prior is None:
             from nautilus import Prior

@@ -5,10 +5,12 @@ import os
 import shutil
 
 from py21cmmc import (
+    Core21cmEMU,
     CoreLuminosityFunction,
     LikelihoodLuminosityFunction,
     build_computation_chain,
 )
+from py21cmmc.cosmoHammer import Params
 
 
 def test_single_datafile(tmpdir):
@@ -94,3 +96,97 @@ def test_create_mock():
     lk = LikelihoodLuminosityFunction(simulate=True)
     with pytest.raises(ValueError):
         build_computation_chain(core, lk, setup=True)
+
+
+def test_interpolate_uvlf():
+    zs = np.array([6.0, 8.0, 10.0])
+    uvlfs = np.array([[1.0, 2.0], [3.0, 4.0], [7.0, 8.0]])  # (n_z, n_Muv)
+    lf = Core21cmEMU.interpolate_uvlf(uvlfs, zs, [6, 7, 9.5, 10])
+    assert np.allclose(lf, [[1, 2], [2, 3], [6, 7], [7, 8]])
+
+    # vectorized over parameters, and the redshifts need not be sorted
+    lf = Core21cmEMU.interpolate_uvlf(
+        np.stack([uvlfs, 2 * uvlfs])[:, ::-1], zs[::-1], 7
+    )
+    assert np.allclose(lf, [[[2, 3]], [[4, 6]]])
+
+    for z in [5.9, 10.1]:
+        with pytest.raises(ValueError):
+            Core21cmEMU.interpolate_uvlf(uvlfs, zs, z)
+
+
+V3_PARAMS = {
+    "F_STAR10": -1.3,
+    "ALPHA_STAR": 0.5,
+    "t_STAR": 0.5,
+    "F_ESC10": -1.0,
+    "ALPHA_ESC": -0.5,
+    "F_STAR7_MINI": -2.5,
+    "F_ESC7_MINI": -2.0,
+    "L_X": 40.0,
+    "L_X_MINI": 40.0,
+    "NU_X_THRESH": 500.0,
+    "SIGMA_8": 0.8,
+}
+
+
+def emulated_uvlfs(**lk_kwargs):
+    """Emulated UV LFs (log10) at the emulated redshifts, and lk.reduce_data for lk_kwargs."""
+    lk = LikelihoodLuminosityFunction(**lk_kwargs)
+    chain = build_computation_chain([Core21cmEMU()], [lk], setup=True)
+    params = Params(*[(k, np.array([v, v + 0.1])) for k, v in V3_PARAMS.items()])
+    ctx = chain.build_model_data(params)
+    uvlfs, zs = ctx.get("UVLFs"), ctx.get("UVLF_redshifts")
+    return uvlfs.value, list(getattr(zs, "value", zs)), lk.reduce_data(ctx)["lfunc"]
+
+
+def test_emulator_uvlf_interpolation():
+    # at an emulated redshift, interpolation returns the emulated LF
+    uvlfs, zs, lfunc = emulated_uvlfs(z=10)
+    assert np.allclose(lfunc[:, 0], uvlfs[:, zs.index(10)], equal_nan=True)
+    _, _, lfunc_nearest = emulated_uvlfs(z=10, interpolate_z=False)
+    assert np.allclose(lfunc, lfunc_nearest, equal_nan=True)
+
+    # between emulated redshifts (10 and 12 for 21cmEMUv3), log10 phi is linear in z
+    _, _, lfunc = emulated_uvlfs(z=11, telescope="JWST")
+    expected = 0.5 * (uvlfs[:, zs.index(10)] + uvlfs[:, zs.index(12)])
+    assert np.allclose(lfunc[:, 0], expected, equal_nan=True)
+
+
+def test_uvlf_redshift_outside_emulator():
+    with pytest.raises(ValueError):
+        build_computation_chain(
+            [Core21cmEMU(emulator_name="acg")],
+            [LikelihoodLuminosityFunction(z=11, telescope="JWST")],
+            setup=True,
+        )
+
+
+@pytest.mark.parametrize(
+    "telescope, jwst_lf, z",
+    [("HST", "Donnan24", z) for z in [6, 7, 8, 10]]
+    + [("JWST", "Donnan24", z) for z in [9, 10, 11, 12.5]]
+    + [("JWST", "Chemerynska26", z) for z in [9, 10, 11, 13]],
+)
+def test_builtin_lfs(telescope, jwst_lf, z):
+    lk = LikelihoodLuminosityFunction(z=z, telescope=telescope, jwst_lf=jwst_lf)
+    chain = build_computation_chain([Core21cmEMU()], [lk], setup=True)
+    prefix = {"HST": "LF"}.get(telescope, jwst_lf + "_LF")
+    assert os.path.basename(lk.datafile[0]) == f"{prefix}_lfuncs_z{int(z)}.npz"
+    assert lk.data["Muv"].shape == lk.noise["sigma"].shape
+
+    params = Params(*[(k, np.array([v, v + 0.1])) for k, v in V3_PARAMS.items()])
+    assert np.all(np.isfinite(chain.computeLikelihoods(chain.build_model_data(params))))
+
+
+def test_builtin_lf_too_bright():
+    # the only Donnan+24 bin at z = 14.5 is brighter than the default mag_brightest
+    lk = LikelihoodLuminosityFunction(z=14.5, telescope="JWST")
+    with pytest.raises(ValueError):
+        build_computation_chain([Core21cmEMU()], [lk], setup=True)
+
+    lk = LikelihoodLuminosityFunction(z=14.5, telescope="JWST", mag_brightest=-21)
+    build_computation_chain([Core21cmEMU()], [lk], setup=True)
+
+    with pytest.raises(ValueError):
+        LikelihoodLuminosityFunction(z=10, telescope="JWST", jwst_lf="Bouwens")
