@@ -2562,6 +2562,11 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
     lk : str, optional
         'upper_limit' (the HERA likelihood: a positive systematic with a flat prior
         on [0, inf) is marginalised in each bin) or 'gaussian'.
+    systematics : :class:`~py21cmmc.systematics.Systematics`, optional
+        A prior on a positive systematic power in each bin, e.g.
+        ``systematics.HalfNormal(scale=1)``. If given, the systematic is marginalised
+        analytically in each bin and ``lk`` is not used. Requires a diagonal
+        covariance. ``systematics.Flat(np.inf)`` is the same as lk='upper_limit'.
     """
 
     def __init__(
@@ -2570,6 +2575,7 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         data=None,
         lk="upper_limit",
         name="",
+        systematics=None,
         *args,
         **kwargs,
     ):
@@ -2589,6 +2595,7 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
             self.lk = pslike.Gaussian
         else:
             raise ValueError(f"Accepted lk is gaussian or upper_limit, got {lk}.")
+        self.systematics = systematics
 
     @classmethod
     def from_builtin_data(cls, datafile="", **kwargs):
@@ -2739,10 +2746,30 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         N = len(model)
         lnl = np.zeros(N)
         for i in range(N):
-            likes = [self.lk(model=dmi) for dmi in model[i]]
-            lnl[i] = np.nansum(np.array([_like_.loglike([], None) for _like_ in likes]))
+            if self.systematics is None:
+                likes = [self.lk(model=dmi) for dmi in model[i]]
+                lnl[i] = np.nansum(
+                    np.array([_like_.loglike([], None) for _like_ in likes])
+                )
+            else:
+                lnl[i] = np.nansum([self.marginal_loglike(dmi) for dmi in model[i]])
         logger.debug(f"Total HERA PS upper Likelihood computed: {lnl}")
         return lnl
+
+    def marginal_loglike(self, dmi):
+        """Log-likelihood of one band with the systematic marginalised in each bin."""
+        cov = dmi.covariance.to_value(un.mK**4)
+        if np.any(cov != np.diag(np.diag(cov))):
+            raise ValueError("systematics requires a diagonal covariance.")
+        d = dmi.power_spectrum.to_value(un.mK**2)
+        m = dmi.compute_model([], None).to_value(un.mK**2)
+        sigma = np.sqrt(np.diag(cov))
+        k = dmi.spherical_kbins_obs.to_value(
+            1 / un.Mpc, cosmology.units.with_H0(dmi.cosmology.H0)
+        )
+        # bins with zero variance are not used, as in pspec_likelihood
+        ok = sigma > 0
+        return np.sum(self.systematics.lnlike(d[ok], m[ok], sigma[ok], k[ok]))
 
     @cached_property
     def paired_core(self):

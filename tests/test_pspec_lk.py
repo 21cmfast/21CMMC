@@ -2,7 +2,7 @@ import numpy as np
 from astropy import units as un
 from os import path
 
-from py21cmmc import LikelihoodPspec, build_computation_chain, core
+from py21cmmc import LikelihoodPspec, build_computation_chain, core, systematics
 
 
 def test_pspec_lk():
@@ -61,3 +61,25 @@ def test_pspec_theory_k_in_inv_mpc():
         kwf = lk.k[list(lk.redshifts).index(dmi.redshift)]
         model = dmi.discretize_theory(dmi.redshift, [])
         assert np.allclose(model.to_value(un.mK**2), kwf)
+
+
+def test_pspec_systematics():
+    """systematics=Flat(np.inf) gives the HERA upper-limit likelihood."""
+    k = np.linspace(0.01, 3.0, 1000)
+    lnl = {}
+    for name, kwargs in [
+        ("ul", {"lk": "upper_limit"}),
+        ("flat_inf", {"systematics": systematics.Flat(np.inf)}),
+        ("halfnormal", {"systematics": systematics.HalfNormal(1.0)}),
+    ]:
+        lk = LikelihoodPspec.from_builtin_data("HERA_H1C_IDR3", **kwargs)
+        build_computation_chain(
+            [core.Core21cmEMU(emulator_name="acg")], [lk], setup=True
+        )
+        ps = np.stack([np.tile(100 * k, (len(lk.redshifts), 1)) * a for a in [1, 30]])
+        ctx = FakeContext(PS=ps, k=k, PS_redshifts=np.array(lk.redshifts))
+        lnl[name] = lk.computeLikelihood(lk.reduce_data(ctx))
+
+    assert np.allclose(lnl["flat_inf"], lnl["ul"])
+    assert np.all(np.isfinite(lnl["halfnormal"]))
+    assert not np.allclose(lnl["halfnormal"], lnl["ul"])
