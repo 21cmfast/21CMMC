@@ -1260,6 +1260,12 @@ class Core21cmEMU(CoreBase):
         properties = get_emulator_properties(emulator_name)
 
         self.astro_param_keys = properties.astro_param_keys
+        # Redshifts at which this emulator predicts UV LFs. LikelihoodLuminosityFunction
+        # interpolates between them (interpolate_uvlf) and never extrapolates beyond them.
+        uv_lf_zs = getattr(properties, "uv_lf_zs", None)
+        self.uvlf_redshifts = np.asarray(
+            [] if uv_lf_zs is None else uv_lf_zs, dtype=float
+        )
 
         if astro_params is not None:
             if isinstance(astro_params, p21.AstroParams):
@@ -1302,6 +1308,68 @@ class Core21cmEMU(CoreBase):
         self.astro_param_defaults = astro_param_defaults
         self.emulator_type = emulator_name
         self.ctx_variables = ctx_variables
+
+    @staticmethod
+    def check_uvlf_redshifts(z, uvlf_redshifts):
+        """Raise a ValueError if any redshift in ``z`` is outside the emulated UV LF redshifts."""
+        zs = np.asarray(
+            getattr(uvlf_redshifts, "value", uvlf_redshifts), dtype=float
+        ).ravel()
+        z = np.atleast_1d(np.asarray(z, dtype=float)).ravel()
+        if zs.size == 0:
+            raise ValueError("This emulator does not predict UV luminosity functions.")
+        outside = z[(z < zs.min()) | (z > zs.max())]
+        if outside.size:
+            raise ValueError(
+                f"UV LF requested at z = {outside.tolist()}, outside the emulated redshifts "
+                f"{zs.tolist()}. The UV LF is interpolated between emulated redshifts, "
+                "never extrapolated."
+            )
+
+    @staticmethod
+    def interpolate_uvlf(uvlfs, uvlf_redshifts, z):
+        """UV LF at redshift(s) ``z`` from the emulated UV LFs.
+
+        Parameters
+        ----------
+        uvlfs : array_like, shape (..., n_z, n_Muv)
+            Emulated log10 UV LFs (``EmulatorOutput.UVLFs``).
+        uvlf_redshifts : array_like, shape (n_z,)
+            Their redshifts (``EmulatorOutput.UVLF_redshifts``).
+        z : float or array_like
+            Redshift(s) wanted.
+
+        Returns
+        -------
+        ndarray, shape (..., len(z), n_Muv)
+            log10 phi interpolated linearly in z between the two closest emulated redshifts.
+            At an emulated redshift the emulated UV LF is returned as is.
+
+        Raises
+        ------
+        ValueError
+            If any ``z`` is outside the emulated redshifts (no extrapolation).
+        """
+        Core21cmEMU.check_uvlf_redshifts(z, uvlf_redshifts)
+        zs = np.asarray(
+            getattr(uvlf_redshifts, "value", uvlf_redshifts), dtype=float
+        ).ravel()
+        lf = np.asarray(getattr(uvlfs, "value", uvlfs), dtype=float)
+        if lf.shape[-2] != zs.size:
+            raise ValueError(
+                f"UV LFs have {lf.shape[-2]} redshifts along axis -2 but {zs.size} redshifts were given."
+            )
+        order = np.argsort(zs)
+        zs, lf = zs[order], lf[..., order, :]
+        out = []
+        for zi in np.atleast_1d(np.asarray(z, dtype=float)).ravel():
+            j = int(np.searchsorted(zs, zi))  # zs[j - 1] < zi <= zs[j]
+            if np.isclose(zs[j], zi):
+                out.append(lf[..., j, :])
+            else:
+                w = (zi - zs[j - 1]) / (zs[j] - zs[j - 1])
+                out.append((1.0 - w) * lf[..., j - 1, :] + w * lf[..., j, :])
+        return np.stack(out, axis=-2)
 
     def _update_params(self, params):
         """

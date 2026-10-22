@@ -1771,12 +1771,30 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     name : str, optional
         A name for the instance. This is used to pair it with a particular core
         instance.
+    telescope : str, optional
+        'HST' or 'JWST': which of the provided data sets to use.
+    z : float, optional
+        Redshift of the data, required with :class:`~py21cmmc.core.Core21cmEMU`. It must lie
+        within the redshifts the emulator predicts UV LFs at (``Core21cmEMU.uvlf_redshifts``),
+        otherwise a ValueError is raised: the model UV LF is never extrapolated in z.
+    interpolate_z : bool, optional
+        With :class:`~py21cmmc.core.Core21cmEMU` only. If True (default), the model log10 UV LF
+        is interpolated linearly in z between the two closest emulated redshifts (exact at an
+        emulated redshift). If False, the emulated redshift closest to int(z) is used instead
+        (the previous behaviour).
     """
 
     required_cores = ((core.CoreLuminosityFunction, core.Core21cmEMU),)
 
     def __init__(
-        self, *args, name="", telescope="HST", mag_brightest=-20.0, z=None, **kwargs
+        self,
+        *args,
+        name="",
+        telescope="HST",
+        mag_brightest=-20.0,
+        z=None,
+        interpolate_z=True,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         if self.datafile is not None and len(self.datafile) != 1:
@@ -1789,6 +1807,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             )
         # This argument is for the emulator to know which z bin this likelihood is for.
         self.z = z
+        self.interpolate_z = interpolate_z
         self.name = str(name)
         self.mag_brightest = mag_brightest
         if telescope != "HST" and telescope != "JWST":
@@ -1800,8 +1819,13 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         if isinstance(self.paired_core, core.Core21cmEMU):
             if self.z is None:
                 raise ValueError(
-                    "Must specify which z bin out of [6, 7, 8, 10] the likelihood is comparing to the data."
+                    "Must specify the redshift z of the data the likelihood is comparing to "
+                    "(within the redshifts the emulator predicts UV LFs at)."
                 )
+            # No extrapolation in z: fail here rather than at the first likelihood call.
+            core.Core21cmEMU.check_uvlf_redshifts(
+                self.redshifts, self.paired_core.uvlf_redshifts
+            )
 
         if not self._simulate:
             if self.datafile is None:
@@ -1864,6 +1888,15 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         if self.noise is not None:
             self.noise = self.noise[0]
 
+        # A data set with no bin fainter than mag_brightest would silently add nothing.
+        if not self._simulate and not np.any(
+            np.asarray(self.data["Muv"], dtype=float) > self.mag_brightest
+        ):
+            raise ValueError(
+                f"No {self.telescope} UV LF bin at z = {self.z} is fainter than "
+                f"mag_brightest = {self.mag_brightest}: this likelihood would contribute nothing."
+            )
+
     def _read_data(self):
         data = super()._read_data()
 
@@ -1918,20 +1951,29 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """Reduce simulated model data."""
         if isinstance(self.paired_core, core.Core21cmEMU):
             final_data = {}
-            shape = ctx.get("UVLFs").shape
-            self.zidx = np.argmin(abs(ctx.get("UVLF_redshifts") - int(self.z)))
-            if len(shape) == 3:
-                final_data["lfunc"] = ctx.get("UVLFs")[:, self.zidx, :].reshape(
-                    (shape[0], 1, shape[-1])
+            # (nparams, n_z, n_Muv) or (n_z, n_Muv)
+            uvlfs = ctx.get("UVLFs" + self.name)
+            uvlf_zs = ctx.get("UVLF_redshifts" + self.name)
+            if self.interpolate_z:
+                # log10 phi linear in z between the two closest emulated redshifts (exact at an
+                # emulated z); raises a ValueError outside the emulated redshifts.
+                lfunc = core.Core21cmEMU.interpolate_uvlf(
+                    uvlfs, uvlf_zs, self.redshifts
                 )
             else:
-                final_data["lfunc"] = ctx.get("UVLFs")[self.zidx, :].reshape([1, -1])[
-                    np.newaxis, ...
+                # Emulated redshift closest to int(z) (previous behaviour).
+                zs = np.asarray(getattr(uvlf_zs, "value", uvlf_zs), dtype=float)
+                self.zidx = np.argmin(abs(zs - int(self.z)))
+                lfunc = np.asarray(getattr(uvlfs, "value", uvlfs), dtype=float)[
+                    ..., [self.zidx], :
                 ]
-            # Add two dimensions for nparams
+            if lfunc.ndim == 2:
+                # Add the nparams dimension
+                lfunc = lfunc[np.newaxis, ...]
+            final_data["lfunc"] = lfunc
             N = final_data["lfunc"].shape[0]
             final_data["Muv"] = np.array(
-                list(ctx.get("Muv").reshape([1, -1])[np.newaxis, ...]) * N
+                list(ctx.get("Muv" + self.name).reshape([1, -1])[np.newaxis, ...]) * N
             )
             # TODO check if error is Gaussian and incorporate it properly
             return final_data
