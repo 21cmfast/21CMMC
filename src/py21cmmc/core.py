@@ -1305,7 +1305,16 @@ class Core21cmEMU(CoreBase):
 
             self.k1d_inp = k1d_inp
 
-        self.astro_param_defaults = astro_param_defaults
+        # Values of the parameters that are not varied: astro_param_defaults, else
+        # those of astro_params (21cmFAST's defaults if not given).
+        self.astro_param_defaults = {
+            **{
+                k: v
+                for k, v in self.astro_params.self.items()
+                if k in self.astro_param_keys
+            },
+            **astro_param_defaults,
+        }
         self.emulator_type = emulator_name
         self.ctx_variables = ctx_variables
 
@@ -1407,7 +1416,7 @@ class Core21cmEMU(CoreBase):
                     try:
                         values.append(astro_params[k])
                     except KeyError:
-                        if k == "L_X_MINI":
+                        if k == "L_X_MINI" and "L_X" in astro_params:
                             values.append(astro_params["L_X"])
                         else:
                             values.append(self.astro_param_defaults[k])

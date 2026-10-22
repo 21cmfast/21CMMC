@@ -483,15 +483,15 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             k_weights=k_weights,
         )
 
-        res = list(res)
-        k = res[1]
+        # The first two outputs are the power and the k-bin edges (later outputs
+        # depend on the powerbox version).
+        power, k = res[0], res[1]
         if log_bins:
             k = np.exp((np.log(k[1:]) + np.log(k[:-1])) / 2)
         else:
             k = (k[1:] + k[:-1]) / 2
 
-        res[1] = k
-        return res
+        return power, k
 
     @property
     def redshift(self):
@@ -517,6 +517,8 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             for i in range(N):
                 for j, band in enumerate(self.redshift):
                     band_key = "band" + str(np.round(band, 1))
+                    if band_key not in hera_data:
+                        band_key = "band" + str(int(np.round(band)))
                     nfields = hera_data[band_key].shape[0]
                     for field in range(nfields):
                         PS_limit_ks = hera_data[band_key][field, :, 0]
@@ -596,28 +598,27 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         """Reduce the data in the context to a list of models (one for each redshift)."""
         data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
-            # Interpolate the data onto the HERA bands and ks
-            if len(ctx.get("PS").shape) > 2:
-                N = ctx.get("PS").shape[0]
-            else:
-                N = 1
-            for j in range(N):
+            # Interpolate the data onto the HERA bands and ks.
+            # PS and PS_err are (n_params, n_z, n_k), or (n_z, n_k) for one parameter set.
+            zs, ks = ctx.get("PS_redshifts"), ctx.get("k")
+            ps = ctx.get("PS")
+            if ps.ndim == 2:
+                ps = ps[np.newaxis]
+            ps_err = np.broadcast_to(ctx.get("PS_err"), ps.shape)
+
+            for j in range(ps.shape[0]):
                 tmp_data = []
                 for i in range(self.redshift.shape[0]):
                     interp_ks = self.k[i]
                     tmp_data.append(
                         {
                             "k": interp_ks,
-                            "delta": RectBivariateSpline(
-                                ctx.get("PS_redshifts"),
-                                ctx.get("k"),
-                                ctx.get("PS")[j, ...] if N > 1 else ctx.get("PS"),
-                            )(self.redshift[i], interp_ks)[0],
-                            "delta_err": RectBivariateSpline(
-                                ctx.get("PS_redshifts"),
-                                ctx.get("k"),
-                                ctx.get("PS_err"),
-                            )(self.redshift[i], interp_ks)[0],
+                            "delta": RectBivariateSpline(zs, ks, ps[j])(
+                                self.redshift[i], interp_ks
+                            )[0],
+                            "delta_err": RectBivariateSpline(zs, ks, ps_err[j])(
+                                self.redshift[i], interp_ks
+                            )[0],
                         }
                     )
                 data.append(tmp_data)
@@ -799,43 +800,41 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             k_weights=k_weights,
         )
 
-        res = list(res)
-        k = res[1]
+        # The first two outputs are the power and the k-bin edges (later outputs
+        # depend on the powerbox version).
+        power, k = res[0], res[1]
         if log_bins:
             k = np.exp((np.log(k[1:]) + np.log(k[:-1])) / 2)
         else:
             k = (k[1:] + k[:-1]) / 2
 
-        res[1] = k
-        return res
+        return power, k
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a list of models (one for each redshift chunk)."""
         data = []
         if isinstance(self.paired_core, core.Core21cmEMU):
-            # Interpolate the data onto the HERA bands and ks
-            if len(ctx.get("PS").shape) > 2:
-                N = ctx.get("PS").shape[0]
-            else:
-                N = 1
+            # Interpolate the data onto the HERA bands and ks.
+            # PS and PS_err are (n_params, n_z, n_k), or (n_z, n_k) for one parameter set.
+            zs, ks = ctx.get("PS_redshifts"), ctx.get("k")
+            ps = ctx.get("PS")
+            if ps.ndim == 2:
+                ps = ps[np.newaxis]
+            ps_err = np.broadcast_to(ctx.get("PS_err"), ps.shape)
 
-            for j in range(N):
+            for j in range(ps.shape[0]):
                 tmp_data = []
                 for i in range(self.redshift.shape[0]):
                     interp_ks = self.k[i]
                     tmp_data.append(
                         {
                             "k": interp_ks,
-                            "delta": RectBivariateSpline(
-                                ctx.get("PS_redshifts"),
-                                ctx.get("k"),
-                                ctx.get("PS")[j, ...] if N > 1 else ctx.get("PS"),
-                            )(self.redshift[i], interp_ks)[0],
-                            "delta_err": RectBivariateSpline(
-                                ctx.get("PS_redshifts"),
-                                ctx.get("k"),
-                                ctx.get("PS_err"),
-                            )(self.redshift[i], interp_ks)[0],
+                            "delta": RectBivariateSpline(zs, ks, ps[j])(
+                                self.redshift[i], interp_ks
+                            )[0],
+                            "delta_err": RectBivariateSpline(zs, ks, ps_err[j])(
+                                self.redshift[i], interp_ks
+                            )[0],
                         }
                     )
                 data.append(tmp_data)
@@ -1995,6 +1994,11 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     lfunc = model["lfunc"][n, i]
 
                 mask = ~np.isnan(lfunc)
+                if mask.sum() < 4:
+                    # Too few M_UV bins with galaxies to interpolate the model LF
+                    # with a cubic spline: the model can't describe the data.
+                    lnl[n] = -np.inf
+                    break
 
                 model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
 
@@ -2603,6 +2607,10 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         datafile = path.join(path.dirname(__file__), "data", datafile + ".npz")
 
         return cls(datafile=datafile, **kwargs)
+
+    def store(self, model, storage):
+        """Store nothing: the model is a list of pspec_likelihood DataModelInterfaces."""
+        pass
 
     def setup(self):
         """Setup the object."""

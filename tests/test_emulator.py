@@ -3,7 +3,7 @@ def test_emulator_runs():
     from py21cmemu import Emulator
 
     emu = Emulator()
-    emu.predict(np.random.rand(9))
+    emu.predict(np.random.rand(len(emu.properties.astro_param_keys)))
 
 
 def test_emu_compat():
