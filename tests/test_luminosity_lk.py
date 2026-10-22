@@ -160,3 +160,33 @@ def test_uvlf_redshift_outside_emulator():
             [LikelihoodLuminosityFunction(z=11, telescope="JWST")],
             setup=True,
         )
+
+
+@pytest.mark.parametrize(
+    "telescope, jwst_lf, z",
+    [("HST", "Donnan24", z) for z in [6, 7, 8, 10]]
+    + [("JWST", "Donnan24", z) for z in [9, 10, 11, 12.5]]
+    + [("JWST", "Chemerynska26", z) for z in [9, 10, 11, 13]],
+)
+def test_builtin_lfs(telescope, jwst_lf, z):
+    lk = LikelihoodLuminosityFunction(z=z, telescope=telescope, jwst_lf=jwst_lf)
+    chain = build_computation_chain([Core21cmEMU()], [lk], setup=True)
+    prefix = {"HST": "LF"}.get(telescope, jwst_lf + "_LF")
+    assert os.path.basename(lk.datafile[0]) == f"{prefix}_lfuncs_z{int(z)}.npz"
+    assert lk.data["Muv"].shape == lk.noise["sigma"].shape
+
+    params = Params(*[(k, np.array([v, v + 0.1])) for k, v in V3_PARAMS.items()])
+    assert np.all(np.isfinite(chain.computeLikelihoods(chain.build_model_data(params))))
+
+
+def test_builtin_lf_too_bright():
+    # the only Donnan+24 bin at z = 14.5 is brighter than the default mag_brightest
+    lk = LikelihoodLuminosityFunction(z=14.5, telescope="JWST")
+    with pytest.raises(ValueError):
+        build_computation_chain([Core21cmEMU()], [lk], setup=True)
+
+    lk = LikelihoodLuminosityFunction(z=14.5, telescope="JWST", mag_brightest=-21)
+    build_computation_chain([Core21cmEMU()], [lk], setup=True)
+
+    with pytest.raises(ValueError):
+        LikelihoodLuminosityFunction(z=10, telescope="JWST", jwst_lf="Bouwens")

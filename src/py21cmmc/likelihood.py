@@ -1739,6 +1739,14 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
         return lnl
 
 
+# Built-in UV LFs in the ``data`` folder: file prefix and redshifts of the data.
+UVLF_DATA = {
+    "HST": ("LF", [6, 7, 8, 10]),  # Bouwens+15,16; Oesch+17
+    "Donnan24": ("Donnan24_LF", [9, 10, 11, 12.5, 14.5]),  # JWST, Donnan+24
+    "Chemerynska26": ("Chemerynska26_LF", [9, 10, 11, 13]),  # JWST GLIMPSE
+}
+
+
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     r"""
     Likelihood based on Chi^2 comparison to luminosity function data.
@@ -1757,10 +1765,12 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         at different redshifts to have different numbers of Muv bins, you
         should create multiple files, and create a separate core/likelihood
         instance pair for each, pairing them by ``name``.
-        A set of default LFs (z=6,7,8,10; Bouwens+15,16; Oesch+17) are provided
-        in the folder ``data`` where datafile and noisefile (see below) are named
-        LF_lfuncs_z*.npz and LF_sigmas_z*.npz. To use these files, a separate
-        core/likelihood instance pair for each redshift is required.
+        If not given, a built-in LF is used (see ``telescope`` and ``jwst_lf``):
+        HST (z=6,7,8,10; Bouwens+15,16; Oesch+17), JWST Donnan+24
+        (z=9,10,11,12.5,14.5) or JWST GLIMPSE Chemerynska+26 (z=9,10,11,13). They are
+        in the folder ``data``, named <prefix>_lfuncs_z*.npz and <prefix>_sigmas_z*.npz
+        (prefixes in ``UVLF_DATA``). To use these files, a separate core/likelihood
+        instance pair for each redshift is required.
     noisefile : str, optional
         Noise should be a `.npz` file with a single array 'sigma` which gives the
         error at each of the `Muv` bins in the `datafile`. If 1D, it must have the
@@ -1772,7 +1782,10 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         A name for the instance. This is used to pair it with a particular core
         instance.
     telescope : str, optional
-        'HST' or 'JWST': which of the provided data sets to use.
+        'HST' or 'JWST': which of the built-in data sets to use.
+    jwst_lf : str, optional
+        With telescope='JWST', which built-in JWST LF to use: 'Donnan24' (default)
+        or 'Chemerynska26'.
     z : float, optional
         Redshift of the data, required with :class:`~py21cmmc.core.Core21cmEMU`. It must lie
         within the redshifts the emulator predicts UV LFs at (``Core21cmEMU.uvlf_redshifts``),
@@ -1791,6 +1804,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         *args,
         name="",
         telescope="HST",
+        jwst_lf="Donnan24",
         mag_brightest=-20.0,
         z=None,
         interpolate_z=True,
@@ -1812,7 +1826,10 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         self.mag_brightest = mag_brightest
         if telescope != "HST" and telescope != "JWST":
             raise ValueError("Telescope can only be HST or JWST")
+        if jwst_lf not in ("Donnan24", "Chemerynska26"):
+            raise ValueError("jwst_lf can only be Donnan24 or Chemerynska26")
         self.telescope = telescope
+        self.jwst_lf = jwst_lf
 
     def setup(self):
         """Setup instance."""
@@ -1828,58 +1845,29 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             )
 
         if not self._simulate:
+            lf_data = "HST" if self.telescope == "HST" else self.jwst_lf
+            prefix, redshifts = UVLF_DATA[lf_data]
+            z = self.redshifts[0]
             if self.datafile is None:
                 if len(self.redshifts) != 1:
                     raise ValueError(
                         "to use the provided LFs, a separate core/likelihood instance pair for each redshift is required!"
                     )
-                if self.telescope == "HST" and self.redshifts[0] not in [6, 7, 8, 10]:
+                if z not in redshifts:
                     raise ValueError(
-                        "Only LFs at z=6,7,8 and 10 are provided! use your own LF :)"
+                        f"Only {lf_data} LFs at z = {redshifts} are provided! use your own LF :)"
                     )
-                if self.telescope == "JWST" and self.redshifts[0] not in [
-                    9,
-                    10,
-                    11,
-                    12.5,
-                    14.5,
-                ]:
-                    raise ValueError(
-                        "Only LFs at z=9,10,11, 12.5 and 14.5 are provided! use your own LF :)"
+                self.datafile = [
+                    path.join(
+                        path.dirname(__file__), "data", f"{prefix}_lfuncs_z{int(z)}.npz"
                     )
-                if self.telescope == "HST":
-                    self.datafile = [
-                        path.join(
-                            path.dirname(__file__),
-                            "data",
-                            "LF_lfuncs_z%d.npz" % self.redshifts[0],
-                        )
-                    ]
-                else:
-                    self.datafile = [
-                        path.join(
-                            path.dirname(__file__),
-                            "data",
-                            "Donnan24_LF_lfuncs_z%d.npz" % self.redshifts[0],
-                        )
-                    ]
+                ]
             if self.noisefile is None:
-                if self.telescope == "HST":
-                    self.noisefile = [
-                        path.join(
-                            path.dirname(__file__),
-                            "data",
-                            "LF_sigmas_z%d.npz" % self.redshifts[0],
-                        )
-                    ]
-                else:
-                    self.noisefile = [
-                        path.join(
-                            path.dirname(__file__),
-                            "data",
-                            "Donnan24_LF_sigmas_z%d.npz" % self.redshifts[0],
-                        )
-                    ]
+                self.noisefile = [
+                    path.join(
+                        path.dirname(__file__), "data", f"{prefix}_sigmas_z{int(z)}.npz"
+                    )
+                ]
         super().setup()
 
         # We only allow one datafile, so get the data out of it
@@ -1893,7 +1881,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             np.asarray(self.data["Muv"], dtype=float) > self.mag_brightest
         ):
             raise ValueError(
-                f"No {self.telescope} UV LF bin at z = {self.z} is fainter than "
+                f"No UV LF bin at z = {self.z} is fainter than "
                 f"mag_brightest = {self.mag_brightest}: this likelihood would contribute nothing."
             )
 
