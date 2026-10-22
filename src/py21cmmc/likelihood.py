@@ -2311,9 +2311,10 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     datafile : str, optional
         Input data should be in a `.npz` file, and contain the following fields:
         * ``z_bands``: the redshift of the observation bands
-        * ``bandx``: the power spectrum upper limits at redshift x
+        * ``bandx``: the power spectrum upper limits at redshift x, shape
+          (fields, k bins, 3) = [k (1/Mpc), Delta^2 (mK^2), variance (mK^4)]
         * ``wfbandx``: the window function for band x
-        * ``kwfbandx``: the k values [/Mpc] of the window function for band x
+        * ``kwfbandx``: the k values (1/Mpc) of the window function for band x
     """
 
     def __init__(
@@ -2503,14 +2504,34 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         return paired[0]
 
 
+def _k_littleh(k):
+    """Data-file k [1/Mpc] as h/Mpc, the units pspec_likelihood works in."""
+    return (np.asarray(k) / un.Mpc).to(
+        cosmology.units.littleh / un.Mpc,
+        cosmology.units.with_H0(cosmology.Planck18.H0),
+    )
+
+
 class LikelihoodPspec(Likelihood1DPowerLightcone):
     r"""
-    Likelihood based on Chi^2 comparison of a 21 cm PS model to HERA H1C upper limit data.
+    Likelihood of 21 cm PS data (e.g. HERA) computed with ``pspec_likelihood``.
 
     Parameters
     ----------
-    datafiles : list
-        list of strings with paths to h5 files containing UVPSpec objects for one frequency
+    datafile : str, optional
+        Input data in a `.npz` file, in the same format as for
+        :class:`Likelihood1DPowerLightconeUpper`:
+        * ``z_bands``: the redshift of the observation bands
+        * ``bandx``: shape (fields, k bins, 3) =
+          [k (1/Mpc), Delta^2 (mK^2), variance (mK^4)]
+        * ``wfbandx``: the window function for band x
+        * ``kwfbandx``: the k values (1/Mpc) of the window function for band x
+        * ``covbandx`` (optional): the covariance (mK^4) of each field of band x
+        As everywhere in 21CMMC, all k are in 1/Mpc. They are converted to h/Mpc
+        (astropy Planck18) only to be passed to ``pspec_likelihood``.
+    lk : str, optional
+        'upper_limit' (the HERA likelihood: a positive systematic with a flat prior
+        on [0, inf) is marginalised in each bin) or 'gaussian'.
     """
 
     def __init__(
@@ -2650,25 +2671,17 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
                         else self.data[0][band_name][field, ..., 1] * un.mK**2,
                         window_function=self.data[0]["wf" + band_name][field],
                         covariance=cov * un.mK**4,
-                        kpar_bins_obs=kpar_flat * cosmology.units.littleh / un.Mpc
+                        kpar_bins_obs=_k_littleh(kpar_flat)
                         if use_2d_ps
-                        else self.data[0][band_name][field, :, 0]
-                        * cosmology.units.littleh
-                        / un.Mpc,
-                        kperp_bins_obs=kperp_flat * cosmology.units.littleh / un.Mpc
-                        if use_2d_ps
-                        else None,
+                        else _k_littleh(self.data[0][band_name][field, :, 0]),
+                        kperp_bins_obs=_k_littleh(kperp_flat) if use_2d_ps else None,
                         theory_uses_little_h=False,
                         theory_uses_spherical_k=not use_2d_ps,
                         theory_model=theory_model,
-                        kpar_bins_theory=kparwf_flat * cosmology.units.littleh / un.Mpc
+                        kpar_bins_theory=_k_littleh(kparwf_flat)
                         if use_2d_ps
-                        else self.data[0]["kwf" + band_name]
-                        * cosmology.units.littleh
-                        / un.Mpc,
-                        kperp_bins_theory=kperpwf_flat
-                        * cosmology.units.littleh
-                        / un.Mpc
+                        else _k_littleh(self.data[0]["kwf" + band_name]),
+                        kperp_bins_theory=_k_littleh(kperpwf_flat)
                         if use_2d_ps
                         else None,
                     )
