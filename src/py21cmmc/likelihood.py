@@ -1268,7 +1268,7 @@ class LikelihoodPlanck(LikelihoodBase):
         self,
         *args,
         tau_mean=0.0569,
-        tau_sigma_u=0.0073,
+        tau_sigma_u=0.0081,
         tau_sigma_l=0.0066,
         **kwargs,
     ):
