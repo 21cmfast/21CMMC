@@ -1570,6 +1570,8 @@ class CoreRadioEMU(CoreBase):
         Astrophysical parameters of reionization model according to Park+19 parametrization.
     version : str, optional
         Emulator version to use, defaults to 'latest'.
+    astro_param_defaults : dict, optional
+        Values of the emulator parameters that are not varied.
     """
 
     def __init__(
@@ -1597,12 +1599,14 @@ class CoreRadioEMU(CoreBase):
         cache_dir=None,
         version="latest",
         store=[],
+        astro_param_defaults=None,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.name = str(name)
         self.ctx_variables = ctx_variables
+        self.astro_param_defaults = astro_param_defaults or {}
 
         try:
             from py21cmemu import Emulator

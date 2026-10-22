@@ -19,3 +19,11 @@ def test_emu_compat():
         setup=True,
     )
     chain({})
+
+
+def test_radio_emu_defaults():
+    from py21cmmc.core import CoreRadioEMU
+
+    assert CoreRadioEMU().astro_param_defaults == {}
+    core = CoreRadioEMU(astro_param_defaults={"A_LW": 2.0})
+    assert core.astro_param_defaults == {"A_LW": 2.0}

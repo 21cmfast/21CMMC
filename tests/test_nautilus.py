@@ -1,14 +1,20 @@
+import pytest
+
 import numpy as np
 
 import py21cmmc as mcmc
 
 
-def test_nautilus_21cmemu():
+@pytest.mark.parametrize(
+    "vectorized, pass_dict", [(True, None), (True, False), (False, False)]
+)
+def test_nautilus_21cmemu(vectorized, pass_dict):
     """Run a very short Nautilus sampling using the 21cmEMU core.
 
     This mirrors ``test_ultranest_21cmemu`` but exercises the Nautilus
     sampler integration in :func:`py21cmmc.mcmc.run_mcmc` (``use_nautilus``).
-    The run is bounded via ``n_like_max`` so the test stays fast -- we are
+    The likelihood gets a dict (pass_dict=None with a nautilus.Prior) or an
+    array (pass_dict=False). The run is bounded via ``n_like_max`` so the test stays fast -- we are
     only checking that the Nautilus code path runs end-to-end without
     error and returns a posterior with the right shape, not that it has
     converged.
@@ -28,11 +34,12 @@ def test_nautilus_21cmemu():
     mcmc_options = {
         "n_live": 50,
         "n_like_max": 200,
-        "vectorized": True,
+        "vectorized": vectorized,
+        "pass_dict": pass_dict,
         "verbose": False,
     }
     sampler, result = mcmc.run_mcmc(
-        [mcmc.Core21cmEMU()],
+        [mcmc.Core21cmEMU(emulator_name="acg")],
         [mcmc.LikelihoodLuminosityFunction(z=z) for z in redshifts],
         model_name=model_name,
         params={

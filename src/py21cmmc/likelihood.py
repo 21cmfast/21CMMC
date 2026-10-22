@@ -1542,21 +1542,18 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         n = xHI.shape[0]
         lnprob = np.zeros(n)
         for i in range(n):
+            has_err = np.sum(xHI_err[i, :]) > 0
             if self._require_spline:
-                try:
-                    model_spline = InterpolatedUnivariateSpline(
-                        model["redshifts"], xHI[i, :], k=1
-                    )
-                except:
-                    print(xHI.shape, n)
-
-                if np.sum(model["err"]) > 0:
+                model_spline = InterpolatedUnivariateSpline(
+                    model["redshifts"], xHI[i, :], k=1
+                )
+                if has_err:
                     err_spline = InterpolatedUnivariateSpline(
                         model["redshifts"], xHI_err[i, :], k=1
                     )
 
             for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
-                if np.sum(xHI_err[i, :]) > 0:
+                if has_err:
                     sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2)
                 else:
                     sigma_t = sigma
