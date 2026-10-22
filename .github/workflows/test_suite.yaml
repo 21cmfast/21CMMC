@@ -65,6 +65,10 @@ jobs:
           conda install pip fftw gsl compilers pkg-config multinest
 
       - name: Install 21CMMC
+        # 21cmFAST v3's C code has implicit ints and pointer-type mismatches, which
+        # recent compilers (e.g. conda-forge's GCC 15) treat as errors.
+        env:
+          CFLAGS: "-Wno-error=implicit-int -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
         run: |
           echo $(which pip)
           pip install ".[test,samplers]"
