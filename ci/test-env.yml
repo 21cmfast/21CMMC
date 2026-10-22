@@ -1,8 +1,6 @@
 name: test-suite
 channels:
   - conda-forge
-  - conda-forge/label/cf201901
-  - defaults
 dependencies:
   - pytest>=5.0
   - pytest-cov
@@ -14,21 +12,30 @@ dependencies:
   - scipy
   - astropy>=2.0
   - h5py>=2.8.0
-  - matplotlib
+  # 21cmFAST 3.3.1 (the latest on conda-forge) uses plt.register_cmap, removed in
+  # matplotlib 3.9
+  - matplotlib<3.9
   - multinest
   - ultranest
   - pymultinest
   - nautilus-sampler
   - zeus-mcmc
+  # py21cmEMU needs torch; PyPI has no torch built for numpy 2 on Intel macOS
+  - pytorch
   - pip
-  - 21cmFAST
+  # 21cmFAST v3 (required by 21CMMC) has conda-forge builds for linux-64 and
+  # osx-64 only, hence the Intel macOS runner in the test workflow.
+  - 21cmFAST<4
 
   - pip:
-    - powerbox
+    # powerbox 1.0 changed get_power (no bin_ave, returns an object)
+    - powerbox<1
     - cached_property
     - pre-commit
     # tuesday-eor and pspec-likelihood are unconditionally/optionally
     # imported by py21cmmc.core / py21cmmc.likelihood respectively, and
     # aren't available on conda-forge, so they must be installed via pip.
     - tuesday-eor
-    - pspec-likelihood
+    # LikelihoodPspec needs non-square window functions (Nk_obs, Nk_theory), which
+    # the PyPI release (0.2.0) does not support. This commit needs Python >= 3.11.
+    - git+https://github.com/HERA-Team/pspec_likelihood.git@e00950646f982f97b1b8d612b5d96ecd46ce7374
