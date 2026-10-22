@@ -531,6 +531,17 @@ def run_mcmc(
                 lk._simulate = False
     # Write out the parameters *before* setup.
     # TODO: not sure if this is the best idea -- should it be after setup()?
+    # (Chains with emulator cores cannot be written, then no file is written.)
+    try:
+        chain_yaml = yaml.dump(chain)
+    except Exception as e:
+        logger.warning(
+            "Attempt to write out YAML file containing LikelihoodComputationChain failed. "
+            f"Boldly continuing... ({e})"
+        )
+    else:
+        with open(file_prefix + ".LCC.yml", "w") as f:
+            f.write(chain_yaml)
     chain.setup()
     # Set logging levels
     if log_level_21CMMC is not None:
@@ -627,7 +638,7 @@ def run_mcmc(
 
     elif use_ultranest:
 
-        def likelihood(p):
+        def loglike(p):
             if vectorized:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
@@ -643,6 +654,10 @@ def run_mcmc(
                     ).squeeze()
                 except ParameterError:
                     return -np.inf
+
+        def likelihood(p):
+            # UltraNest needs finite log-likelihoods: -inf becomes a very low value.
+            return np.maximum(loglike(p), -1e300)
 
         if prior is None:
 
