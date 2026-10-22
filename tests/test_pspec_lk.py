@@ -1,8 +1,15 @@
-import numpy as np
-from astropy import units as un
+"""Tests of LikelihoodPspec (pspec_likelihood) and of the units of the HERA data."""
+
 from os import path
 
+import numpy as np
+import pytest
+from astropy import units as un
+
 from py21cmmc import LikelihoodPspec, build_computation_chain, core, systematics
+
+# pspec_likelihood is optional (see the "likelihoods" extra in pyproject.toml).
+pytest.importorskip("pspec_likelihood")
 
 
 def test_pspec_lk():
@@ -41,7 +48,10 @@ def test_hera_h1c_data_in_inv_mpc():
 
 
 class FakeContext(dict):
+    """A minimal chain context holding the model outputs."""
+
     def get(self, key):
+        """Get a model output."""
         return self[key]
 
 

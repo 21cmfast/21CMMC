@@ -1,6 +1,7 @@
-import pytest
+"""Tests of the systematics priors."""
 
 import numpy as np
+import pytest
 from scipy.integrate import quad
 from scipy.stats import expon, halfnorm, norm, uniform
 
@@ -14,14 +15,14 @@ PRIORS = [
 ]
 
 
-@pytest.mark.parametrize("systematics, prior", PRIORS)
+@pytest.mark.parametrize(("systematics", "prior"), PRIORS)
 def test_lnlike_is_marginal(systematics, prior):
-    """lnlike = log of the integral of N(d | m + s, sigma) p(s) over s."""
+    """The likelihood is the integral of N(d | m + s, sigma) p(s) over s."""
     sigma, k, m = 2.0, 0.5, 1.0
     p = prior(systematics.width(sigma, k))
     for d in [-10.0, 0.0, 3.0, 20.0]:
         like = quad(
-            lambda s: norm.pdf(d, m + s, sigma) * p.pdf(s), 0, p.ppf(1 - 1e-12)
+            lambda s, d=d: norm.pdf(d, m + s, sigma) * p.pdf(s), 0, p.ppf(1 - 1e-12)
         )[0]
         assert np.isclose(systematics.lnlike(d, m, sigma, k), np.log(like))
 
@@ -31,7 +32,7 @@ def test_flat_inf_is_hera_likelihood():
     assert np.allclose(Flat(np.inf).lnlike(d, 1.0, 2.0, 0.3), norm.logcdf(d - 1, 0, 2))
 
 
-@pytest.mark.parametrize("systematics, prior", PRIORS)
+@pytest.mark.parametrize(("systematics", "prior"), PRIORS)
 def test_sample(systematics, prior):
     rng = np.random.default_rng(1)
     k = np.full(1000, 0.4)

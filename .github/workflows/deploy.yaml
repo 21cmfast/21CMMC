@@ -1,0 +1,29 @@
+name: Publish Python distributions to PyPI
+on:
+  release:
+    types: [published, edited]
+
+jobs:
+  build-n-publish:
+    name: Make Release on PyPI and Github
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Build Tools
+        run: pip install build
+
+      - name: Build a source distribution and wheel
+        run: |
+          python -m build .
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,14 +1,9 @@
-import numpy as np
+"""Tests of the HERA power-spectrum likelihood."""
 
 from py21cmmc import (
     Likelihood1DPowerLightconeUpper,
-    LikelihoodPlanck,
-    analyse,
     build_computation_chain,
     core,
-    likelihood,
-    mcmc,
-    run_mcmc,
 )
 
 

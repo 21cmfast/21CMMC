@@ -1,8 +1,9 @@
-import pytest
+"""Tests of the luminosity function likelihood."""
+
+import os
 
 import numpy as np
-import os
-import shutil
+import pytest
 
 from py21cmmc import (
     Core21cmEMU,
@@ -163,7 +164,7 @@ def test_uvlf_redshift_outside_emulator():
 
 
 @pytest.mark.parametrize(
-    "telescope, jwst_lf, z",
+    ("telescope", "jwst_lf", "z"),
     [("HST", "Donnan24", z) for z in [6, 7, 8, 10]]
     + [("JWST", "Donnan24", z) for z in [9, 10, 11, 12.5]]
     + [("JWST", "Chemerynska26", z) for z in [9, 10, 11, 13]],
@@ -190,3 +191,44 @@ def test_builtin_lf_too_bright():
 
     with pytest.raises(ValueError):
         LikelihoodLuminosityFunction(z=10, telescope="JWST", jwst_lf="Bouwens")
+
+
+def test_computeLikelihood_floors_too_few_valid_points():
+    """A model LF that's ~all NaN at a redshift must be rejected, not crash."""
+    from py21cmmc.likelihood import _LOGLIKE_FLOOR
+
+    core = CoreLuminosityFunction(redshift=[7], sigma=np.ones((1, 1)))
+    lk = LikelihoodLuminosityFunction(simulate=True)
+    build_computation_chain(core, lk, setup=True)
+
+    model = lk.get_fiducial_model()
+
+    # Leave only 2 valid (non-NaN) Muv bins: a cubic spline needs more
+    # points than its degree (k=3, so >=4), so this used to crash with a
+    # scipy dfitpack error; it should now just floor the likelihood.
+    model["lfunc"] = np.full_like(model["lfunc"], np.nan)
+    model["lfunc"][..., :2] = 1.0
+
+    lnl = lk.computeLikelihood(model)
+    assert np.atleast_1d(lnl)[0] == _LOGLIKE_FLOOR
+
+
+def test_computeLikelihood_floors_extreme_values():
+    """An ill-conditioned model LF must not produce a non-finite/huge lnl."""
+    from py21cmmc.likelihood import _LOGLIKE_FLOOR
+
+    core = CoreLuminosityFunction(redshift=[7], sigma=np.ones((1, 1)))
+    lk = LikelihoodLuminosityFunction(simulate=True)
+    build_computation_chain(core, lk, setup=True)
+
+    model = lk.get_fiducial_model()
+
+    # A model log-luminosity-function of 150 everywhere is a perfectly
+    # valid (non-NaN) spline fit, but predicts 10**150 galaxies/mag/Mpc^3 --
+    # comparing that against realistic data blows up to an astronomically
+    # large (but still finite) chi^2, which must be floored rather than fed
+    # to a sampler as-is.
+    model["lfunc"] = np.full_like(model["lfunc"], 150.0)
+
+    lnl = lk.computeLikelihood(model)
+    assert np.atleast_1d(lnl)[0] == _LOGLIKE_FLOOR

@@ -19,6 +19,7 @@ are not written: "To ensure the robustness of our faint-end fit, we exclude the 
 
 Run from this folder: python JWST_LFs_GLIMPSE.py   (writes Chemerynska26_LF_{lfuncs,sigmas}_z{9,10,11,13}.npz)
 """
+
 import numpy as np
 
 # Table 1 of Chemerynska+26: M_UV, N_obj, log10 phi, +err, -err (dex)
@@ -60,7 +61,9 @@ EXCLUDED_MUV = [-12.5]
 
 def to_linear(rows):
     """M_UV, phi and the upper and lower errors of phi, in linear units."""
-    muv, n, logphi, up, lo = (np.array(c, dtype=float) for c in zip(*rows))
+    muv, _n, logphi, up, lo = (
+        np.array(c, dtype=float) for c in zip(*rows, strict=False)
+    )
     phi = 10**logphi
     sigma_upper = 10 ** (logphi + up) - phi
     sigma_lower = phi - 10 ** (logphi - lo)
@@ -73,8 +76,8 @@ if __name__ == "__main__":
         muv, phi, su, sl = to_linear(rows)
         np.savez(f"Chemerynska26_LF_lfuncs_z{z}", Muv=muv, lfunc=phi)
         np.savez(f"Chemerynska26_LF_sigmas_z{z}", sigma=(su + sl) / 2.0)
-        print(f"z = {z}:")
-        for m, p, a, b in zip(muv, phi, su, sl):
-            print(
+        print(f"z = {z}:")  # noqa: T201
+        for m, p, a, b in zip(muv, phi, su, sl, strict=False):
+            print(  # noqa: T201
                 f"   M_UV = {m:6.1f}   phi = {p:.3e}   +{a:.3e} -{b:.3e}   sigma = {(a + b) / 2:.3e}"
             )

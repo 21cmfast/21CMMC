@@ -1,0 +1,84 @@
+# Labels used to categorize issues/PRs, and (via .github/release-drafter.yml)
+# to auto-categorize entries in drafted release notes.
+#
+# Adapted (trimmed) from 21cmFAST's .github/labels.yml -- dropped the
+# C/CUDA/GPU-backend-specific "context" labels, since 21CMMC is a pure-python
+# MCMC framework with no compiled extensions of its own.
+#
+# Managed by the "Labeler" workflow (.github/workflows/labeler.yml), using
+# https://github.com/crazy-max/ghaction-github-labeler. That workflow runs
+# with `skip-delete: true`, so it will only create/update labels listed here
+# -- it will NOT delete any existing repository labels that aren't listed.
+
+- name: "type: bug"
+  description: "Something isn't working"
+  color: d73a4a
+- name: "type: feature"
+  description: "New feature that adds functionality for the user"
+  color: "0e8a16"
+- name: "type: testing"
+  description: "Testing improvements"
+  color: b1fc6f
+- name: "type: performance"
+  description: "Performance improvements (walltime, memory, etc.)"
+  color: "016175"
+- name: "type: ci"
+  description: "Updates to CI (GH actions, RTD, codecov, etc.)"
+  color: "000000"
+- name: "type: maint: documentation"
+  description: "Improvements or additions to documentation"
+  color: "0075ca"
+- name: "type: maint: refactoring"
+  description: "Refactoring"
+  color: ef67c4
+- name: "type: maint: removal"
+  description: "Removals and Deprecations"
+  color: 9ae7ea
+- name: "type: maint: style"
+  description: "Style"
+  color: c120e5
+- name: "type: maint: build"
+  description: "Build System and Dependencies"
+  color: bfdadc
+- name: "type: maint: dependencies"
+  description: "Pull requests that update a dependency file"
+  color: "0366d6"
+- name: "type: question"
+  description: "A question about the code or documentation"
+  color: d876e3
+- name: "API breaking"
+  description: "Breaking Changes"
+  color: e305fc
+- name: "good first issue"
+  description: "Good for newcomers"
+  color: 7057ff
+- name: "priority: low"
+  description: "Low priority"
+  color: BFD4F2
+- name: "priority: medium"
+  description: "Medium priority"
+  color: E99695
+- name: "priority: high"
+  description: "High priority"
+  color: B60205
+- name: "effort: low"
+  description: "Issues that will require less than a day of coding to implement"
+  color: BFD4F2
+- name: "effort: high"
+  description: "Issues that will probably require >1 full day of coding to implement"
+  color: B60205
+- name: "status: duplicate"
+  description: "This issue or pull request already exists"
+  color: d93f0b
+- name: "status: invalid"
+  description: "Invalid issue or pull request"
+  color: d93f0b
+- name: "status: requires discussion"
+  description: "Issue requires further discussion before implementation"
+  color: f71bd2
+- name: "status: requires research"
+  description: "Issue requires further research before implementation"
+  color: d93f0b
+- name: "status: wontfix"
+  description: "Valid issue, but out of scope for future fixes"
+  color: d93f0b

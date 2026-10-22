@@ -9,6 +9,7 @@ noise ``sigma`` at wavenumber ``k`` [1/Mpc] is
 ``Flat(np.inf)`` (a flat prior on [0, inf)) gives the HERA upper-limit likelihood.
 Each prior can also draw systematics, e.g. to add them to a mock (:meth:`sample`).
 """
+
 import numpy as np
 from scipy.special import log_ndtr, ndtr, ndtri
 

@@ -1,12 +1,16 @@
 """Module containing 21CMMC likelihoods."""
+
+import functools
 import logging
+import operator
+from io import IOBase
+from os import path, rename
+from pathlib import Path
+
 import numpy as np
 from astropy import cosmology
 from astropy import units as un
 from cached_property import cached_property
-from io import IOBase
-from os import path, rename
-from pathlib import Path
 from powerbox.tools import get_power
 from py21cmfast import wrapper as lib
 from scipy.interpolate import (
@@ -33,7 +37,7 @@ def _ensure_iter(a):
 
 
 def _listify(lst):
-    if type(lst) == list:
+    if isinstance(lst, list):
         return lst
     else:
         return [lst]
@@ -133,7 +137,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         Set this to False if this is the case.
     """
 
-    _ignore_attributes = LikelihoodBase._ignore_attributes + ("simulate",)
+    _ignore_attributes = (*LikelihoodBase._ignore_attributes, "simulate")
 
     def __init__(
         self,
@@ -149,9 +153,9 @@ class LikelihoodBaseFile(LikelihoodBase):
         self._use_data = use_data
 
         # We *always* make the datafile and noisefile a list
-        if isinstance(self.datafile, str) or isinstance(self.datafile, IOBase):
+        if isinstance(self.datafile, (str, IOBase)):
             self.datafile = [self.datafile]
-        if isinstance(self.noisefile, str) or isinstance(self.noisefile, IOBase):
+        if isinstance(self.noisefile, (str, IOBase)):
             self.noisefile = [self.noisefile]
 
         self._simulate = simulate
@@ -206,9 +210,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         for fl in self.datafile:
             if not path.exists(fl):
                 raise FileNotFoundError(
-                    "Could not find datafile: {fl}. If you meant to simulate data, set simulate=True.".format(
-                        fl=fl
-                    )
+                    f"Could not find datafile: {fl}. If you meant to simulate data, set simulate=True."
                 )
             else:
                 data.append(dict(np.load(fl, allow_pickle=True)))
@@ -236,12 +238,10 @@ class LikelihoodBaseFile(LikelihoodBase):
             return noise
 
     def _write_data(self):
-        for fl, d in zip(self.datafile, self.data):
+        for fl, d in zip(self.datafile, self.data, strict=False):
             if path.exists(fl):
                 logger.warning(
-                    "File {fl} already exists. Moving previous version to {fl}.bk".format(
-                        fl=fl
-                    )
+                    f"File {fl} already exists. Moving previous version to {fl}.bk"
                 )
                 rename(fl, fl + ".bk")
 
@@ -249,12 +249,10 @@ class LikelihoodBaseFile(LikelihoodBase):
             logger.info(f"Saving data file: {fl}")
 
     def _write_noise(self):
-        for fl, d in zip(self.noisefile, self.noise):
+        for fl, d in zip(self.noisefile, self.noise, strict=False):
             if path.exists(fl):
                 logger.warning(
-                    "File {fl} already exists. Moving previous version to {fl}.bk".format(
-                        fl=fl
-                    )
+                    f"File {fl} already exists. Moving previous version to {fl}.bk"
                 )
                 rename(fl, fl + ".bk")
 
@@ -386,7 +384,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         for i, n in enumerate(self.noise):
             if "k" not in n or "errs" not in n:
                 raise ValueError(
-                    f"noisefile #{i+1} of {len(self.noise)} has the wrong format"
+                    f"noisefile #{i + 1} of {len(self.noise)} has the wrong format"
                 )
 
     def setup(self):
@@ -537,7 +535,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
                         ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
                         # Include emulator error term if present
-                        if "delta_err" in model[i][j].keys():
+                        if "delta_err" in model[i][j]:
                             ModelPS_val_1sigma_upper_afterWF = np.dot(
                                 PS_limit_wfcs,
                                 ModelPS_val + model[i][j]["delta_err"][:Nkwfbins],
@@ -566,14 +564,13 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                                 PS_limit_vars + (0.2 * ModelPS_val_afterWF) ** 2
                             )
                         lnl[i] += -0.5 * np.sum(
-                            (ModelPS_val_afterWF - PS_limit_vals) ** 2
-                            / (error_val**2)
+                            (ModelPS_val_afterWF - PS_limit_vals) ** 2 / (error_val**2)
                         )
 
         else:
             lnl = 0
             noise = 0
-            for i, (m, pd) in enumerate(zip(model, self.data_spline)):
+            for i, (m, pd) in enumerate(zip(model, self.data_spline, strict=False)):
                 mask = np.logical_and(m["k"] <= self.max_k, m["k"] >= self.min_k)
 
                 moduncert = (
@@ -648,21 +645,19 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         """
         # add the power to the written data
         for i, m in enumerate(model):
-            storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
+            storage.update({k + f"_z{self.redshift[i]}": v for k, v in m.items()})
 
     @cached_property
     def paired_core(self):
-        """The PS core that is paired with this likelihood."""
+        """Get the PS core that is paired with this likelihood."""
         paired = []
         for c in self._cores:
             if (
-                isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)
+                isinstance(c, (core.Core21cmEMU, core.CoreRadioEMU))
             ) and c.name == self.name:
                 paired.append(c)
             else:
-                if isinstance(c, core.CoreCoevalModule) or isinstance(
-                    c, core.CoreCoevalModule
-                ):
+                if isinstance(c, (core.CoreCoevalModule, core.CoreCoevalModule)):
                     paired.append(c)
         if len(paired) > 1:
             raise ValueError(
@@ -683,7 +678,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
     required_cores = ((core.CoreLightConeModule, core.Core21cmEMU, core.CoreRadioEMU),)
 
-    def __init__(self, *args, datafile="", nchunks=1, **kwargs):
+    def __init__(self, *args, datafile=None, nchunks=1, **kwargs):
         super().__init__(*args, **kwargs)
         self.nchunks = nchunks
         self.datafile = [datafile] if isinstance(datafile, (str, Path)) else datafile
@@ -698,9 +693,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     def setup(self):
         """Perform post-init setup."""
         LikelihoodBaseFile.setup(self)
-        if isinstance(self.paired_core, core.Core21cmEMU) or isinstance(
-            self.paired_core, core.CoreRadioEMU
-        ):
+        if isinstance(self.paired_core, (core.Core21cmEMU, core.CoreRadioEMU)):
             self.redshifts = self.data[0]["z_bands"]
             try:
                 self.k = [
@@ -880,19 +873,19 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             if isinstance(self.paired_core, core.Core21cmEMU):
                 if isinstance(m, list):
                     for j, n in enumerate(m):
-                        storage.update({k + "_%s" % j: v for k, v in n.items()})
+                        storage.update({k + f"_{j}": v for k, v in n.items()})
             else:
-                storage.update({k + "_%s" % i: v for k, v in m.items()})
+                storage.update({k + f"_{i}": v for k, v in m.items()})
 
     @cached_property
     def paired_core(self):
-        """The PS core that is paired with this likelihood."""
-        paired = []
-        for c in self._cores:
-            if (isinstance(c, core.Core21cmEMU) and c.name == self.name) or (
-                isinstance(c, core.CoreLightConeModule) and c.name == self.name
-            ):
-                paired.append(c)
+        """Get the PS core that is paired with this likelihood."""
+        paired = [
+            c
+            for c in self._cores
+            if (isinstance(c, core.Core21cmEMU) and c.name == self.name)
+            or (isinstance(c, core.CoreLightConeModule) and c.name == self.name)
+        ]
         if len(paired) > 1:
             raise ValueError(
                 "You've got more than one CoreCoevalModule / Core21cmEMU with the same name -- they will overwrite each other!"
@@ -929,9 +922,7 @@ class LikelihoodArcade(LikelihoodBase):
             self.arcade = self.get_T_arcade(redshift)
 
     def get_T_arcade(self, z):
-        """
-        Arcade excess level (@v21) at z, outputs in K, see 1802.07432
-        """
+        """Arcade excess level (@v21) at z, outputs in K, see 1802.07432."""
         v21 = 1.42
         v0 = v21 / (1 + z)
         t0 = 1.19 * (v0**-2.62)  # arcade model
@@ -956,7 +947,7 @@ class LikelihoodArcade(LikelihoodBase):
             redshifts = ctx.get("redshifts")
         try:
             err = ctx.get("Tr_err")
-        except:
+        except KeyError:
             err = np.zeros(Tr.shape)
 
         return {"Tr": Tr, "redshifts": redshifts, "err": err}
@@ -969,10 +960,7 @@ class LikelihoodArcade(LikelihoodBase):
         for i in range(n):
             Tr = model["Tr"][i]
             zs = model["redshifts"]
-            if np.all(zs == self.redshift):
-                Ta = self.arcade
-            else:
-                Ta = self.get_T_arcade(zs)
+            Ta = self.arcade if np.all(zs == self.redshift) else self.get_T_arcade(zs)
             dT = tol * Ta
             Chi2 = ((Ta - Tr) / dT) ** 2
             LnL = -0.5 * Chi2 * np.heaviside(Tr - Ta, 0)
@@ -1025,7 +1013,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
             self.EE = False
         if not self.TTTEEE and not self.EE and not self.lensing:
             raise AttributeError(
-                "I did not understand name %s" % (self.name)
+                f"I did not understand name {self.name}"
                 + " please choose between "
                 + "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE"
             )
@@ -1042,7 +1030,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
 
         return data
 
-    def computeLikelihood(self, model):
+    def computeLikelihood(self, model):  # noqa: C901 -- inherent branching of the clik CMB power-spectrum index handling
         """
         Compute the likelihood.
 
@@ -1081,7 +1069,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
             # following 3 lines for compatibility with lensing likelihoods of 2013 and before
             # (then, clik.get_lmax() just returns an integer for lensing likelihoods,
             # and the length is always 2 for cl['pp'], cl['tt'])
-            except:
+            except Exception:  # noqa: BLE001 -- unknown error type from old clik versions
                 length = 2
                 tot = np.zeros(
                     2 * my_l_max + length + len(my_clik.get_extra_parameter_names())
@@ -1131,20 +1119,20 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                             elif i == 4:
                                 tot[index + j] = cl["te"][j]
                             elif i == 5:
-                                tot[
-                                    index + j
-                                ] = 0  # cl['tb'][j] class does not compute tb
+                                tot[index + j] = (
+                                    0  # cl['tb'][j] class does not compute tb
+                                )
                             elif i == 6:
-                                tot[
-                                    index + j
-                                ] = 0  # cl['eb'][j] class does not compute eb
+                                tot[index + j] = (
+                                    0  # cl['eb'][j] class does not compute eb
+                                )
 
                         index += my_clik.get_lmax()[i] + 1
 
             # following 8 lines for compatibility with lensing likelihoods of 2013 and before
             # (then, clik.get_lmax() just returns an integer for lensing likelihoods,
             # and the length is always 2 for cl['pp'], cl['tt'])
-            except:
+            except Exception:  # noqa: BLE001 -- unknown error type from old clik versions
                 for i in range(length):
                     for j in range(my_l_max):
                         if i == 0:
@@ -1170,33 +1158,42 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
 
     def initialize_clik_and_class(self, name=None):
         """Initialize clik and class."""
-        global my_clik_TTTEEE, my_clik_lensing, my_clik_EE, my_l_max_lensing, my_l_max_EE, my_l_max_TTTEEE
+        global \
+            my_clik_TTTEEE, \
+            my_clik_lensing, \
+            my_clik_EE, \
+            my_l_max_lensing, \
+            my_l_max_EE, \
+            my_l_max_TTTEEE
         self.initialize = False
 
         try:
             import clik
 
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as e:
             raise ImportError(
                 "You must first activate the binaries from the Clik "
                 + "distribution. Please run : \n "
                 + "]$ source /path/to/clik/bin/clik_profile.sh \n "
                 + "and try again."
-            )
+            ) from e
 
         my_path = path.join(
-            "%s/.ccode/baseline/plc_3.0/low_l/simall/simall_100x143_offlike5_EE_Aplanck_B.clik"
-            % path.expanduser("~")
+            "{}/.ccode/baseline/plc_3.0/low_l/simall/simall_100x143_offlike5_EE_Aplanck_B.clik".format(
+                path.expanduser("~")
+            )
         )
         if not path.isdir(my_path):
             import tarfile
+
             from astropy.utils.data import download_file
 
-            tarfile.open(
+            with tarfile.open(
                 download_file(
                     "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz",
                 )
-            ).extractall(path.expanduser("~/.ccode"))
+            ) as tf:
+                tf.extractall(path.expanduser("~/.ccode"))
 
         try:
             if self.lensing:
@@ -1206,7 +1203,7 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                 # following 2 lines for compatibility with lensing likelihoods of 2013 and before
                 # (then, clik.get_lmax() just returns an integer for lensing likelihoods;
                 # this behavior was for clik versions < 10)
-                except:
+                except Exception:  # noqa: BLE001 -- unknown error type from old clik versions
                     my_l_max_lensing = my_clik_lensing.get_lmax()
             elif self.TTTEEE:
                 my_clik_TTTEEE = clik.clik(my_path)
@@ -1220,16 +1217,16 @@ class LikelihoodPlanckPowerSpectra(LikelihoodBase):
                     + "please choose between"
                     + "Planck_lensing, Planck_highl_TTTEEE, Planck_lowl_EE"
                 )
-        except AttributeError:
+        except AttributeError as e:
             raise AttributeError(
                 "The path to the .clik file for the likelihood "
-                "%s was not found where indicated:\n%s\n" % (name, my_path)
+                f"{name} was not found where indicated:\n{my_path}\n"
                 + " Note that the default path to search for it is"
                 " one directory above the path['clik'] field. You"
                 " can change this behaviour in all the "
                 "Planck_something.data, to reflect your local configuration, "
                 "or alternatively, move your .clik files to this place."
-            )
+            ) from e
 
 
 class LikelihoodPlanck(LikelihoodBase):
@@ -1321,9 +1318,7 @@ class LikelihoodPlanck(LikelihoodBase):
 
     @property
     def _is_emu(self):
-        return isinstance(self.core_primary, core.Core21cmEMU) or isinstance(
-            self.core_primary, core.CoreRadioEMU
-        )
+        return isinstance(self.core_primary, (core.Core21cmEMU, core.CoreRadioEMU))
 
     def reduce_data(self, ctx):
         """Reduce the data in the context to a model.
@@ -1433,9 +1428,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         self.xHI_sigma = _ensure_iter(xHI_sigma)
 
         # By default, setup as if using coeval boxes.
-        self.redshifts = (
-            []
-        )  # these will become the redshifts of all coeval boxes, if that exists.
+        self.redshifts = []  # these will become the redshifts of all coeval boxes, if that exists.
         self._use_coeval = True
         self._require_spline = False
         self._use_tanh = False
@@ -1461,7 +1454,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         return [
             m
             for m in self._cores
-            if isinstance(m, core.Core21cmEMU) or isinstance(m, core.CoreRadioEMU)
+            if isinstance(m, (core.Core21cmEMU, core.CoreRadioEMU))
         ]
 
     @property
@@ -1483,18 +1476,18 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             )
 
         if not self.lightcone_modules:
-            if self.cmb_modules:
-                self._use_tanh = True
-                self._use_coeval = False
-                self._require_spline = True
-            elif self.emu_modules:
+            if self.cmb_modules or self.emu_modules:
                 self._use_tanh = True
                 self._use_coeval = False
                 self._require_spline = True
             else:
                 # Get all unique redshifts from all coeval boxes in cores.
                 self.redshifts = list(
-                    set(sum((x.redshift for x in self.coeval_modules), []))
+                    set(
+                        functools.reduce(
+                            operator.iadd, (x.redshift for x in self.coeval_modules), []
+                        )
+                    )
                 )
 
                 for z in self.redshift:
@@ -1551,11 +1544,10 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                         model["redshifts"], xHI_err[i, :], k=1
                     )
 
-            for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
-                if has_err:
-                    sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2)
-                else:
-                    sigma_t = sigma
+            for z, data, sigma in zip(
+                self.redshift, self.xHI, self.xHI_sigma, strict=False
+            ):
+                sigma_t = np.sqrt(sigma**2 + err_spline(z) ** 2) if has_err else sigma
                 if z in model["redshifts"]:
                     lnprob[i] += self.lnprob(
                         xHI[model["redshifts"].index(z)], data, sigma_t
@@ -1741,6 +1733,12 @@ UVLF_DATA = {
     "Donnan24": ("Donnan24_LF", [9, 10, 11, 12.5, 14.5]),  # JWST, Donnan+24
     "Chemerynska26": ("Chemerynska26_LF", [9, 10, 11, 13]),  # JWST GLIMPSE
 }
+# Samplers such as ultranest require every returned log-likelihood to be
+# finite (they reject -inf/nan outright, aborting the run), while MultiNest
+# can become numerically unstable (corrupting its own text output) when fed
+# extremely large-magnitude but technically-finite values. Floor rejected/
+# extreme points to this large-but-safe finite value instead.
+_LOGLIKE_FLOOR = -1e10
 
 
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
@@ -1828,7 +1826,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         self.jwst_lf = jwst_lf
 
     def setup(self):
-        """Setup instance."""
+        """Set up instance."""
         if isinstance(self.paired_core, core.Core21cmEMU):
             if self.z is None:
                 raise ValueError(
@@ -1907,13 +1905,13 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     @cached_property
     def paired_core(self):
-        """The luminosity function core that is paired with this likelihood."""
-        paired = []
-        for c in self._cores:
-            if (isinstance(c, core.CoreLuminosityFunction) and c.name == self.name) or (
-                isinstance(c, core.Core21cmEMU) and c.name == self.name
-            ):
-                paired.append(c)
+        """Get the luminosity function core that is paired with this likelihood."""
+        paired = [
+            c
+            for c in self._cores
+            if (isinstance(c, core.CoreLuminosityFunction) and c.name == self.name)
+            or (isinstance(c, core.Core21cmEMU) and c.name == self.name)
+        ]
         if len(paired) > 1:
             raise ValueError(
                 "You've got more than one CoreLuminosityFunction / Core21cmEMU with the same name -- they will overwrite each other!"
@@ -1935,7 +1933,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         """Reduce simulated model data."""
         if isinstance(self.paired_core, core.Core21cmEMU):
             final_data = {}
-            # (nparams, n_z, n_Muv) or (n_z, n_Muv)
+            # Shape (nparams, n_z, n_Muv), or (n_z, n_Muv) for one parameter set.
             uvlfs = ctx.get("UVLFs" + self.name)
             uvlf_zs = ctx.get("UVLF_redshifts" + self.name)
             if self.interpolate_z:
@@ -1981,7 +1979,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             data = self.data
 
         for n in range(N):
-            for i, z in enumerate(self.redshifts):
+            for i, _z in enumerate(self.redshifts):
                 if len(model["Muv"].shape) == 3:
                     if model["Muv"][n][i][0] > model["Muv"][n][i][1]:
                         muv = model["Muv"][n][i][::-1]
@@ -1994,22 +1992,43 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
                     lfunc = model["lfunc"][n, i]
 
                 mask = ~np.isnan(lfunc)
+                # Extreme parameter combinations can leave the luminosity
+                # function undefined (NaN) at almost all Muv bins for this
+                # redshift. A spline needs more points than its degree
+                # (k=3 by default, so >=4), otherwise fitting it crashes.
+                # Treat this as a rejected/invalid point instead.
                 if mask.sum() < 4:
-                    # Too few M_UV bins with galaxies to interpolate the model LF
-                    # with a cubic spline: the model can't describe the data.
-                    lnl[n] = -np.inf
+                    lnl[n] = _LOGLIKE_FLOOR
                     break
-
                 model_spline = InterpolatedUnivariateSpline(muv[mask], lfunc[mask])
 
                 total_err = self.noise["sigma"][i] ** 2
+
+                # Only compare against data bins inside the Muv range the
+                # model actually covers. Extrapolating the spline beyond it
+                # can blow up to extremely large/small values (over/under-
+                # flowing a double) for extreme parameter combinations,
+                # which can destabilise samplers (e.g. corrupt MultiNest's
+                # output/ellipsoid construction).
+                in_range = (
+                    (data["Muv"][i] > self.mag_brightest)
+                    & (data["Muv"][i] >= muv[mask].min())
+                    & (data["Muv"][i] <= muv[mask].max())
+                )
 
                 lnl[n] += -0.5 * np.sum(
                     (
                         (data["lfunc"][i] - 10 ** model_spline(data["Muv"][i])) ** 2
                         / total_err
-                    )[data["Muv"][i] > self.mag_brightest]
+                    )[in_range]
                 )
+
+            # Guard against non-finite (-inf/nan) or absurdly-extreme values,
+            # e.g. from spline overshoot when fitting an ill-conditioned
+            # luminosity function -- see module-level comment on
+            # _LOGLIKE_FLOOR.
+            if not np.isfinite(lnl[n]) or lnl[n] < _LOGLIKE_FLOOR:
+                lnl[n] = _LOGLIKE_FLOOR
         logger.debug(f"UV LF Likelihood computed: {lnl}")
         return lnl.squeeze()
 
@@ -2018,7 +2037,7 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         sig = self.paired_core.sigma
 
         if callable(sig[0]):
-            return [{"sigma": [s(m["Muv"]) for s, m in zip(sig, model)]}]
+            return [{"sigma": [s(m["Muv"]) for s, m in zip(sig, model, strict=False)]}]
         else:
             return [{"sigma": sig}]
 
@@ -2099,24 +2118,16 @@ class LikelihoodEDGES(LikelihoodBaseFile):
                     freq_l = freq_1
                     freq_rs = freqs_hm[freqs_hm > freq_tb_min]
                     # find the rest which are larger than the frequency of the minimum
-                    if len(freq_rs) > 0:
-                        # the smallest should be the upper bound of the fwhm
-                        freq_r = freq_rs[0]
-                    else:
-                        # if none, use the boundary
-                        freq_r = frequencies[-1]
+                    # the smallest should be the upper bound of the fwhm; if none, use the boundary
+                    freq_r = freq_rs[0] if len(freq_rs) > 0 else frequencies[-1]
                 else:
                     # the closest one is larger than the frequency of the minimum, so
                     # it's the upper bound of the fwhm
                     freq_r = freq_1
                     freq_ls = freqs_hm[freqs_hm < freq_tb_min]
                     # find the rest which are smaller than the frequency of the minimum
-                    if len(freq_ls) > 0:
-                        # the largest should be the lower bound of the fwhm
-                        freq_l = freq_ls[-1]
-                    else:
-                        # if none, use the boundary
-                        freq_l = frequencies[0]
+                    # the largest should be the lower bound of the fwhm; if none, use the boundary
+                    freq_l = freq_ls[-1] if len(freq_ls) > 0 else frequencies[0]
             if len(freqs_hm) == 0:
                 results["fwhm"] = None
             else:
@@ -2194,7 +2205,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         self.n_realization = 150
 
     def setup(self):
-        """Setup instance."""
+        """Set up instance."""
         if len(self.redshifts) != 1:
             raise ValueError(
                 "to use the provided forests, a separate core/likelihood instance pair for each redshift is required!"
@@ -2216,8 +2227,9 @@ class LikelihoodForest(LikelihoodBaseFile):
             self.noisefile = [
                 path.join(
                     path.dirname(__file__),
-                    "data/Forests/Bosman18/PDF_ErrorCovarianceMatrix_GP/z%s.npy"
-                    % str(self.redshifts[0]).replace(".", "pt"),
+                    "data/Forests/Bosman18/PDF_ErrorCovarianceMatrix_GP/z{}.npy".format(
+                        str(self.redshifts[0]).replace(".", "pt")
+                    ),
                 )
             ]
 
@@ -2250,11 +2262,12 @@ class LikelihoodForest(LikelihoodBaseFile):
 
     @cached_property
     def paired_core(self):
-        """The forest core that is paired with this likelihood."""
-        paired = []
-        for c in self._cores:
-            if isinstance(c, core.CoreForest) and c.name == self.name:
-                paired.append(c)
+        """Get the forest core that is paired with this likelihood."""
+        paired = [
+            c
+            for c in self._cores
+            if isinstance(c, core.CoreForest) and c.name == self.name
+        ]
         if len(paired) > 1:
             raise ValueError(
                 "You've got more than one CoreForest with the same name -- they will overwrite each other!"
@@ -2277,7 +2290,7 @@ class LikelihoodForest(LikelihoodBaseFile):
                 "The Forest can only work with lightcone at the moment"
             )
 
-        tau_eff = ctx.get("tau_eff_%s" % self.name)
+        tau_eff = ctx.get(f"tau_eff_{self.name}")
         # use the same binning as the obs
 
         n_realization = tau_eff.shape[0]
@@ -2326,8 +2339,7 @@ class LikelihoodForest(LikelihoodBaseFile):
         )
         if det < 0:
             logger.warning(
-                "Determinant (%f) is negative for this error covariance matrix, lnl=%f, return -inf for lnl"
-                % (det, lnl)
+                f"Determinant ({det:f}) is negative for this error covariance matrix, lnl={lnl:f}, return -inf for lnl"
             )
             return -np.inf
         return lnl
@@ -2351,7 +2363,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
 
     def __init__(
         self,
-        datafile="",
+        datafile=None,
         data=None,
         name="",
         *args,
@@ -2369,7 +2381,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
         return cls(datafile=datafile, **kwargs)
 
     def setup(self):
-        """Setup the object."""
+        """Set up the object."""
         super().setup()
         self.redshifts = self.data[0]["z_bands"]
         try:
@@ -2428,8 +2440,11 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                     ctx.get("PS_redshifts"), ctx.get("k"), ctx.get("PS_err")
                 )(self.redshifts[i], interp_ks)
             final_data["delta_err"] = final_PS_err
-        except:
-            pass
+        except Exception:
+            logger.debug(
+                "Could not compute the emulator error for the power spectrum.",
+                exc_info=True,
+            )
         return [final_data]
 
     def computeLikelihood(self, model):
@@ -2480,7 +2495,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                     ModelPS_val = model[0]["delta"][i, zbin, :Nkwfbins]
                     ModelPS_val_afterWF = np.dot(PS_limit_wfcs, ModelPS_val)
                     # Include emulator error term if present
-                    if "delta_err" in model[0].keys():
+                    if "delta_err" in model[0]:
                         ModelPS_val_1sigma_upper_afterWF = np.dot(
                             PS_limit_wfcs,
                             ModelPS_val + model[0]["delta_err"][zbin, :Nkwfbins],
@@ -2512,9 +2527,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
                     likelihood[likelihood <= 0.0] = 1e-50
                     lnl[i] += np.nansum(np.log(likelihood))
                     logger.debug(
-                        "HERA PS upper Likelihood computed: {lnl}".format(
-                            lnl=np.nansum(np.log(likelihood))
-                        )
+                        f"HERA PS upper Likelihood computed: {np.nansum(np.log(likelihood))}"
                     )
 
         logger.debug(f"Total HERA PS upper Likelihood computed: {lnl}")
@@ -2522,13 +2535,13 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
 
     @cached_property
     def paired_core(self):
-        """The 21cmEMU core that is paired with this likelihood."""
-        paired = []
-        for c in self._cores:
-            if (
-                isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)
-            ) and c.name == self.name:
-                paired.append(c)
+        """Get the 21cmEMU core that is paired with this likelihood."""
+        paired = [
+            c
+            for c in self._cores
+            if isinstance(c, (core.Core21cmEMU, core.CoreRadioEMU))
+            and c.name == self.name
+        ]
         if len(paired) > 1:
             raise ValueError(
                 "You've got more than one 21cmEMU with the same name -- they will overwrite each other!"
@@ -2586,8 +2599,8 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
         super().__init__(*args, **kwargs)
         try:
             import pspec_likelihood as pslike
-        except ImportError:
-            raise ImportError("pspec_likelihood is not installed.")
+        except ImportError as e:
+            raise ImportError("pspec_likelihood is not installed.") from e
         # Store the module on the instance so it's also available in
         # reduce_data(), which is called separately from __init__.
         self.pslike = pslike
@@ -2610,10 +2623,9 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
 
     def store(self, model, storage):
         """Store nothing: the model is a list of pspec_likelihood DataModelInterfaces."""
-        pass
 
     def setup(self):
-        """Setup the object."""
+        """Set up the object."""
         super().setup()
         self.redshifts = self.data[0]["z_bands"]
         try:
@@ -2678,16 +2690,13 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
 
             this_param_dmi = []
             for band in self.redshifts:
-                try:
-                    band_name = "band" + str(np.round(band, 1))
-                    self.data[0][band_name]
-                except:
+                band_name = "band" + str(np.round(band, 1))
+                if band_name not in self.data[0]:
                     band_name = "band" + str(int(np.round(band)))
                 for field in range(self.data[0][band_name].shape[0]):
                     try:
                         cov = self.data[0]["cov" + band_name][field]
-                    except:
-                        pass
+                    except KeyError:
                         if use_2d_ps:
                             cov = np.diag(
                                 self.data[0][band_name][field, ..., 1].flatten()
@@ -2781,13 +2790,13 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
 
     @cached_property
     def paired_core(self):
-        """The 21cmEMU core that is paired with this likelihood."""
-        paired = []
-        for c in self._cores:
-            if (
-                isinstance(c, core.Core21cmEMU) or isinstance(c, core.CoreRadioEMU)
-            ) and c.name == self.name:
-                paired.append(c)
+        """Get the 21cmEMU core that is paired with this likelihood."""
+        paired = [
+            c
+            for c in self._cores
+            if isinstance(c, (core.Core21cmEMU, core.CoreRadioEMU))
+            and c.name == self.name
+        ]
         if len(paired) > 1:
             raise ValueError(
                 "You've got more than one 21cmEMU with the same name -- they will overwrite each other!"

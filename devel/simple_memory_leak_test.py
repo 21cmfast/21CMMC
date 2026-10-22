@@ -1,10 +1,10 @@
-"""
-This is a script that runs a very basic mock Core/Likelihood
-"""
+"""This is a script that runs a very basic mock Core/Likelihood."""
+
 import gc
-import numpy as np
 import tracemalloc
 from concurrent.futures import ProcessPoolExecutor
+
+import numpy as np
 
 tracemalloc.start()
 snapshot = tracemalloc.take_snapshot()
@@ -54,5 +54,5 @@ if __name__ == "__main__":
 
     lnprobfn = LCC()
 
-    for i in range(20):
+    for _i in range(20):
         p.map(lnprobfn, range(4))

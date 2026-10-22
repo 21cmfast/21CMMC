@@ -2,10 +2,12 @@
 
 Also enables more transparent input/output of chains.
 """
-import numpy as np
-from matplotlib import pyplot as plt
+
 from os.path import join
 from pathlib import Path
+
+import numpy as np
+from matplotlib import pyplot as plt
 from py21cmfast import yaml
 
 from .cosmoHammer import CosmoHammerSampler, HDFStorage
@@ -44,11 +46,11 @@ def get_samples(chain, indx=0, burnin=False):
         if chain.suffix != ".h5":
             chain = chain.with_suffix(".h5")
     else:
-        raise AttributeError(
+        raise TypeError(
             "chain must either be a CosmoHammerSampler instance, str or Path"
         )
 
-    return HDFStorage(chain, name="burnin" if burnin else "sample_%s" % indx)
+    return HDFStorage(chain, name="burnin" if burnin else f"sample_{indx}")
 
 
 def load_primitive_chain(modelname, direc="."):
@@ -103,14 +105,14 @@ def corner_plot(
     """
     try:
         from corner import corner
-    except ImportError:
+    except ImportError as e:
         raise ImportError(
             "Please install the corner package to use this function (``pip install corner``)"
-        )
+        ) from e
 
     chain = samples.get_chain(discard=start_iter, thin=thin)
     lnprob = samples.get_log_prob(discard=start_iter, thin=thin)
-    niter, mwalkers, nparams = chain.shape
+    _niter, _mwalkers, nparams = chain.shape
 
     if show_guess:
         guess = list(samples.param_guess[0])

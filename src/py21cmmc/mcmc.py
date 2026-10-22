@@ -1,12 +1,14 @@
 """High-level functions for running MCMC chains."""
+
+import contextlib
 import logging
-import numpy as np
-import scipy.stats as stats
-from cmath import log
 from concurrent.futures import ProcessPoolExecutor
 from os import mkdir, path
+
+import numpy as np
 from py21cmfast import yaml
 from py21cmfast._utils import ParameterError
+from scipy import stats
 
 from .cosmoHammer import (
     CosmoHammerSampler,
@@ -56,7 +58,7 @@ def build_computation_chain(core_modules, likelihood_modules, params=None, setup
     return chain
 
 
-def run_mcmc(
+def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multinest/zeus/ultranest/cosmoHammer), each with its own setup branch
     core_modules,
     likelihood_modules,
     params,
@@ -364,12 +366,12 @@ def run_mcmc(
         verbose = mcmc_options.get("verbose", True)
         try:
             from pymultinest import run
-        except ImportError:
-            raise ImportError("You need to install pymultinest to use this function!")
-    try:
+        except ImportError as e:
+            raise ImportError(
+                "You need to install pymultinest to use this function!"
+            ) from e
+    with contextlib.suppress(FileExistsError):
         mkdir(datadir)
-    except FileExistsError:
-        pass
 
     if use_zeus:
         ndim = mcmc_options.get(
@@ -399,9 +401,9 @@ def run_mcmc(
         maxsteps = mcmc_options.get("maxsteps", 1e4)
         mu = mcmc_options.get("mu", 1.0)
         maxiter = mcmc_options.get("maxiter", 1e4)
-        pool = mcmc_options.get("pool", None)
+        pool = mcmc_options.get("pool")
         vectorize = mcmc_options.get("vectorize", False)
-        blobs_dtype = mcmc_options.get("blobs_dtype", None)
+        blobs_dtype = mcmc_options.get("blobs_dtype")
         verbose = mcmc_options.get("verbose", True)
         check_walkers = mcmc_options.get("check_walkers", True)
         shuffle_ensemble = mcmc_options.get("shuffle_ensemble", True)
@@ -409,19 +411,21 @@ def run_mcmc(
 
         try:
             import zeus
-        except ImportError:
-            raise ImportError("You need to install zeus to use this function!")
+        except ImportError as e:
+            raise ImportError("You need to install zeus to use this function!") from e
 
     if use_ultranest:
         try:
             import ultranest
             import ultranest.stepsampler
-        except ImportError:
-            raise ImportError("You need to install ultranest to use this function!")
+        except ImportError as e:
+            raise ImportError(
+                "You need to install ultranest to use this function!"
+            ) from e
 
-        log_dir = mcmc_options.get("log_dir", None)
+        log_dir = mcmc_options.get("log_dir")
         resume = mcmc_options.get("resume", "subfolder")
-        run_num = mcmc_options.get("run_num", None)
+        run_num = mcmc_options.get("run_num")
         num_test_samples = mcmc_options.get("num_test_samples", 2)
         vectorized = mcmc_options.get("vectorized", False)
         draw_multiple = mcmc_options.get("draw_multiple", True)
@@ -430,22 +434,22 @@ def run_mcmc(
         num_bootstraps = mcmc_options.get("num_bootstraps", 30)
         warmstart_max_tau = mcmc_options.get("warmstart_max_tau", -1)
         adaptive_nsteps = mcmc_options.get("adaptive_nsteps", False)
-        max_nsteps = mcmc_options.get("max_nsteps", None)
+        max_nsteps = mcmc_options.get("max_nsteps")
         nsteps = mcmc_options.get("nsteps", 2 * len(list(params.keys())))
 
         add_step_slice_sampler = mcmc_options.get("add_step_slice_sampler", False)
         update_interval_volume_fraction = mcmc_options.get(
             "update_interval_volume_fraction", 0.8
         )
-        log_interval = mcmc_options.get("log_interval", None)
+        log_interval = mcmc_options.get("log_interval")
         show_status = mcmc_options.get("show_status", True)
         dlogz = mcmc_options.get("dlogz", 0.5)
         dKL = mcmc_options.get("dKL", 0.5)
         frac_remain = mcmc_options.get("frac_remain", 0.1)
         Lepsilon = mcmc_options.get("Lepsilon", 0.001)
         min_ess = mcmc_options.get("min_ess", 400)
-        max_iters = mcmc_options.get("max_iters", None)
-        max_ncalls = mcmc_options.get("max_ncalls", None)
+        max_iters = mcmc_options.get("max_iters")
+        max_ncalls = mcmc_options.get("max_ncalls")
         max_num_improvement_loops = mcmc_options.get("max_num_improvement_loops", -1)
         min_num_live_points = mcmc_options.get("min_num_live_points", 400)
         cluster_num_live_points = mcmc_options.get("cluster_num_live_points", 40)
@@ -454,7 +458,7 @@ def run_mcmc(
         )
         insertion_test_window = mcmc_options.get("insertion_test_window", 10)
         region_class = mcmc_options.get("region_class", ultranest.mlfriends.MLFriends)
-        warmstart_file = mcmc_options.get("warmstart_file", None)
+        warmstart_file = mcmc_options.get("warmstart_file")
         # logging setup
         log_level_ultranest = (
             log_level_21CMMC if log_level_21CMMC is not None else "INFO"
@@ -466,13 +470,15 @@ def run_mcmc(
     if use_nautilus:
         try:
             import nautilus
-        except ImportError:
-            raise ImportError("You need to install nautilus to use this function!")
+        except ImportError as e:
+            raise ImportError(
+                "You need to install nautilus to use this function!"
+            ) from e
 
         n_live = mcmc_options.get("n_live", 2000)
-        n_update = mcmc_options.get("n_update", None)
+        n_update = mcmc_options.get("n_update")
         enlarge_per_dim = mcmc_options.get("enlarge_per_dim", 1.1)
-        n_points_min = mcmc_options.get("n_points_min", None)
+        n_points_min = mcmc_options.get("n_points_min")
         split_threshold = mcmc_options.get("split_threshold", 100)
         n_networks = mcmc_options.get("n_networks", 4)
         neural_network_kwargs = mcmc_options.get("neural_network_kwargs", {})
@@ -480,14 +486,14 @@ def run_mcmc(
         prior_kwargs = mcmc_options.get("prior_kwargs", {})
         likelihood_args = mcmc_options.get("likelihood_args", [])
         likelihood_kwargs = mcmc_options.get("likelihood_kwargs", {})
-        n_batch = mcmc_options.get("n_batch", None)
-        n_like_new_bound = mcmc_options.get("n_like_new_bound", None)
+        n_batch = mcmc_options.get("n_batch")
+        n_like_new_bound = mcmc_options.get("n_like_new_bound")
         vectorized = mcmc_options.get("vectorized", False)
-        pass_dict = mcmc_options.get("pass_dict", None)
-        pool = mcmc_options.get("pool", None)
-        seed = mcmc_options.get("seed", None)
-        blobs_dtype = mcmc_options.get("blobs_dtype", None)
-        filepath = mcmc_options.get("filepath", None)
+        pass_dict = mcmc_options.get("pass_dict")
+        pool = mcmc_options.get("pool")
+        seed = mcmc_options.get("seed")
+        blobs_dtype = mcmc_options.get("blobs_dtype")
+        filepath = mcmc_options.get("filepath")
         resume = mcmc_options.get("resume", True)
         verbose = mcmc_options.get("verbose", True)
         discard_exploration = mcmc_options.get("discard_exploration", False)
@@ -514,9 +520,7 @@ def run_mcmc(
             if old_chain != chain:
                 raise RuntimeError(
                     "Attempting to continue chain, but chain parameters are different. "
-                    + "Check your parameters against {file_prefix}.LCC.yml".format(
-                        file_prefix=file_prefix
-                    )
+                    + f"Check your parameters against {file_prefix}.LCC.yml"
                 )
 
         except FileNotFoundError:
@@ -534,14 +538,16 @@ def run_mcmc(
     # (Chains with emulator cores cannot be written, then no file is written.)
     try:
         chain_yaml = yaml.dump(chain)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- best-effort debug dump, must not abort the run
         logger.warning(
             "Attempt to write out YAML file containing LikelihoodComputationChain failed. "
-            f"Boldly continuing... ({e})"
+            "Boldly continuing... (%s)",
+            e,
         )
     else:
         with open(file_prefix + ".LCC.yml", "w") as f:
             f.write(chain_yaml)
+
     chain.setup()
     # Set logging levels
     if log_level_21CMMC is not None:
@@ -552,7 +558,7 @@ def run_mcmc(
             try:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
-                        Params(*[(k, v) for k, v in zip(params.keys, p)])
+                        Params(*[(k, v) for k, v in zip(params.keys, p, strict=False)])
                     )
                 )
             except ParameterError:
@@ -584,10 +590,10 @@ def run_mcmc(
             )
             return 1
 
-        except OSError:  # pragma: nocover
+        except OSError as e:  # pragma: nocover
             raise ImportError(
                 "You also need to build MultiNest library. See https://johannesbuchner.github.io/PyMultiNest/install.html#id4 for more information."
-            )
+            ) from e
 
     elif use_zeus:
 
@@ -601,7 +607,7 @@ def run_mcmc(
             try:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
-                        Params(*[(k, v) for k, v in zip(params.keys, p)])
+                        Params(*[(k, v) for k, v in zip(params.keys, p, strict=False)])
                     )
                 )
             except ParameterError:
@@ -642,14 +648,18 @@ def run_mcmc(
             if vectorized:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
-                        Params(*[(k, v) for k, v in zip(params.keys, p.T)])
+                        Params(
+                            *[(k, v) for k, v in zip(params.keys, p.T, strict=False)]
+                        )
                     )
                 ).squeeze()
             else:
                 try:
                     return chain.computeLikelihoods(
                         chain.build_model_data(
-                            Params(*[(k, v) for k, v in zip(params.keys, p)])
+                            Params(
+                                *[(k, v) for k, v in zip(params.keys, p, strict=False)]
+                            )
                         )
                     ).squeeze()
                 except ParameterError:
@@ -731,7 +741,7 @@ def run_mcmc(
             if isinstance(p, dict):
                 p = Params(*p.items())
             else:
-                p = Params(*zip(params.keys, np.asarray(p).T))
+                p = Params(*zip(params.keys, np.asarray(p).T, strict=False))
             if vectorized:
                 return chain.computeLikelihoods(chain.build_model_data(p))
             try:

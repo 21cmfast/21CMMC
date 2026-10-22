@@ -1,3 +1,5 @@
+"""Tests of the Planck optical depth likelihood."""
+
 from py21cmmc import LikelihoodPlanck
 
 

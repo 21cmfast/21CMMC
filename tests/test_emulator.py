@@ -1,3 +1,6 @@
+"""Tests of the 21cmEMU emulator integration."""
+
+
 def test_emulator_runs():
     import numpy as np
     from py21cmemu import Emulator

@@ -1,6 +1,7 @@
-import pytest
+"""Tests of the neutral fraction likelihood."""
 
 import numpy as np
+import pytest
 
 from py21cmmc import LikelihoodNeutralFraction
 

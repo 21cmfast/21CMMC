@@ -1,12 +1,15 @@
 """A set of extensions to the basic ``CosmoHammer`` package."""
-import emcee
+
+import contextlib
 import gc
-import h5py
 import logging
-import numpy as np
 import os
 import time
 import warnings
+
+import emcee
+import h5py
+import numpy as np
 from cosmoHammer import CosmoHammerSampler as _CosmoHammerSampler
 from cosmoHammer import getLogger
 from cosmoHammer import util as _util
@@ -39,7 +42,7 @@ class HDFStorage:
         except OSError:
             return False
 
-    def open(self, mode="r"):  # noqa
+    def open(self, mode="r"):
         """Open the backend file."""
         return h5py.File(self.filename, mode)
 
@@ -53,10 +56,7 @@ class HDFStorage:
         params : :class:`~py21cmmc.cosmoHammer.util.Params` instance
             The parameter input
         """
-        if os.path.exists(self.filename):
-            mode = "a"
-        else:
-            mode = "w"
+        mode = "a" if os.path.exists(self.filename) else "w"
 
         ndim = len(params.keys)
 
@@ -476,7 +476,7 @@ class HDFStorageUtil:
         self.file_prefix = file_prefix
         self.burnin_storage = HDFStorage(file_prefix + ".h5", name="burnin")
         self.sample_storage = HDFStorage(
-            file_prefix + ".h5", name="sample_%s" % chain_number
+            file_prefix + ".h5", name=f"sample_{chain_number}"
         )
 
     def reset(self, nwalkers, params, burnin=True, samples=True):
@@ -505,7 +505,6 @@ class HDFStorageUtil:
 
     def close(self):
         """No-op."""
-        pass
 
 
 class Params(_util.Params):
@@ -513,7 +512,7 @@ class Params(_util.Params):
 
     def items(self):
         """Iterate through the params like a dict."""
-        yield from zip(self.keys, self.values)
+        yield from zip(self.keys, self.values, strict=False)
 
     def __eq__(self, other):
         """Test equality of two instances."""
@@ -681,15 +680,13 @@ class LikelihoodComputationChain(_Chain):
             return -np.inf, []
 
     def createChainContext(self, p=None):
-        """Returns a new instance of a chain context."""
+        """Return a new instance of a chain context."""
         if p is None:
             p = {}
 
-        try:
-            p = Params(*zip(self.params.keys, p))
-        except Exception:
+        with contextlib.suppress(Exception):
             # no params or params has no keys
-            pass
+            p = Params(*zip(self.params.keys, p, strict=False))
         return ChainContext(self, p)
 
     def setup(self):
@@ -709,7 +706,8 @@ class LikelihoodComputationChain(_Chain):
         else:
             warnings.warn(
                 "Attempting to setup LikelihoodComputationChain when it is already setup! "
-                "Ignoring..."
+                "Ignoring...",
+                stacklevel=2,
             )
 
     def __eq__(self, other):
@@ -720,14 +718,16 @@ class LikelihoodComputationChain(_Chain):
         if self.params != other.params:
             return False
 
-        for thisc, thatc in zip(self.getCoreModules(), other.getCoreModules()):
+        for thisc, thatc in zip(
+            self.getCoreModules(), other.getCoreModules(), strict=False
+        ):
             if thisc != thatc:
                 return False
 
         return all(
             thisc == thatc
             for thisc, thatc in zip(
-                self.getLikelihoodModules(), other.getLikelihoodModules()
+                self.getLikelihoodModules(), other.getLikelihoodModules(), strict=False
             )
         )
 
@@ -748,9 +748,9 @@ class CosmoHammerSampler(_CosmoHammerSampler):
         self._log_level_stream = log_level_stream
 
         super().__init__(
+            *args,
             params=likelihoodComputationChain.params,
             likelihoodComputationChain=likelihoodComputationChain,
-            *args,
             **kwargs,
         )
 
@@ -846,14 +846,10 @@ class CosmoHammerSampler(_CosmoHammerSampler):
             )
         finally:
             if self._sampler.pool is not None:
-                try:
+                with contextlib.suppress(AttributeError):
                     self._sampler.pool.close()
-                except AttributeError:
-                    pass
-                try:
+                with contextlib.suppress(AttributeError):
                     self.storageUtil.close()
-                except AttributeError:
-                    pass
 
     def createEmceeSampler(self, lnpostfn, **kwargs):
         """Create the emcee sampler."""
@@ -877,8 +873,9 @@ class CosmoHammerSampler(_CosmoHammerSampler):
         )
 
         self.log(
-            "reusing previous %s: %s iterations"
-            % ("burnin" if burnin else "samples", stg.iteration)
+            "reusing previous {}: {} iterations".format(
+                "burnin" if burnin else "samples", stg.iteration
+            )
         )
         pos, prob, rstate, data = stg.get_last_sample()
         if data is not None:
@@ -929,13 +926,21 @@ class CosmoHammerSampler(_CosmoHammerSampler):
         # Set to None in case iterations is zero.
         pos = None
 
-        for pos, prob, rstate, realpos, realprob, datas in self._sampler.sample(
+        for (
+            pos,
+            new_prob,
+            new_rstate,
+            realpos,
+            realprob,
+            new_datas,
+        ) in self._sampler.sample(
             p0,
             iterations=niter - stg.iteration,
             lnprob0=prob,
             rstate0=rstate,
             blobs0=datas,
         ):
+            prob, rstate, datas = new_prob, new_rstate, new_datas
             if self.isMaster():
                 # Need to grow the storage first
                 if not stg.iteration:
@@ -989,9 +994,11 @@ class CosmoHammerSampler(_CosmoHammerSampler):
         while len(pos) < self.nwalkers and i < self.max_init_attempts:
             tmp_pos = self.initPositionGenerator.generate()
 
-            for tmp_p in tmp_pos:
-                if self.likelihoodComputationChain.isValid(tmp_p):
-                    pos.append(tmp_p)
+            pos.extend(
+                tmp_p
+                for tmp_p in tmp_pos
+                if self.likelihoodComputationChain.isValid(tmp_p)
+            )
 
             i += 1
 

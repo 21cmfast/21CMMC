@@ -1,9 +1,10 @@
-import pytest
+"""Tests of the top-level MCMC chain-building and running functions."""
 
 import logging
-import numpy as np
-import os
 from pathlib import Path
+
+import numpy as np
+import pytest
 from py21cmfast import LightCone
 
 import py21cmmc as mcmc
@@ -59,7 +60,7 @@ def test_core_coeval_not_setup():
     core = mcmc.CoreCoevalModule(redshift=9)
 
     with pytest.raises(mcmc.NotAChain):
-        core.chain
+        _ = core.chain
 
 
 @pytest.fixture(scope="module")
@@ -283,8 +284,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
 
 
 def test_bad_continuation(core, likelihood_coeval, default_params, tmpdirec):
-    "check if trying to continue a chain that isn't compatible with previous chain raises an error"
-
+    """Check if trying to continue a chain that isn't compatible with previous chain raises an error."""
     mcmc.run_mcmc(
         core,
         likelihood_coeval,
@@ -533,10 +533,10 @@ def test_wrong_lf_paring():
         mcmc.build_computation_chain(cores, lks, setup=True)
 
     cores = [
-        mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name="lfz%d" % z)
+        mcmc.CoreLuminosityFunction(redshift=z, sigma=0, name=f"lfz{z:d}")
         for z in redshifts
     ]
-    lks = [mcmc.LikelihoodLuminosityFunction(name="lfz%d" % z) for z in redshifts]
+    lks = [mcmc.LikelihoodLuminosityFunction(name=f"lfz{z:d}") for z in redshifts]
     mcmc.build_computation_chain(cores, lks, setup=True)
 
 
@@ -619,3 +619,19 @@ def test_forest(lc_core_lowz, lc_core_lowz_ctx):
 
     model = lk.reduce_data(lc_core_lowz_ctx)
     assert not np.all(model == 0)
+
+
+def test_to_mpc_value():
+    from astropy import units as u
+
+    from py21cmmc.core import _to_mpc_value
+
+    arr = np.array([1.0, 2.0, 3.0])
+
+    # A plain ndarray (as returned by some py21cmfast versions) is passed
+    # through unchanged.
+    assert np.array_equal(_to_mpc_value(arr), arr)
+
+    # An astropy Quantity (as returned by other py21cmfast versions) has its
+    # units stripped, yielding the same plain values.
+    assert np.allclose(_to_mpc_value(arr * u.Mpc), arr)

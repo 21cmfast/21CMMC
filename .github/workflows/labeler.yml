@@ -1,0 +1,36 @@
+name: Labeler
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'main'
+    paths:
+      - '.github/labels.yml'
+      - '.github/workflows/labeler.yml'
+  pull_request:
+    paths:
+      - '.github/labels.yml'
+      - '.github/workflows/labeler.yml'
+
+jobs:
+  labeler:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Run Labeler
+        uses: crazy-max/ghaction-github-labeler@v6.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          yaml-file: .github/labels.yml
+          # Never delete existing repo labels that aren't listed in
+          # labels.yml -- only create/update the ones defined there. This
+          # avoids accidentally wiping out labels already in use on issues/
+          # PRs that this trimmed-down config doesn't happen to list.
+          skip-delete: true
+          dry-run: ${{ github.event_name == 'pull_request' }}

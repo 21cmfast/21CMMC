@@ -1,12 +1,13 @@
-import pytest
+"""Tests of the nautilus sampler integration."""
 
 import numpy as np
+import pytest
 
 import py21cmmc as mcmc
 
 
 @pytest.mark.parametrize(
-    "vectorized, pass_dict", [(True, None), (True, False), (False, False)]
+    ("vectorized", "pass_dict"), [(True, None), (True, False), (False, False)]
 )
 def test_nautilus_21cmemu(vectorized, pass_dict):
     """Run a very short Nautilus sampling using the 21cmEMU core.
@@ -38,7 +39,7 @@ def test_nautilus_21cmemu(vectorized, pass_dict):
         "pass_dict": pass_dict,
         "verbose": False,
     }
-    sampler, result = mcmc.run_mcmc(
+    _sampler, result = mcmc.run_mcmc(
         [mcmc.Core21cmEMU(emulator_name="acg")],
         [mcmc.LikelihoodLuminosityFunction(z=z) for z in redshifts],
         model_name=model_name,
@@ -57,6 +58,6 @@ def test_nautilus_21cmemu(vectorized, pass_dict):
         continue_sampling=False,
         **mcmc_options,
     )
-    points, log_w, log_l = result
+    points, _log_w, log_l = result
     assert points.shape[1] == 9
     assert np.all(np.isfinite(log_l))

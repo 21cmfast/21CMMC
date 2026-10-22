@@ -1,0 +1,14 @@
+# Lean conda environment used only by Read the Docs to build the documentation.
+# The full ci/test-env.yml (multiple channels incl. the old cf201901 label,
+# samplers, test tooling, unpinned python) takes longer than RTD's 15-minute
+# build limit to solve. Here we install only what can't come from pip
+# (21cmFAST<4 with its compiled FFTW/GSL deps); everything else is installed by
+# pip via `.[docs]` (see .readthedocs.yml).
+name: 21cmmc-docs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - 21cmfast>=3.3,<4
+  - pytorch-cpu
