@@ -2340,6 +2340,7 @@ class Likelihood1DPowerLightconeUpper(Likelihood1DPowerLightcone):
     ----------
     datafile : str, optional
         Input data should be in a `.npz` file, and contain the following fields:
+
         * ``z_bands``: the redshift of the observation bands
         * ``bandx``: the power spectrum upper limits at redshift x, shape
           (fields, k bins, 3) = [k (1/Mpc), Delta^2 (mK^2), variance (mK^4)]
@@ -2551,12 +2552,14 @@ class LikelihoodPspec(Likelihood1DPowerLightcone):
     datafile : str, optional
         Input data in a `.npz` file, in the same format as for
         :class:`Likelihood1DPowerLightconeUpper`:
+
         * ``z_bands``: the redshift of the observation bands
         * ``bandx``: shape (fields, k bins, 3) =
           [k (1/Mpc), Delta^2 (mK^2), variance (mK^4)]
         * ``wfbandx``: the window function for band x
         * ``kwfbandx``: the k values (1/Mpc) of the window function for band x
         * ``covbandx`` (optional): the covariance (mK^4) of each field of band x
+
         As everywhere in 21CMMC, all k are in 1/Mpc. They are converted to h/Mpc
         (astropy Planck18) only to be passed to ``pspec_likelihood``.
     lk : str, optional
