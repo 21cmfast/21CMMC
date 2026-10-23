@@ -1210,18 +1210,19 @@ class Core21cmEMU(CoreBase):
          The redshift(s) at which to evaluate the summary statistics.
     astro_params : dict or :class:`~py21cmfast.AstroParams`
         Astrophysical parameters of reionization model according to Park+19 parametrization.
-
-    Notes
-    -----
-    This core only supports the original 'acg' (v1, 9-parameter) 21cmEMU model.
-    Support for the newer 'radio' (v2) and 'mcg' (v3) emulator models is not
-    yet implemented.
+    emulator: str, optional
+        Name of emulator to use:
+        'v1' or 'acg' for 21cmEMUv1
+        'v2' or 'radio' for 21cmEMUv2
+        'v3' or 'mcg' for 21cmEMUv3
     """
 
     def __init__(
         self,
         astro_params=None,
         redshift=None,
+        ps_2d_redshifts=None,
+        emulate_ps_2d=False,
         k=None,
         name="",
         global_params=None,
@@ -1240,11 +1241,17 @@ class Core21cmEMU(CoreBase):
             "UVLFs",
             "UVLFs_err",
             "UVLF_redshifts",
-            "k",
             "tau",
             "tau_err",
         ),
         cache_dir=None,
+        emulator_name="mcg",
+        mu_min=0.0,
+        k1d_inp=16,
+        astro_param_defaults=None,
+        n_realisations=50,
+        n_ps_batch=None,
+        store_ps_2d=False,
         store=None,
         *args,
         **kwargs,
@@ -1253,27 +1260,386 @@ class Core21cmEMU(CoreBase):
             store = []
         super().__init__(*args, **kwargs)
         self.name = str(name)
+
+        # Import the emulator from the installed package
+        from py21cmemu import Emulator
+        from py21cmemu.properties import get_emulator_properties
+
+        properties = get_emulator_properties(emulator_name)
+
+        self.astro_param_keys = properties.astro_param_keys
+        # Redshifts at which this emulator predicts UV LFs. LikelihoodLuminosityFunction
+        # interpolates between them (interpolate_uvlf) and never extrapolates beyond them.
+        uv_lf_zs = getattr(properties, "uv_lf_zs", None)
+        self.uvlf_redshifts = np.asarray(
+            [] if uv_lf_zs is None else uv_lf_zs, dtype=float
+        )
+
+        if astro_params is not None:
+            if isinstance(astro_params, p21.AstroParams):
+                self.astro_params = astro_params
+            else:
+                self.astro_params = p21.AstroParams(astro_params)
+        else:
+            self.astro_params = p21.AstroParams()
+
+        self.cosmo_params = p21.CosmoParams(properties.cosmo_params)
+        self.flag_options = p21.FlagOptions(properties.flag_options)
+        self.user_params = p21.UserParams(properties.user_params)
+        self.global_params = global_params or {}
+        self.io_options = {
+            "store": store,  # which summaries to store
+            "cache_dir": cache_dir,  # where the stored data will be written
+        }
+        self.emulate_ps_2d = emulate_ps_2d and (emulator_name == "mcg")
+        self.store_ps_2d = store_ps_2d and self.emulate_ps_2d
+        self.ps_2d_redshifts = ps_2d_redshifts
+        self.emulator = Emulator(
+            emulator=emulator_name, emulate_2d_ps=self.emulate_ps_2d
+        )
+
+        if emulator_name == "mcg":
+            if self.emulate_ps_2d:
+                if self.ps_2d_redshifts is None:
+                    raise ValueError(
+                        "If emulate_ps_2d is True, you must provide ps_2d_redshifts."
+                    )
+                self.ps_2d_redshifts = ps_2d_redshifts
+                self.mu_min = mu_min
+                self.n_realisations = n_realisations
+                self.n_ps_batch = n_ps_batch
+                if not self.store_ps_2d:
+                    logger.warning("Emulating the 2D PS, but storing the 1D PS.")
+
+            self.k1d_inp = k1d_inp
+
+        # Values of the parameters that are not varied: astro_param_defaults, else
+        # those of astro_params (21cmFAST's defaults if not given).
+        self.astro_param_defaults = {
+            **{
+                k: v
+                for k, v in self.astro_params.self.items()
+                if k in self.astro_param_keys
+            },
+            **(
+                {"SIGMA_8": 0.8, "t_STAR": 0.5, "ALPHA_STAR": 0.5}
+                if astro_param_defaults is None
+                else astro_param_defaults
+            ),
+        }
+        self.emulator_type = emulator_name
         self.ctx_variables = ctx_variables
+
+    @staticmethod
+    def check_uvlf_redshifts(z, uvlf_redshifts):
+        """Raise a ValueError if any redshift in ``z`` is outside the emulated UV LF redshifts."""
+        zs = np.asarray(
+            getattr(uvlf_redshifts, "value", uvlf_redshifts), dtype=float
+        ).ravel()
+        z = np.atleast_1d(np.asarray(z, dtype=float)).ravel()
+        if zs.size == 0:
+            raise ValueError("This emulator does not predict UV luminosity functions.")
+        outside = z[(z < zs.min()) | (z > zs.max())]
+        if outside.size:
+            raise ValueError(
+                f"UV LF requested at z = {outside.tolist()}, outside the emulated redshifts "
+                f"{zs.tolist()}. The UV LF is interpolated between emulated redshifts, "
+                "never extrapolated."
+            )
+
+    @staticmethod
+    def interpolate_uvlf(uvlfs, uvlf_redshifts, z):
+        """UV LF at redshift(s) ``z`` from the emulated UV LFs.
+
+        Parameters
+        ----------
+        uvlfs : array_like, shape (..., n_z, n_Muv)
+            Emulated log10 UV LFs (``EmulatorOutput.UVLFs``).
+        uvlf_redshifts : array_like, shape (n_z,)
+            Their redshifts (``EmulatorOutput.UVLF_redshifts``).
+        z : float or array_like
+            Redshift(s) wanted.
+
+        Returns
+        -------
+        ndarray, shape (..., len(z), n_Muv)
+            log10 phi interpolated linearly in z between the two closest emulated redshifts.
+            At an emulated redshift the emulated UV LF is returned as is.
+
+        Raises
+        ------
+        ValueError
+            If any ``z`` is outside the emulated redshifts (no extrapolation).
+        """
+        Core21cmEMU.check_uvlf_redshifts(z, uvlf_redshifts)
+        zs = np.asarray(
+            getattr(uvlf_redshifts, "value", uvlf_redshifts), dtype=float
+        ).ravel()
+        lf = np.asarray(getattr(uvlfs, "value", uvlfs), dtype=float)
+        if lf.shape[-2] != zs.size:
+            raise ValueError(
+                f"UV LFs have {lf.shape[-2]} redshifts along axis -2 but {zs.size} redshifts were given."
+            )
+        order = np.argsort(zs)
+        zs, lf = zs[order], lf[..., order, :]
+        out = []
+        for zi in np.atleast_1d(np.asarray(z, dtype=float)).ravel():
+            j = int(np.searchsorted(zs, zi))  # zs[j - 1] < zi <= zs[j]
+            if np.isclose(zs[j], zi):
+                out.append(lf[..., j, :])
+            else:
+                w = (zi - zs[j - 1]) / (zs[j] - zs[j - 1])
+                out.append((1.0 - w) * lf[..., j - 1, :] + w * lf[..., j, :])
+        return np.stack(out, axis=-2)
+
+    def _update_params(self, params):
+        """
+        Update all the parameter structures which get passed to the driver.
+
+        Parameters
+        ----------
+        params :
+            Parameter object from cosmoHammer
+        """
+        ap_dict = copy.copy(self.astro_params.self)
+
+        ap_dict.update(
+            **{
+                k: getattr(params, k)
+                for k, v in params.items()
+                if k in self.astro_params.defining_dict
+            }
+        )
+
+        return p21.AstroParams(**ap_dict)
+
+    def build_model_data(self, ctx):  # noqa: C901 -- one branch per input/output type
+        """Compute all data defined by this core and add it to the context."""
+        # Update parameters
+        logger.debug(f"Updating parameters: {ctx.getParams()}")
+        astro_params = ctx.getParams()
+        if isinstance(astro_params, dict):
+            values = astro_params.values()
+            keys = astro_params.keys()
+            if len(keys) < len(self.astro_param_keys):
+                keys = self.astro_param_keys
+                values = []
+                for k in self.astro_param_keys:
+                    try:
+                        values.append(astro_params[k])
+                    except KeyError:
+                        if k == "L_X_MINI" and "L_X" in astro_params:
+                            values.append(astro_params["L_X"])
+                        else:
+                            values.append(self.astro_param_defaults[k])
+        elif isinstance(astro_params, p21.AstroParams):
+            values = astro_params.defining_dict.values
+            keys = self.astro_param_keys
+        else:
+            values = astro_params.values
+            keys = astro_params.keys
+            ap = dict(zip(keys, values, strict=False))
+            if len(keys) < len(self.astro_param_keys):
+                keys = self.astro_param_keys
+                values = []
+                for k in self.astro_param_keys:
+                    try:
+                        values.append(ap[k])
+                    except KeyError:
+                        try:
+                            if k == "L_X_MINI":
+                                values.append(ap["L_X"])
+                            else:
+                                values.append(
+                                    np.ones(len(ap[self.astro_param_keys[0]]))
+                                    * self.astro_param_defaults[k]
+                                )
+                        except TypeError:
+                            if k == "L_X_MINI":
+                                values.append(ap["L_X"])
+                            else:
+                                values.append(self.astro_param_defaults[k])
+        # For build_computation_chain when params passed are an empty dict
+        if len(values) == 0:
+            astro_params = self._update_params(astro_params).defining_dict
+            astro_params = {k: astro_params[k] for k in self.astro_param_keys}
+        if (
+            all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
+            and len(values) > 0
+        ):
+            if all(isinstance(v, (int, float)) for v in values):
+                values = np.array([np.array([v]) for v in values])
+                lengths = [1 for v in values]
+            else:
+                lengths = [len(v) for v in values]
+                values = np.array(list(values))
+            if lengths.count(lengths[0]) != len(lengths):
+                raise ValueError(
+                    "For vectorized case, all parameters should have the same length."
+                )
+            ap = [dict(zip(keys, t, strict=False)) for t in zip(*values, strict=False)]
+            astro_params = np.array(ap, dtype=object)
+
+        logger.debug(f"AstroParams: {astro_params}")
+        if self.emulator_type == "mcg":
+            if self.emulate_ps_2d:
+                theta, outputs, errors = self.emulator.predict(
+                    astro_params=astro_params,
+                    ps_2d_redshifts=self.ps_2d_redshifts,
+                    n_realisations=self.n_realisations,
+                    n_ps_batch=self.n_ps_batch,
+                    ps_sampling_method="ode",
+                )
+            else:
+                theta, outputs, errors = self.emulator.predict(
+                    astro_params=astro_params
+                )
+        else:
+            theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
+        if self.io_options["cache_dir"] is not None:
+            pars = astro_params[0] if len(astro_params.shape) == 2 else astro_params
+            par_vals = [f"{i:0.3e}" for i in list(pars)]
+            name = "_".join(par_vals)
+            outputs.write(
+                fname=self.io_options["cache_dir"] + name,
+                theta=theta,
+                store=self.io_options["store"],
+            )
+        logger.debug(f"Adding {self.ctx_variables} to context data")
+        for key in self.ctx_variables:
+            if key == "PS":
+                if self.emulate_ps_2d and self.store_ps_2d:
+                    # emulate and perform inference on 2D PS
+                    ctx.add(key + self.name, outputs.PS_2D.value)
+                    ctx.add("kperp" + self.name, outputs.kperp.value)
+                    ctx.add("kpar" + self.name, outputs.kpar.value)
+                elif self.emulate_ps_2d:
+                    # emulate 2D PS but perform inference on 1D PS
+                    from tuesday.core import cylindrical_to_spherical
+
+                    if hasattr(self.k1d_inp, "__len__"):
+                        len_ks = len(self.k1d_inp)
+                    else:
+                        len_ks = self.k1d_inp
+                    N = getattr(outputs, key).shape[0]
+                    ps1d = np.zeros((N, len(self.ps_2d_redshifts), len_ks))
+                    for i in range(N):
+                        for j in range(len(self.ps_2d_redshifts)):
+                            nmodes = outputs.Nmodes
+                            mask = np.mean(nmodes, axis=1) == 0.0
+                            this_ps1d, k1d, _ = cylindrical_to_spherical(
+                                outputs.PS_2D.value[i, j][~mask],
+                                outputs.kperp.value[~mask],
+                                outputs.kpar.value,
+                                nbins=self.k1d_inp,
+                                interp=True,
+                                bin_ave=True,
+                                weights=nmodes[~mask],
+                                mu_min=self.mu_min,
+                            )
+                            ps1d[i, j] = this_ps1d
+                    ctx.add(key + self.name, ps1d)
+                    ctx.add("k" + self.name, k1d)
+                else:
+                    # don't emulate 2D PS at all, use 1D PS.
+                    ctx.add("k" + self.name, outputs.PS_1D_k)
+                    ctx.add(
+                        "PS" + self.name,
+                        outputs.PS[None, ...].value
+                        if len(astro_params) == 1
+                        else outputs.PS.value,
+                    )
+
+            elif key == "PS_redshifts":
+                if self.emulate_ps_2d:
+                    ctx.add(key, outputs.PS_2D_redshifts)
+                else:
+                    ctx.add(key, outputs.PS_1D_redshifts)
+            else:
+                if "err" in key:
+                    try:
+                        ctx.add(key + self.name, getattr(errors, key))
+                    except AttributeError as e:
+                        raise ValueError(
+                            f"ctx_variable {key} not an attribute of errors dict."
+                        ) from e
+                else:
+                    try:
+                        ctx.add(key + self.name, getattr(outputs, key))
+                    except AttributeError as e:
+                        raise ValueError(
+                            f"ctx_variable {key} not an attribute of EmulatorOutput."
+                        ) from e
+
+
+class CoreRadioEMU(CoreBase):
+    r"""A Core Module that loads RadioEMU and uses it to obtain 21cmFAST summaries.
+
+    Notes
+    -----
+    This core calls RadioEMU and uses it to evaluate 21cmFAST summaries (power spectrum, global signal, neutral fraction, spin temperature)
+    given a set of astro_params. This core is vectorized i.e., it accepts an array of ``astro_params``.
+
+    Parameters
+    ----------
+    redshift : float or array_like
+         The redshift(s) at which to evaluate the summary statistics.
+    astro_params : dict or :class:`~py21cmfast.AstroParams`
+        Astrophysical parameters of reionization model according to Park+19 parametrization.
+    version : str, optional
+        Emulator version to use, defaults to 'latest'.
+    astro_param_defaults : dict, optional
+        Values of the emulator parameters that are not varied.
+    """
+
+    def __init__(
+        self,
+        astro_params=None,
+        redshift=None,
+        k=None,
+        name="",
+        global_params=None,
+        ctx_variables=(
+            "Tb",
+            "Tb_err",
+            "Tr",
+            "Tr_err",
+            "xHI",
+            "xHI_err",
+            "redshifts",
+            "PS_redshifts",
+            "PS",
+            "PS_err",
+            "k",
+            "tau",
+            "tau_err",
+        ),
+        cache_dir=None,
+        version="latest",
+        store=None,
+        astro_param_defaults=None,
+        *args,
+        **kwargs,
+    ):
+        if store is None:
+            store = []
+        super().__init__(*args, **kwargs)
+        self.name = str(name)
+        self.ctx_variables = ctx_variables
+        self.astro_param_defaults = astro_param_defaults or {}
 
         try:
             from py21cmemu import Emulator
-            from py21cmemu.properties import emulator_properties
         except ImportError:
             logger.warning(
-                "Could not load py21cmemu. Make sure it is installed properly."
+                "Could not load radioemu. Make sure it is installed properly."
             )
-        # This core only supports the 'acg' (v1, 9-parameter) emulator for now.
-        emu_properties = emulator_properties(emulator="acg")
         self.astro_param_keys = (
-            "F_STAR10",
-            "ALPHA_STAR",
-            "F_ESC10",
-            "ALPHA_ESC",
-            "M_TURN",
-            "t_STAR",
-            "L_X",
-            "NU_X_THRESH",
-            "X_RAY_SPEC_INDEX",
+            "fR_mini",
+            "F_ESC7_MINI",
+            "F_STAR7_MINI",
+            "L_X_MINI",
+            "A_LW",
         )
         if astro_params is not None:
             if isinstance(astro_params, p21.AstroParams):
@@ -1283,16 +1649,13 @@ class Core21cmEMU(CoreBase):
         else:
             self.astro_params = p21.AstroParams()
 
-        self.cosmo_params = p21.CosmoParams(emu_properties.cosmo_params)
-        self.flag_options = p21.FlagOptions(emu_properties.flag_options)
-        self.user_params = p21.UserParams(emu_properties.user_params)
         self.global_params = global_params or {}
         self.io_options = {
             "store": store,  # which summaries to store
             "cache_dir": cache_dir,  # where the stored data will be written
         }
 
-        self.emulator = Emulator(emulator="acg")
+        self.emulator = Emulator(emulator="radio_background")
 
     def _update_params(self, params):
         """
@@ -1323,12 +1686,35 @@ class Core21cmEMU(CoreBase):
         if isinstance(astro_params, dict):
             values = astro_params.values()
             keys = astro_params.keys()
+            if len(keys) < len(self.astro_param_keys):
+                keys = self.astro_param_keys
+                values = []
+                for k in self.astro_param_keys:
+                    try:
+                        values.append(astro_params[k])
+                    except KeyError:
+                        values.append(self.astro_param_defaults[k])
         elif isinstance(astro_params, p21.AstroParams):
             values = astro_params.defining_dict.values
             keys = self.astro_param_keys
         else:
             values = astro_params.values
             keys = astro_params.keys
+            ap = dict(zip(keys, values, strict=False))
+            if len(keys) < len(self.astro_param_keys):
+                keys = self.astro_param_keys
+                values = []
+                for k in self.astro_param_keys:
+                    try:
+                        values.append(ap[k])
+                    except KeyError:
+                        try:
+                            values.append(
+                                np.ones(len(ap[self.astro_param_keys[0]]))
+                                * self.astro_param_defaults[k]
+                            )
+                        except TypeError:
+                            values.append(self.astro_param_defaults[k])
         # For build_computation_chain when params passed are an empty dict
         if len(values) == 0:
             astro_params = self._update_params(astro_params).defining_dict
@@ -1337,13 +1723,21 @@ class Core21cmEMU(CoreBase):
             all(isinstance(v, (np.ndarray, list, int, float)) for v in values)
             and len(values) > 0
         ):
-            lengths = [len(v) for v in values]
+            if all(isinstance(v, (int, float)) for v in values):
+                values = np.array([np.array([v]) for v in values])
+                lengths = [1 for v in values]
+            else:
+                lengths = [len(v) for v in values]
+                values = np.array(list(values))
             if lengths.count(lengths[0]) != len(lengths):
                 raise ValueError(
                     "For vectorized case, all parameters should have the same length."
                 )
-            ap = [dict(zip(keys, t, strict=False)) for t in zip(*values, strict=False)]
+            ap = []
+            for t in zip(*values, strict=False):
+                ap.append(dict(zip(keys, t, strict=False)))
             astro_params = np.array(ap, dtype=object)
+
         logger.debug(f"AstroParams: {astro_params}")
 
         theta, outputs, errors = self.emulator.predict(astro_params=astro_params)
@@ -1359,10 +1753,13 @@ class Core21cmEMU(CoreBase):
         logger.debug(f"Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
             try:
-                ctx.add(key + self.name, getattr(outputs, key))
+                try:
+                    ctx.add(key + self.name, getattr(outputs, key).value)
+                except AttributeError:
+                    ctx.add(key + self.name, getattr(outputs, key))
             except AttributeError:
                 try:
-                    ctx.add(key + self.name, errors[key])
+                    ctx.add(key + self.name, errors[key].value)
                 except Exception as e:
                     raise ValueError(
                         f"ctx_variable {key} not an attribute of EmulatorOutput or errors dict."

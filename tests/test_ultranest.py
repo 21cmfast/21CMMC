@@ -25,7 +25,7 @@ def test_ultranest_21cmemu():
         "Lepsilon": 0.1,
     }
     _sampler, result = mcmc.run_mcmc(
-        [mcmc.Core21cmEMU()],
+        [mcmc.Core21cmEMU(emulator_name="acg")],
         [mcmc.LikelihoodLuminosityFunction(z=z) for z in redshifts],
         model_name=model_name,
         params={

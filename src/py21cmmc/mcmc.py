@@ -62,6 +62,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
     core_modules,
     likelihood_modules,
     params,
+    prior=None,
     datadir=".",
     model_name="21CMMC",
     continue_sampling=True,
@@ -71,6 +72,8 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
     use_multinest=False,
     use_zeus=False,
     use_ultranest=False,
+    use_nautilus=False,
+    post_only=False,
     **mcmc_options,
 ) -> CosmoHammerSampler:
     r"""Run an MCMC chain.
@@ -110,6 +113,8 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
         If true, use the zeus sampler instead.
     use_ultranest : bool, optional
         If true, use the UltraNest sampler instead.
+    use_nautilus : bool, optional
+        If true, use the Nautilus sampler instead.
 
     Other Parameters
     ----------------
@@ -259,6 +264,81 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
         or just ellipsoidal sampling (faster for high-dimensional, gaussian-like problems)
         or a axis-aligned ellipsoid (fastest, to be combined with slice sampling).
 
+        If use_nautilus, parameters required by Nautilus (both for
+        :class:`nautilus.Sampler` and its ``run()`` method) as shown below
+        should be provided here.
+    n_live : int, optional
+        Number of live points. Default is 2000.
+    n_update : int, optional
+        The maximum number of additions to the live set before a new bound
+        is created. Default is `n_live`.
+    enlarge_per_dim : float, optional
+        Along each dimension, outer ellipsoidal bounds are enlarged by this
+        factor. Default is 1.1.
+    n_points_min : int, optional
+        Minimum number of points each ellipsoid should have. Default is
+        ``n_dim + 50``.
+    split_threshold: float, optional
+        Threshold used for splitting the multi-ellipsoidal bounds. Default
+        is 100.
+    n_networks : int, optional
+        Number of networks used in the estimator. Default is 4.
+    neural_network_kwargs : dict, optional
+        Non-default keyword arguments passed to the constructor of
+        `MLPRegressor`.
+    prior_args : list, optional
+        Additional arguments passed to the prior function.
+    prior_kwargs : dict, optional
+        Additional keyword arguments passed to the prior function.
+    likelihood_args : list, optional
+        Additional arguments passed to the likelihood function.
+    likelihood_kwargs : dict, optional
+        Additional keyword arguments passed to the likelihood function.
+    n_batch : int, optional
+        Number of likelihood evaluations that are performed at each step.
+    n_like_new_bound : int, optional
+        The maximum number of likelihood calls before a new bounds is
+        created. If None, use 10 times `n_live`.
+    vectorized : bool, optional
+        If True, the likelihood function can receive multiple input sets at
+        once. Default is False.
+    pass_dict : bool or None, optional
+        If True, the likelihood function expects model parameters as
+        dictionaries. Default is to set it to True since ``prior`` is a
+        :class:`nautilus.Prior` instance.
+    seed : int, optional
+        Seed for random number generation used for reproducible results.
+    blobs_dtype : object, optional
+        Object that can be converted to a data type object describing the
+        blobs.
+    filepath : str or `pathlib.Path`, optional
+        Path to the file where results are saved.
+    resume : bool, optional
+        If True, resume from previous run if `filepath` exists. Default is
+        True.
+    post_only : bool, optional
+        If True, skip calling ``sampler.run()`` and only return the (already
+        computed/resumed) posterior. Default is False.
+    f_live : float, optional
+        Maximum fraction of the evidence contained in the live set before
+        building the initial shells terminates. Default is 0.01.
+    n_shell : int, optional
+        Minimum number of points in each shell. Default is 1.
+    n_eff : float, optional
+        Minimum effective sample size. Default is 10000.
+    n_like_max : int, optional
+        Maximum total number of likelihood evaluations. Default is infinity.
+    timeout : float, optional
+        Timeout interval in seconds. Default is infinity.
+    discard_exploration : bool, optional
+        Whether to discard points drawn in the exploration phase. Default is
+        False.
+    equal_weight : bool, optional
+        If True, return an equally weighted posterior. Default is True.
+    equal_weight_boost : float, optional
+        Boost factor for the effective sample size when equalizing weights.
+        Default is 10.
+
     Returns
     -------
     sampler : :class:`~py21cmmc.cosmoHammer.CosmoHammerSampler` instance.
@@ -269,7 +349,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
     file_prefix = path.join(datadir, model_name)
 
     # check that only one sampler is specified
-    if sum([use_multinest, use_ultranest, use_zeus]) > 1:
+    if sum([use_multinest, use_ultranest, use_zeus, use_nautilus]) > 1:
         raise ValueError("You cannot use more than one sampler at the time!")
 
     if use_multinest:
@@ -283,6 +363,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
         multimodal = mcmc_options.get("multimodal", True)
         write_output = mcmc_options.get("write_output", True)
         datadir = datadir + "/MultiNest/"
+        verbose = mcmc_options.get("verbose", True)
         try:
             from pymultinest import run
         except ImportError as e:
@@ -323,7 +404,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
         pool = mcmc_options.get("pool")
         vectorize = mcmc_options.get("vectorize", False)
         blobs_dtype = mcmc_options.get("blobs_dtype")
-        verbose = mcmc_options.get("vectorize", True)
+        verbose = mcmc_options.get("verbose", True)
         check_walkers = mcmc_options.get("check_walkers", True)
         shuffle_ensemble = mcmc_options.get("shuffle_ensemble", True)
         light_mode = mcmc_options.get("light_mode", False)
@@ -336,6 +417,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
     if use_ultranest:
         try:
             import ultranest
+            import ultranest.stepsampler
         except ImportError as e:
             raise ImportError(
                 "You need to install ultranest to use this function!"
@@ -351,7 +433,11 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
         ndraw_max = mcmc_options.get("ndraw_max", 65536)
         num_bootstraps = mcmc_options.get("num_bootstraps", 30)
         warmstart_max_tau = mcmc_options.get("warmstart_max_tau", -1)
+        adaptive_nsteps = mcmc_options.get("adaptive_nsteps", False)
+        max_nsteps = mcmc_options.get("max_nsteps")
+        nsteps = mcmc_options.get("nsteps", 2 * len(list(params.keys())))
 
+        add_step_slice_sampler = mcmc_options.get("add_step_slice_sampler", False)
         update_interval_volume_fraction = mcmc_options.get(
             "update_interval_volume_fraction", 0.8
         )
@@ -372,7 +458,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
         )
         insertion_test_window = mcmc_options.get("insertion_test_window", 10)
         region_class = mcmc_options.get("region_class", ultranest.mlfriends.MLFriends)
-
+        warmstart_file = mcmc_options.get("warmstart_file")
         # logging setup
         log_level_ultranest = (
             log_level_21CMMC if log_level_21CMMC is not None else "INFO"
@@ -381,6 +467,44 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
         ultranest_logger.addHandler(logging.NullHandler())
         ultranest_logger.setLevel(log_level_ultranest)
 
+    if use_nautilus:
+        try:
+            import nautilus
+        except ImportError as e:
+            raise ImportError(
+                "You need to install nautilus to use this function!"
+            ) from e
+
+        n_live = mcmc_options.get("n_live", 2000)
+        n_update = mcmc_options.get("n_update")
+        enlarge_per_dim = mcmc_options.get("enlarge_per_dim", 1.1)
+        n_points_min = mcmc_options.get("n_points_min")
+        split_threshold = mcmc_options.get("split_threshold", 100)
+        n_networks = mcmc_options.get("n_networks", 4)
+        neural_network_kwargs = mcmc_options.get("neural_network_kwargs", {})
+        prior_args = mcmc_options.get("prior_args", [])
+        prior_kwargs = mcmc_options.get("prior_kwargs", {})
+        likelihood_args = mcmc_options.get("likelihood_args", [])
+        likelihood_kwargs = mcmc_options.get("likelihood_kwargs", {})
+        n_batch = mcmc_options.get("n_batch")
+        n_like_new_bound = mcmc_options.get("n_like_new_bound")
+        vectorized = mcmc_options.get("vectorized", False)
+        pass_dict = mcmc_options.get("pass_dict")
+        pool = mcmc_options.get("pool")
+        seed = mcmc_options.get("seed")
+        blobs_dtype = mcmc_options.get("blobs_dtype")
+        filepath = mcmc_options.get("filepath")
+        resume = mcmc_options.get("resume", True)
+        verbose = mcmc_options.get("verbose", True)
+        discard_exploration = mcmc_options.get("discard_exploration", False)
+        equal_weight_boost = mcmc_options.get("equal_weight_boost", 10)
+        equal_weight = mcmc_options.get("equal_weight", True)
+        f_live = mcmc_options.get("f_live", 0.01)
+        n_shell = mcmc_options.get("n_shell", 1)
+        n_eff = mcmc_options.get("n_eff", 10000)
+        n_like_max = mcmc_options.get("n_like_max", np.inf)
+        timeout = mcmc_options.get("timeout", np.inf)
+
     # Setup parameters.
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
@@ -388,7 +512,6 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
     chain = build_computation_chain(
         core_modules, likelihood_modules, params, setup=False
     )
-
     if continue_sampling and not (use_multinest or use_zeus or use_ultranest):
         try:
             with open(file_prefix + ".LCC.yml") as f:
@@ -402,7 +525,6 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
 
         except FileNotFoundError:
             pass
-
         # We need to ensure that simulate=False if trying to continue sampling.
         for lk in chain.getLikelihoodModules():
             if hasattr(lk, "_simulate") and lk._simulate:
@@ -413,15 +535,18 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
                 lk._simulate = False
     # Write out the parameters *before* setup.
     # TODO: not sure if this is the best idea -- should it be after setup()?
+    # (Chains with emulator cores cannot be written, then no file is written.)
     try:
-        with open(file_prefix + ".LCC.yml", "w") as f:
-            yaml.dump(chain, f)
+        chain_yaml = yaml.dump(chain)
     except Exception as e:  # noqa: BLE001 -- best-effort debug dump, must not abort the run
         logger.warning(
             "Attempt to write out YAML file containing LikelihoodComputationChain failed. "
             "Boldly continuing... (%s)",
             e,
         )
+    else:
+        with open(file_prefix + ".LCC.yml", "w") as f:
+            f.write(chain_yaml)
 
     chain.setup()
     # Set logging levels
@@ -439,9 +564,11 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
             except ParameterError:
                 return -np.inf
 
-        def prior(p, ndim, nparams):
-            for i in range(ndim):
-                p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
+        if prior is None:
+
+            def prior(p, ndim, nparams):
+                for i in range(ndim):
+                    p[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
 
         try:
             sampler = run(
@@ -459,6 +586,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
                 evidence_tolerance=evidence_tolerance,
                 sampling_efficiency=sampling_efficiency,
                 init_MPI=False,
+                verbose=verbose,
             )
             return 1
 
@@ -516,7 +644,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
 
     elif use_ultranest:
 
-        def likelihood(p):
+        def loglike(p):
             if vectorized:
                 return chain.computeLikelihoods(
                     chain.build_model_data(
@@ -524,7 +652,7 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
                             *[(k, v) for k, v in zip(params.keys, p.T, strict=False)]
                         )
                     )
-                )
+                ).squeeze()
             else:
                 try:
                     return chain.computeLikelihoods(
@@ -533,22 +661,37 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
                                 *[(k, v) for k, v in zip(params.keys, p, strict=False)]
                             )
                         )
-                    )
+                    ).squeeze()
                 except ParameterError:
                     return -np.inf
 
-        def prior(p):
-            t = np.empty(p.shape, dtype=p.dtype)
-            for i in range(p.shape[-1]):
-                if vectorized:
-                    t[:, i] = params[i][1] + p[:, i] * (params[i][2] - params[i][1])
+        def likelihood(p):
+            # UltraNest needs finite log-likelihoods: -inf becomes a very low value.
+            return np.maximum(loglike(p), -1e300)
 
-                else:
-                    t[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
-            return t
+        if prior is None:
+
+            def prior(p):
+                t = np.empty(p.shape, dtype=p.dtype)
+                for i in range(p.shape[-1]):
+                    if vectorized:
+                        t[:, i] = params[i][1] + p[:, i] * (params[i][2] - params[i][1])
+
+                    else:
+                        t[i] = params[i][1] + p[i] * (params[i][2] - params[i][1])
+                return t
+
+        if warmstart_file is not None:
+            from ultranest.integrator import warmstart_from_similar_file
+
+            paramnames, likelihood, prior, vectorized = warmstart_from_similar_file(
+                warmstart_file, params.keys, likelihood, prior
+            )
+        else:
+            paramnames = None
 
         sampler = ultranest.ReactiveNestedSampler(
-            params.keys,
+            params.keys if paramnames is None else paramnames,
             loglike=likelihood,
             transform=prior,
             resume=resume,
@@ -562,6 +705,14 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
             ndraw_max=ndraw_max,
             warmstart_max_tau=warmstart_max_tau,
         )
+        if add_step_slice_sampler:
+            sampler.stepsampler = ultranest.stepsampler.SliceSampler(
+                nsteps=nsteps,
+                generate_direction=ultranest.stepsampler.generate_mixture_random_direction,
+                adaptive_nsteps=adaptive_nsteps,
+                max_nsteps=max_nsteps,
+            )
+
         result = sampler.run(
             update_interval_volume_fraction=update_interval_volume_fraction,
             log_interval=log_interval,
@@ -581,6 +732,68 @@ def run_mcmc(  # noqa: C901 -- dispatches to several optional samplers (multines
             region_class=region_class,
         )
         return sampler, result
+
+    elif use_nautilus:
+
+        def likelihood(p):
+            # A dict if the prior is a nautilus.Prior (and pass_dict is not False),
+            # otherwise an array of shape (n_dim,), or (n, n_dim) if vectorized.
+            if isinstance(p, dict):
+                p = Params(*p.items())
+            else:
+                p = Params(*zip(params.keys, np.asarray(p).T, strict=False))
+            if vectorized:
+                return chain.computeLikelihoods(chain.build_model_data(p))
+            try:
+                return chain.computeLikelihoods(chain.build_model_data(p))
+            except ParameterError:
+                return -np.inf
+
+        if prior is None:
+            from nautilus import Prior
+
+            prior = Prior()
+            for p in params.keys:
+                prior.add_parameter(p, dist=(params.get(p)[1], params.get(p)[2]))
+        sampler = nautilus.Sampler(
+            prior=prior,
+            likelihood=likelihood,
+            n_dim=len(params.keys),
+            n_live=n_live,
+            n_update=n_update,
+            enlarge_per_dim=enlarge_per_dim,
+            n_points_min=n_points_min,
+            split_threshold=split_threshold,
+            n_networks=n_networks,
+            neural_network_kwargs=neural_network_kwargs,
+            prior_args=prior_args,
+            prior_kwargs=prior_kwargs,
+            likelihood_args=likelihood_args,
+            likelihood_kwargs=likelihood_kwargs,
+            n_batch=n_batch,
+            n_like_new_bound=n_like_new_bound,
+            vectorized=vectorized,
+            pass_dict=pass_dict,
+            pool=pool,
+            seed=seed,
+            blobs_dtype=blobs_dtype,
+            filepath=filepath,
+            resume=resume,
+        )
+        if not post_only:
+            sampler.run(
+                f_live=f_live,
+                n_shell=n_shell,
+                n_eff=n_eff,
+                n_like_max=n_like_max,
+                discard_exploration=discard_exploration,
+                timeout=timeout,
+                verbose=verbose,
+            )
+
+        return sampler, sampler.posterior(
+            equal_weight=equal_weight, equal_weight_boost=equal_weight_boost
+        )
 
     else:
         pool = mcmc_options.pop(

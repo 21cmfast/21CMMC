@@ -5,10 +5,8 @@ def test_emulator_runs():
     import numpy as np
     from py21cmemu import Emulator
 
-    # This codebase currently only supports the 'acg' (v1, 9-parameter)
-    # emulator model; the default is now 'mcg' (v3, 11 parameters).
-    emu = Emulator(emulator="acg")
-    emu.predict(np.random.rand(9))
+    emu = Emulator()
+    emu.predict(np.random.rand(len(emu.properties.astro_param_keys)))
 
 
 def test_emu_compat():
@@ -24,3 +22,11 @@ def test_emu_compat():
         setup=True,
     )
     chain({})
+
+
+def test_radio_emu_defaults():
+    from py21cmmc.core import CoreRadioEMU
+
+    assert CoreRadioEMU().astro_param_defaults == {}
+    core = CoreRadioEMU(astro_param_defaults={"A_LW": 2.0})
+    assert core.astro_param_defaults == {"A_LW": 2.0}

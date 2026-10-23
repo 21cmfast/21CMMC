@@ -45,6 +45,9 @@ dependencies = [
     # installed via conda. The current codebase does not yet support 21cmFAST
     # v4, so it is pinned below v4. This will be made optional in a future PR.
     "21cmFAST<4.0.0",
+    # Core21cmEMU(emulate_ps_2d=True): 2D->1D power spectrum conversion
+    # (cylindrical_to_spherical). tuesday-eor needs Python >= 3.11.
+    "tuesday-eor; python_version >= '3.11'",
 ]
 dynamic = [
     "version",
@@ -55,6 +58,13 @@ samplers = [
   "pymultinest",
   "ultranest",
   "zeus-mcmc",
+  "nautilus-sampler",
+]
+# LikelihoodPspec. Window functions of shape (Nk_obs, Nk_theory), as in the built-in
+# HERA data, need pspec_likelihood newer than its PyPI release (0.2.0): install it from
+# https://github.com/HERA-Team/pspec_likelihood (Python >= 3.11).
+likelihoods = [
+  "pspec-likelihood; python_version >= '3.11'",
 ]
 test = [
   "pytest",
@@ -69,7 +79,7 @@ docs = [
 ]
 dev = [
   "pre-commit",
-  "21cmMC[test,docs,samplers]"
+  "21cmMC[test,docs,samplers,likelihoods]"
 ]
 
 [tool.setuptools_scm]

@@ -9,6 +9,7 @@ from .core import (
     CoreForest,
     CoreLightConeModule,
     CoreLuminosityFunction,
+    CoreRadioEMU,
     NotAChain,
     NotSetupError,
 )
@@ -27,6 +28,7 @@ from .likelihood import (
     LikelihoodNeutralFractionTwoSided,
     LikelihoodPlanck,
     LikelihoodPlanckPowerSpectra,
+    LikelihoodPspec,
 )
 from .mcmc import build_computation_chain, run_mcmc
 
@@ -37,6 +39,7 @@ __all__ = [
     "CoreForest",
     "CoreLightConeModule",
     "CoreLuminosityFunction",
+    "CoreRadioEMU",
     "HDFStorageUtil",
     "Likelihood1DPowerCoeval",
     "Likelihood1DPowerLightcone",
@@ -51,6 +54,7 @@ __all__ = [
     "LikelihoodNeutralFractionTwoSided",
     "LikelihoodPlanck",
     "LikelihoodPlanckPowerSpectra",
+    "LikelihoodPspec",
     "NotAChain",
     "NotSetupError",
     "build_computation_chain",

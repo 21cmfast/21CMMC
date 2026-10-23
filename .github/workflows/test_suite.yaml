@@ -65,9 +65,21 @@ jobs:
           conda install pip fftw gsl compilers pkg-config multinest
 
       - name: Install 21CMMC
+        # 21cmFAST v3's C code has implicit ints and pointer-type mismatches, which
+        # recent compilers (e.g. conda-forge's GCC 15) treat as errors.
+        env:
+          CFLAGS: "-Wno-error=implicit-int -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
         run: |
           echo $(which pip)
           pip install ".[test,samplers]"
+
+      # LikelihoodPspec needs window functions of shape (Nk_obs, Nk_theory), which
+      # the PyPI release of pspec_likelihood (0.2.0) does not support. This commit
+      # needs Python >= 3.11; on 3.10 the LikelihoodPspec tests are skipped.
+      - name: Install pspec_likelihood
+        if: matrix.python-version != '3.10'
+        run: |
+          pip install "pspec-likelihood @ git+https://github.com/HERA-Team/pspec_likelihood.git@e00950646f982f97b1b8d612b5d96ecd46ce7374"
 
       - name: List Environment
         run: |
