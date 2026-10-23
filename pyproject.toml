@@ -172,6 +172,10 @@ ignore = [
   "T",
   "D",  # devel/ contains ad-hoc debugging scripts, not part of the public package
 ]
+"spikes/**/*.py" = [
+  "T",
+  "D",  # spikes/ contains throwaway decision experiments for v2, not part of the package
+]
 "docs/conf.py" = [
     "A",  # conf.py can shadow builtins
     "ERA",
