@@ -2,6 +2,13 @@
 Changelog
 =========
 
+.. note::
+
+   This file is no longer updated: it ends at v1.0.0. The release notes for later
+   versions are on `GitHub Releases <https://github.com/21cmfast/21CMMC/releases>`_.
+
+.. end-of-note
+
 v1.0.0 [2026-10-24]
 -------------------
 The last release of the v1 series, for 21cmFAST < 4. From here on, v1 gets bug fixes
