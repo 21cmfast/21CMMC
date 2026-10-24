@@ -1,0 +1,24 @@
+name: Update Draft Release
+
+# Keep a draft release for main up to date: GitHub Releases are the changelog, and the
+# draft collects the merged pull requests by label (see .github/release-drafter.yml).
+# Main only: a push to any other branch (v1.x, feature branches) would otherwise
+# retarget main's draft. v1.x patch releases are drafted by hand.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  draft-release:
+    name: Update Draft Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Draft the release notes
+        uses: release-drafter/release-drafter@v7.10.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

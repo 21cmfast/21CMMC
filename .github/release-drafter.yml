@@ -73,6 +73,17 @@ categories:
     labels:
       - "type: maint: dependencies"
       - "type: maint: build"
+  # Next version: major for an API break, minor for a new feature, else patch.
+  - type: 'version-resolver'
+    semver-increment: 'major'
+    when:
+      label: 'API breaking'
+  - type: 'version-resolver'
+    semver-increment: 'minor'
+    when:
+      label: 'type: feature'
+  - type: 'version-resolver'
+    semver-increment: 'patch'
 
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
