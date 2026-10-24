@@ -2,10 +2,12 @@
 Changelog
 =========
 
-dev (v2)
---------
-Development of 21cmMC v2 starts on ``main``. The v1 code was removed from ``main``; it
-lives on the ``v1.x`` branch, which gets bug fixes only.
+.. note::
+
+   This file is no longer updated: it ends at v1.0.0. The release notes for later
+   versions are on `GitHub Releases <https://github.com/21cmfast/21CMMC/releases>`_.
+
+.. end-of-note
 
 v1.0.0 [2026-10-24]
 -------------------

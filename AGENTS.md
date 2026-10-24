@@ -55,7 +55,9 @@ they run in the nightly workflow (`pytest -m nightly`).
 
 ## Label every pull request
 
-Always add labels when you open a pull request; they sort the release notes. Use only
+There is no changelog file to update (`CHANGELOG.rst` ends at v1.0.0): GitHub Releases
+are the changelog, written from the merged pull requests. So give every pull request a
+clear title, and always add labels when you open it; they sort the release notes. Use only
 the labels in `.github/labels.yml`, and add a new one there in the same PR if needed.
 
 - **Exactly one `type:` label**: `type: bug`, `type: feature`, `type: testing`,

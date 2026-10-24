@@ -39,7 +39,7 @@ dynamic = [
 [project.urls]
 Repository = "https://github.com/21cmfast/21CMMC"
 Issues = "https://github.com/21cmfast/21CMMC/issues"
-Changelog = "https://github.com/21cmfast/21CMMC/blob/main/CHANGELOG.rst"
+Changelog = "https://github.com/21cmfast/21CMMC/releases"
 
 [dependency-groups]
 tests = [
