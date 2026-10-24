@@ -1,94 +1,76 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm[toml]>=6.2"]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "21cmMC"
-description = "An extensible MCMC framework for 21cmFAST."
+description = "Bayesian inference for 21cmFAST and the 21-cm signal."
 authors = [
     {name="Brad Greig", email="greigb@unimelb.edu.au"},
     {name="Steven Murray", email='steven.murray@sns.it'},
 ]
 readme = "README.rst"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
     "License :: OSI Approved :: MIT License",
     "Operating System :: Unix",
     "Operating System :: POSIX",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
+# Dependencies are added with the code that needs them (M1 onwards).
 dependencies = [
-    "click",
     "numpy",
-    "cosmoHammer",
-    "scipy",
-    # matplotlib is capped below 3.9 because that release removed
-    # plt.register_cmap, which is still used by 21cmFAST<4.0.0's plotting
-    # module. Revisit once 21cmFAST is upgraded past v4.
-    "matplotlib>=2.1,<3.9",
-    "emcee<3",
-    # powerbox>=0.9.0 requires python>=3.11 and replaced get_power()'s
-    # tuple/bin_ave-based return with a new PowerSpectrum dataclass. This
-    # codebase's likelihood.py still uses the old bin_ave-based API, and we
-    # support python 3.10, so we cap below that rewrite for now.
-    "powerbox>=0.5.7,<0.9.0",
-    "cached_property",
-    "py21cmemu>=3.0.0",
-    "astropy>=5.2.1",
-    # 21cmFAST has heavy, non-python compiled dependencies that are best
-    # installed via conda. The current codebase does not yet support 21cmFAST
-    # v4, so it is pinned below v4. This will be made optional in a future PR.
-    "21cmFAST<4.0.0",
-    # Core21cmEMU(emulate_ps_2d=True): 2D->1D power spectrum conversion
-    # (cylindrical_to_spherical). tuesday-eor needs Python >= 3.11.
-    "tuesday-eor; python_version >= '3.11'",
 ]
 dynamic = [
     "version",
 ]
 
 [project.optional-dependencies]
-samplers = [
-  "pymultinest",
-  "ultranest",
-  "zeus-mcmc",
-  "nautilus-sampler",
+# 21cmFAST needs GSL and FFTW to build; the fast test tier runs without it.
+21cmfast = [
+    "21cmFAST>=4.3.1,<4.4",
 ]
-# LikelihoodPspec. Window functions of shape (Nk_obs, Nk_theory), as in the built-in
-# HERA data, need pspec_likelihood newer than its PyPI release (0.2.0): install it from
-# https://github.com/HERA-Team/pspec_likelihood (Python >= 3.11).
-likelihoods = [
-  "pspec-likelihood; python_version >= '3.11'",
-]
-test = [
-  "pytest",
-  "pytest-cov",
+
+[project.urls]
+Repository = "https://github.com/21cmfast/21CMMC"
+Issues = "https://github.com/21cmfast/21CMMC/issues"
+Changelog = "https://github.com/21cmfast/21CMMC/releases"
+
+[dependency-groups]
+tests = [
+    "pytest>=8",
+    "pytest-cov",
 ]
 docs = [
-  "ipython",
-  "nbsphinx",
-  "numpydoc",
-  "sphinx>=1.3",
-  "furo",
+    "sphinx",
+    "furo",
 ]
 dev = [
-  "pre-commit",
-  "21cmMC[test,docs,samplers,likelihoods]"
+    {include-group = "tests"},
+    {include-group = "docs"},
+    "pre-commit",
+    "ruff",
 ]
 
 [tool.setuptools_scm]
-write_to = "src/py21cmmc/_version.py"
-parentdir_prefix_version = "21CMMC-"
+version_file = "src/py21cmmc/_version.py"
 fallback_version = "0.0.0"
 
-# [tool.setuptools]
-# packages = ["21CMMC"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = [
+    "nightly: needs 21cmFAST or a full simulation; runs in the Nightly workflow",
+]
+
+[tool.coverage.run]
+# Written by setuptools-scm at install time.
+omit = ["*/_version.py"]
 
 [tool.ruff]
 line-length = 88
@@ -148,18 +130,6 @@ ignore = [
     "A005",
     "RUF009",
     "B008",
-    # Legacy os.path usage throughout the codebase (file I/O for lightcones/caches).
-    # Migrating to pathlib is a large, invasive change deferred to a follow-up PR.
-    "PTH",
-    # Legacy np.random.* calls. Switching to np.random.Generator changes the RNG
-    # stream and could silently break reproducibility of existing chains/scripts.
-    "NPY002",
-    # `NotAChain` is part of the public API; renaming to `NotAChainError` is a
-    # breaking change deferred to a future major version.
-    "N818",
-    # `cosmoHammer` module name is part of the public API (`py21cmmc.cosmoHammer`);
-    # renaming it is a breaking change deferred to a future major version.
-    "N999",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -178,10 +148,6 @@ ignore = [
     "PT011",
     "PT012",
 ]
-"devel/*.py" = [
-  "T",
-  "D",  # devel/ contains ad-hoc debugging scripts, not part of the public package
-]
 "docs/conf.py" = [
     "A",  # conf.py can shadow builtins
     "ERA",
@@ -197,26 +163,3 @@ property-decorators = [
 
 [tool.ruff.lint.mccabe]
 max-complexity = 21
-
-[tool.pytest.ini_options]
-testpaths = "tests"
-norecursedirs = [
-  "migrations",
-]
-python_files = [
-  "test_*.py",
-  "*_test.py",
-  "tests.py",
-]
-addopts = [
-  "-ra",
-  "--strict",
-  "--doctest-modules",
-  "--doctest-glob=\\*.rst",
-  "--tb=short",
-]
-
-[dependency-groups]
-dev = [
-    "ipython",
-]

@@ -58,3 +58,4 @@ data/simple_mcmc_data_*.npz.bk
 # Stray file previously produced by a bug in Likelihood1DPowerLightcone's
 # default datafile="" (fixed to default to None); ignore defensively.
 /.npz
+.venv/
