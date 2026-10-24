@@ -213,7 +213,6 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
     # HAVE TO SAVE THE CHAIN TO MEMORY HERE, BECAUSE THE OBJECT ACCESS THE FILE ON EVERY CALL,
     # WHICH MEANS IT CONSTANTLY UPDATES
     chain_b_chain = mcmc.get_samples(chain, burnin=True).get_chain()
-    chain_s_chain = mcmc.get_samples(chain).get_chain()
     chain_s_trials = mcmc.get_samples(chain).get_trials()
 
     chain2 = mcmc.run_mcmc(
