@@ -63,7 +63,7 @@ the labels in `.github/labels.yml`, and add a new one there in the same PR if ne
 - **Exactly one `type:` label**: `type: bug`, `type: feature`, `type: testing`,
   `type: performance`, `type: ci`, or a `type: maint: ...` label (`documentation`,
   `refactoring`, `removal`, `style`, `build`, `dependencies`).
-- **`API breaking`** whenever the PR breaks the public API. The draft release then
+- **`API Breaking`** whenever the PR breaks the public API. The draft release then
   gets a major version bump; `type: feature` gives a minor bump, anything else a patch.
 
 `status:`, `priority:` and `effort:` labels are for triaging issues; leave them off PRs.

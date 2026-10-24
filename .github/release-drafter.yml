@@ -41,7 +41,7 @@ template: |
 categories:
   - title: ":boom: Breaking Changes"
     labels:
-      - "API breaking"
+      - "API Breaking"
   - title: ":rocket: Features"
     labels:
       - "type: feature"
@@ -77,7 +77,7 @@ categories:
   - type: 'version-resolver'
     semver-increment: 'major'
     when:
-      label: 'API breaking'
+      label: 'API Breaking'
   - type: 'version-resolver'
     semver-increment: 'minor'
     when:

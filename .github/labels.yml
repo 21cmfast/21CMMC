@@ -46,7 +46,7 @@
 - name: "type: question"
   description: "A question about the code or documentation"
   color: d876e3
-- name: "API breaking"
+- name: "API Breaking"
   description: "Breaking Changes"
   color: e305fc
 - name: "good first issue"
