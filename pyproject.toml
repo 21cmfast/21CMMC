@@ -68,6 +68,10 @@ markers = [
     "nightly: needs 21cmFAST or a full simulation; runs in the Nightly workflow",
 ]
 
+[tool.coverage.run]
+# Written by setuptools-scm at install time.
+omit = ["*/_version.py"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py312"

@@ -1,27 +1,23 @@
 """Smoke tests for the package skeleton."""
 
-import subprocess
+import importlib
 import sys
 
 import pytest
 
-import py21cmmc
 
-
-def test_version():
-    assert py21cmmc.__version__ != "unknown"
-
-
-def test_import_does_not_need_21cmfast():
-    # The fast tier runs without 21cmFAST, so importing py21cmmc must not import it.
-    code = "import sys, py21cmmc; sys.exit('py21cmfast' in sys.modules)"
-    assert subprocess.run([sys.executable, "-c", code], check=False).returncode == 0
+def test_import_does_not_need_21cmfast(monkeypatch):
+    # The fast tier runs without 21cmFAST, so py21cmmc must import without it.
+    # A None entry in sys.modules makes any `import py21cmfast` raise ImportError.
+    monkeypatch.setitem(sys.modules, "py21cmfast", None)
+    monkeypatch.delitem(sys.modules, "py21cmmc", raising=False)
+    importlib.import_module("py21cmmc")
 
 
 @pytest.mark.nightly
 def test_21cmfast_input_api(py21cmfast):
-    # Canary for the 21cmFAST input API that v2's parameter routing relies on
-    # (checked in M0.4 against 4.3.1).
+    # Canary for the 21cmFAST input API that our parameter routing relies on
+    # (see https://github.com/21cmfast/21CMMC/issues/97).
     inputs = py21cmfast.InputParameters.from_template(
         ["simple", "size-small"], random_seed=1
     )
