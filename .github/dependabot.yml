@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keeps the actions pinned by commit SHA (in the write-scoped workflows) up to date.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels:
+      - "type: ci"
