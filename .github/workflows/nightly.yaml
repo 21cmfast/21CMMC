@@ -8,6 +8,10 @@ on:
     - cron: '17 3 * * *'
   workflow_dispatch:
 
+# This workflow builds 21cmFAST main from source, so give it a read-only token.
+permissions:
+  contents: read
+
 jobs:
   nightly:
     name: Nightly (21cmFAST ${{ matrix.p21 }})
@@ -21,6 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"

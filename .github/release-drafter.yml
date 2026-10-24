@@ -33,6 +33,10 @@ autolabeler:
     title:
       - "/.* refactor.*/i"
 
+# Base the draft for main on the last release made from main, so a v1.x patch release
+# never becomes the baseline for the next main release.
+filter-by-commitish: true
+
 template: |
   ## Changes
 

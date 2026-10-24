@@ -9,6 +9,11 @@ on:
     branches:
       - main
 
+# Queue runs, so an older run can't overwrite the draft written by a newer one.
+concurrency:
+  group: release-draft
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: read
