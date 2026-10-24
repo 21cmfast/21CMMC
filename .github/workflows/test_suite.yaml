@@ -11,6 +11,7 @@ on:
     branches:
       - 'master'
       - 'main'
+      - 'v1.x'
 
 
 jobs:

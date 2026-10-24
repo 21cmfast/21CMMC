@@ -116,6 +116,11 @@ The following steps are the same for both *members* and *non-members*:
 Pull Request Guidelines
 -----------------------
 
+There is no changelog file to edit: `GitHub Releases
+<https://github.com/21cmfast/21CMMC/releases>`_ are the changelog. Each release's
+notes are written from the pull requests merged since the last one, so give your
+pull request a clear, descriptive title and the right labels.
+
 If you need some code review or feedback while you're developing the code just make the
 pull request. You can mark the PR as a draft until you are happy for it to be merged.
 

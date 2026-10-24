@@ -2,8 +2,18 @@
 Changelog
 =========
 
-dev
----
+.. note::
+
+   This file is no longer updated: it ends at v1.0.0. The release notes for later
+   versions are on `GitHub Releases <https://github.com/21cmfast/21CMMC/releases>`_.
+
+.. end-of-note
+
+v1.0.0 [2026-10-24]
+-------------------
+The last release of the v1 series, for 21cmFAST < 4. From here on, v1 gets bug fixes
+only, on the ``v1.x`` branch; new development goes into v2 on ``main``.
+
 - Fix: ``LikelihoodPlanck`` default upper tau error is 0.0081 (Qin+20), as in its
   docstring (it was 0.0073).
 - Fix: ``LikelihoodPspec`` reads the data k in 1/Mpc, like all other likelihoods and
