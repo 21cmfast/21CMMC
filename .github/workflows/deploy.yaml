@@ -1,7 +1,8 @@
 name: Publish Python distributions to PyPI
 on:
   release:
-    types: [published, edited]
+    # Not 'edited': publishing a draft fires both, and the second upload would fail.
+    types: [published]
 
 jobs:
   build-n-publish:
