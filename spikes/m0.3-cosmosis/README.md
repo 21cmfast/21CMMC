@@ -15,7 +15,13 @@ Tracks [21cmfast/21CMMC#96](https://github.com/21cmfast/21CMMC/issues/96). Throw
 
 ## Must fix before long HPC runs
 
-1. **nautilus checkpoints are not written atomically.** `Sampler.write(overwrite=True)` deletes the old file and then writes a new one (`unlink`, then `h5py.File(..., 'x')`), and `write_shell_update` edits the file in place (`'r+'`). A kill mid-write loses the whole run. With this cheap toy a kill hit the write about 1 time in 4; with minutes-long 21cmFAST evaluations it will be rarer, but over many walltime kills it is a matter of when. Fix: write to a temporary file and `os.replace` it into place (an upstream PR to nautilus); until then, keep a copy of the last good checkpoint in our driver.
+1. **nautilus checkpoints are not written atomically.** `Sampler.write(overwrite=True)` deletes the old file and then writes a new one (`unlink`, then `h5py.File(..., 'x')`), and `write_shell_update` edits the file in place (`'r+'`). A kill mid-write loses the whole run. With this cheap toy a kill hit the write about 1 time in 4; with minutes-long 21cmFAST evaluations it will be rarer, but over many walltime kills it is a matter of when.
+   **Workaround (in use until an upstream fix):** `atomic_nautilus.patch()` routes both writes through a temporary file that is fsynced and then renamed over the checkpoint with `os.replace`. It's validated here:
+   - **0 of 20** kills corrupted the checkpoint, against 3 of 13 without it;
+   - a killed run resumed under `python -m mpi4py` reproduces the uninterrupted result exactly;
+   - it costs ~1 ms per evaluation in this toy (copying the checkpoint per shell update), which is negligible for real runs.
+
+   The v2 CosmoSIS driver (M1.9) should call it before building the pipeline.
 2. **A failed resume hangs the job.** When the master rank dies (e.g. on the corrupt checkpoint), a plain `mpirun python …` launch leaves the workers alive until walltime. Launching with `python -m mpi4py …` aborts all ranks within seconds (tested). Our sbatch templates and docs must use it.
 
 ## Should document
@@ -29,7 +35,8 @@ Tracks [21cmfast/21CMMC#96](https://github.com/21cmfast/21CMMC/issues/96). Throw
 | File | What it does |
 | --- | --- |
 | `toy.py` | Analytic toy: 5D correlated Gaussian in a uniform box, plus derived values (scalar + 8-vector). Set `TOY_SLEEP` to make evaluations slow |
-| `run_cosmosis_toy.py` | Runs the toy through CosmoSIS from Python only (no ini file). `--sampler nautilus\|multinest`, `--resume`. `MN_INS=F` turns MultiNest INS off |
+| `run_cosmosis_toy.py` | Runs the toy through CosmoSIS from Python only (no ini file). `--sampler nautilus\|multinest`, `--resume`. `MN_INS=F` turns MultiNest INS off; `ATOMIC_CKPT=1` turns on the checkpoint workaround |
+| `atomic_nautilus.py` | Workaround: makes nautilus checkpoint writes atomic (temp file + `os.replace`) |
 | `check_output.py` | Checks a chain: derived values on every row, moments, ln Z |
 | `resume_test.sh` | Kill (SIGTERM) mid-run under MPI, then resume and check |
 | `kill_trials.sh` | Repeated kills at different times; reports whether the nautilus checkpoint survives |
@@ -47,6 +54,7 @@ MPIFC=mpif90 pip install cosmosis nautilus-sampler mpi4py
 python run_cosmosis_toy.py --sampler nautilus --out runs/naut && python check_output.py runs/naut/chain.txt
 mpirun -n 4 python -m mpi4py run_cosmosis_toy.py --sampler multinest --out runs/mn && python check_output.py runs/mn/chain.txt
 PYTHON=$(which python) TOY_SLEEP=0.02 ./resume_test.sh nautilus runs/naut_resume 45
+PYTHON=$(which python) ATOMIC_CKPT=1 ./kill_trials.sh runs/trials "15 30 45 60"   # with the workaround
 python bench_overhead.py runs/bench
 ```
 

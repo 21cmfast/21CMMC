@@ -62,6 +62,11 @@ def main():
     ap.add_argument("--n-live", type=int, default=400)
     args = ap.parse_args()
 
+    if os.environ.get("ATOMIC_CKPT", "0") not in ("", "0"):
+        import atomic_nautilus
+
+        atomic_nautilus.patch()
+
     ini = build_ini(args.sampler, args.out, args.resume, args.n_live)
     pipeline = build_pipeline()
 
