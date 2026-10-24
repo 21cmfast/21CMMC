@@ -15,3 +15,4 @@ Here follows a list of individuals who have contributed in any way to ``21CMMC``
 * `Yuxiang Qin <https://github.com/qyx268>`_
 * `Jaehong Park <https://github.com/jaehongpark00>`_
 * `Tom Binnie <https://github.com/binnietom>`_
+* `Daniela Breitman <https://github.com/DanielaBreitman>`_
