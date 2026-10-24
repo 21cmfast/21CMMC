@@ -24,14 +24,23 @@ Documentation improvements
 official ``21CMMC`` docs, in docstrings, or even on the web in blog posts,
 articles, and such. If you do the latter, take the time to let us know about it!
 
+Where work goes
+===============
+
+* ``main`` is **21cmMC v2**, under development. New features go here. The design is
+  in the v2 architecture plan, and the work is tracked in the
+  `21cmMC v2 project <https://github.com/orgs/21cmfast/projects/15>`_.
+* ``v1.x`` is **21cmMC v1**, frozen: bug fixes only, for users still on 21cmFAST < 4.
+  Open those pull requests against ``v1.x``.
+* The generic inference layer (parameters, priors, the stage graph) belongs in
+  `yabf <https://github.com/21cmfast/yabf>`_ v3, not here; 21cm-specific stages,
+  likelihoods and data belong here.
+
 High-Level Steps for Development
 ================================
 
 This is an abbreviated guide to getting started with development of ``21CMMC``,
-focusing on the discrete high-level steps to take. See our
-`notes for developers <https://21cmmc.readthedocs.org/en/latest/notes_for_developers>`_
-for more details about how to get around the ``21CMMC`` codebase and other
-technical details.
+focusing on the discrete high-level steps to take.
 
 There are two avenues for you to develop ``21CMMC``. If you plan on making significant
 changes, and working with ``21CMMC`` for a long period of time, please consider
@@ -63,25 +72,17 @@ As a *non-member*:
 
 The following steps are the same for both *members* and *non-members*:
 
-2. Install a fresh new isolated environment. This can be a ``conda`` env, or a
-   ``uv``-managed virtual environment (suggested). So either::
+2. Create an environment with the development dependencies, using
+   `uv <https://docs.astral.sh/uv/>`_ (Python 3.12 or newer)::
 
-       conda create -n 21cmmc python=3.11
-       conda activate 21cmmc
+    uv sync --group dev
 
-   or::
+   Add ``--extra 21cmfast`` for the tests that need 21cmFAST (it needs GSL and FFTW
+   to build).
 
-       uv venv --python 3.11
-       source .venv/bin/activate
+3. Activate it::
 
-3. Install the *development* requirements for the project, using
-   `uv <https://docs.astral.sh/uv/>`_ (suggested)::
-
-    uv pip install -e ".[dev]"
-
-   or plain ``pip``::
-
-    pip install -e ".[dev]"
+    source .venv/bin/activate
 
 4. Install pre-commit hooks::
 
@@ -92,13 +93,14 @@ The following steps are the same for both *members* and *non-members*:
     git checkout -b name-of-your-bugfix-or-feature
 
    Now you can make your changes locally. **Note: as a member, you _must_ do step 5. If you
-   make changes on master, you will _not_ be able to push them**.
+   make changes on main, you will _not_ be able to push them**.
 
 6. When you're done making changes, run the linter/formatter and the test suite::
 
     ruff check .
     ruff format .
-    pytest
+    pytest              # the fast tier, as CI runs it on every push
+    pytest -m nightly   # the tests that need 21cmFAST (run nightly in CI)
 
 7. Commit your changes and push your branch to GitHub::
 
@@ -111,7 +113,8 @@ The following steps are the same for both *members* and *non-members*:
    `commit` again (up, up, enter). If it's still complaining, manually fix the errors
    and do the same again.
 
-8. Submit a pull request through the GitHub website.
+8. Submit a pull request through the GitHub website, against ``main`` (or ``v1.x``
+   for a v1 bug fix).
 
 Pull Request Guidelines
 -----------------------

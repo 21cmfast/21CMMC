@@ -1,0 +1,38 @@
+name: Nightly
+
+# The nightly tier: tests marked `nightly`, which need 21cmFAST (and later, full
+# simulations and sampler runs). Runs against the pinned 21cmFAST release, and,
+# non-blocking, against 21cmFAST main to catch upstream API changes early.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    name: Nightly (21cmFAST ${{ matrix.p21 }})
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.p21 == 'main' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        p21: [pinned, main]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install GSL and FFTW (needed to build 21cmFAST)
+        run: sudo apt-get update && sudo apt-get install -y libgsl-dev libfftw3-dev
+      - name: Install (pinned 21cmFAST)
+        if: matrix.p21 == 'pinned'
+        run: uv sync --group tests --extra 21cmfast
+      - name: Install (21cmFAST main)
+        if: matrix.p21 == 'main'
+        run: |
+          uv sync --group tests
+          uv pip install "21cmFAST @ git+https://github.com/21cmfast/21cmFAST@main"
+      - name: Run nightly tests
+        run: uv run --no-sync pytest -m nightly --durations=25

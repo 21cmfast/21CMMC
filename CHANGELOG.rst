@@ -2,6 +2,11 @@
 Changelog
 =========
 
+dev (v2)
+--------
+Development of 21cmMC v2 starts on ``main``. The v1 code was removed from ``main``; it
+lives on the ``v1.x`` branch, which gets bug fixes only.
+
 v1.0.0 [2026-10-24]
 -------------------
 The last release of the v1 series, for 21cmFAST < 4. From here on, v1 gets bug fixes

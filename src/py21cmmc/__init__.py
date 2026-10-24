@@ -1,64 +1,14 @@
-"""21CMMC: a package for running MCMC analyses using 21cmFAST."""
+"""21cmMC: Bayesian inference for 21cmFAST and the 21-cm signal.
 
-__version__ = "1.0.0dev3"
-from .analyse import get_samples, load_primitive_chain
-from .core import (
-    Core21cmEMU,
-    CoreCMB,
-    CoreCoevalModule,
-    CoreForest,
-    CoreLightConeModule,
-    CoreLuminosityFunction,
-    CoreRadioEMU,
-    NotAChain,
-    NotSetupError,
-)
-from .cosmoHammer import HDFStorageUtil
-from .likelihood import (
-    Likelihood1DPowerCoeval,
-    Likelihood1DPowerLightcone,
-    Likelihood1DPowerLightconeUpper,
-    LikelihoodBaseFile,
-    LikelihoodEDGES,
-    LikelihoodForest,
-    LikelihoodGlobalSignal,
-    LikelihoodGreig,
-    LikelihoodLuminosityFunction,
-    LikelihoodNeutralFraction,
-    LikelihoodNeutralFractionTwoSided,
-    LikelihoodPlanck,
-    LikelihoodPlanckPowerSpectra,
-    LikelihoodPspec,
-)
-from .mcmc import build_computation_chain, run_mcmc
+This is the v2 development branch. The v1 code lives on the ``v1.x`` branch and in
+the 1.x releases on PyPI.
+"""
 
-__all__ = [
-    "Core21cmEMU",
-    "CoreCMB",
-    "CoreCoevalModule",
-    "CoreForest",
-    "CoreLightConeModule",
-    "CoreLuminosityFunction",
-    "CoreRadioEMU",
-    "HDFStorageUtil",
-    "Likelihood1DPowerCoeval",
-    "Likelihood1DPowerLightcone",
-    "Likelihood1DPowerLightconeUpper",
-    "LikelihoodBaseFile",
-    "LikelihoodEDGES",
-    "LikelihoodForest",
-    "LikelihoodGlobalSignal",
-    "LikelihoodGreig",
-    "LikelihoodLuminosityFunction",
-    "LikelihoodNeutralFraction",
-    "LikelihoodNeutralFractionTwoSided",
-    "LikelihoodPlanck",
-    "LikelihoodPlanckPowerSpectra",
-    "LikelihoodPspec",
-    "NotAChain",
-    "NotSetupError",
-    "build_computation_chain",
-    "get_samples",
-    "load_primitive_chain",
-    "run_mcmc",
-]
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("21cmMC")
+except PackageNotFoundError:  # pragma: no cover - not installed
+    __version__ = "unknown"
+
+__all__ = ["__version__"]

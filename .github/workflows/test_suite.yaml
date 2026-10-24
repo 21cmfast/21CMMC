@@ -1,110 +1,65 @@
 name: Tests
 
-# Test on all pushes, except when the push is literally just a tag (because we
-# tag automatically via CI, and therefore there's no extra code in that push).
-# Also, only test on pull requests into master.
+# The fast tier: lint, the tests that don't need 21cmFAST, and a build check. Runs on
+# every push (except bare tag pushes) and pull request. Tests that need 21cmFAST are
+# marked `nightly` and run in nightly.yaml.
 on:
   push:
     tags-ignore:
       - 'v*'
   pull_request:
-    branches:
-      - 'master'
-      - 'main'
-      - 'v1.x'
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: ruff check
+        run: uvx ruff check .
+      - name: ruff format
+        run: uvx ruff format --check .
+
   tests:
-    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
-    env:
-      ENV_NAME: test-suite
-      PYTHON: ${{ matrix.python-version }}
-      OS: ${{ matrix.os }}
-    name: Testing
+    name: Fast tier (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.10","3.11", "3.12"]
-    defaults:
-      run:
-        # Adding -l {0} ensures conda can be found properly in each step
-        shell: bash -l {0}
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v3
+      - uses: astral-sh/setup-uv@v6
         with:
-          miniconda-version: "latest"
           python-version: ${{ matrix.python-version }}
-          channels: conda-forge,defaults
-          activate-environment: ${{ env.ENV_NAME }}
-          channel-priority: strict
-
-      - name: Conda Info
-        run: |
-          conda info -a
-          conda list
-          PYVER=`python -c "import sys; print('{:d}.{:d}'.format(sys.version_info.major, sys.version_info.minor))"`
-          if [[ $PYVER != $PYTHON ]]; then
-            exit 1;
-          fi
-
-      # 21cmFAST is a direct (core) dependency of 21CMMC, pinned to <4.0.0 since
-      # this codebase does not yet support 21cmFAST v4. It has heavy non-python
-      # compiled dependencies (FFTW, GSL) that are best installed via conda, and
-      # then built against when pip builds 21cmFAST from source below. MultiNest
-      # (the native library used by pymultinest) is also only installable via
-      # conda.
-      - name: Install Non-Python Dependencies
-        run: |
-          conda install pip fftw gsl compilers pkg-config multinest
-
-      - name: Install 21CMMC
-        # 21cmFAST v3's C code has implicit ints and pointer-type mismatches, which
-        # recent compilers (e.g. conda-forge's GCC 15) treat as errors.
-        env:
-          CFLAGS: "-Wno-error=implicit-int -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
-        run: |
-          echo $(which pip)
-          pip install ".[test,samplers]"
-
-      # LikelihoodPspec needs window functions of shape (Nk_obs, Nk_theory), which
-      # the PyPI release of pspec_likelihood (0.2.0) does not support. This commit
-      # needs Python >= 3.11; on 3.10 the LikelihoodPspec tests are skipped.
-      - name: Install pspec_likelihood
-        if: matrix.python-version != '3.10'
-        run: |
-          pip install "pspec-likelihood @ git+https://github.com/HERA-Team/pspec_likelihood.git@e00950646f982f97b1b8d612b5d96ecd46ce7374"
-
-      - name: List Environment
-        run: |
-          conda list
-
-      - name: Run Tests
-        # KMP_DUPLICATE_LIB_OK works around an OpenMP "already initialized"
-        # abort (SIGABRT / exit 134) seen on macOS. Building 21cmFAST from
-        # source here (rather than installing a prebuilt conda-forge binary)
-        # links it against conda's own OpenMP runtime, which can conflict
-        # with the bundled OpenMP runtime shipped inside torch (imported in
-        # tests/conftest.py) even though that file already imports torch
-        # first to mitigate this. Setting this env var makes the duplicate
-        # runtime a non-fatal warning instead of a hard abort.
-        env:
-          KMP_DUPLICATE_LIB_OK: "TRUE"
-        run: |
-          python -m pytest --cov=py21cmmc --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Install
+        run: uv sync --group tests
+      - name: Run tests
+        run: uv run pytest --cov=py21cmmc --cov-report=xml:coverage.xml --durations=25
+      - uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
-          flags: unittests
+          flags: fast
           fail_ci_if_error: true
-          verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  build:
+    name: Build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Build sdist and wheel
+        run: uv build
+      - name: twine check
+        run: uvx twine check --strict dist/*
