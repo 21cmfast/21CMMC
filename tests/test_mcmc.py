@@ -213,7 +213,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
     # HAVE TO SAVE THE CHAIN TO MEMORY HERE, BECAUSE THE OBJECT ACCESS THE FILE ON EVERY CALL,
     # WHICH MEANS IT CONSTANTLY UPDATES
     chain_b_chain = mcmc.get_samples(chain, burnin=True).get_chain()
-    chain_s_chain = mcmc.get_samples(chain).get_chain()
+    chain_s_trials = mcmc.get_samples(chain).get_trials()
 
     chain2 = mcmc.run_mcmc(
         core,
@@ -231,6 +231,7 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
     burnin2 = mcmc.get_samples(chain2, burnin=True)
     chain2_b_chain = burnin2.get_chain()
     chain2_s_chain = mcmc.get_samples(chain).get_chain()
+    chain2_s_trials = mcmc.get_samples(chain).get_trials()
 
     assert likelihood_coeval._simulate is False  # because we're continuing sampling
     assert burnin2.iteration == 2
@@ -239,7 +240,10 @@ def test_continue_burnin(core, likelihood_coeval, default_params, tmpdirec):
     )  # first 5 iteration should be unchanged
 
     # The actual samples *should* have been deleted, because they have different burnin times.
-    assert not np.all(chain_s_chain == chain2_s_chain)
+    # Compare the proposals, not the positions: every proposal can be rejected, which
+    # leaves the regenerated positions equal to the old ones, but fresh proposals are
+    # new random draws.
+    assert not np.all(chain_s_trials == chain2_s_trials)
 
     chain3 = mcmc.run_mcmc(
         core,
