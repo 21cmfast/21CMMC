@@ -1,20 +1,8 @@
-.. include:: readme.rst
+.. include:: ../README.rst
 
-Contents
-========
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   installation
-   tutorials
-   reference/index
    contributing
-   authors
    changelog
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   authors

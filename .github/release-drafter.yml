@@ -33,6 +33,10 @@ autolabeler:
     title:
       - "/.* refactor.*/i"
 
+# Base the draft for main on the last release made from main, so a v1.x patch release
+# never becomes the baseline for the next main release.
+filter-by-commitish: true
+
 template: |
   ## Changes
 
@@ -41,7 +45,7 @@ template: |
 categories:
   - title: ":boom: Breaking Changes"
     labels:
-      - "API breaking"
+      - "API Breaking"
   - title: ":rocket: Features"
     labels:
       - "type: feature"
@@ -73,6 +77,17 @@ categories:
     labels:
       - "type: maint: dependencies"
       - "type: maint: build"
+  # Next version: major for an API break, minor for a new feature, else patch.
+  - type: 'version-resolver'
+    semver-increment: 'major'
+    when:
+      label: 'API Breaking'
+  - type: 'version-resolver'
+    semver-increment: 'minor'
+    when:
+      label: 'type: feature'
+  - type: 'version-resolver'
+    semver-increment: 'patch'
 
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
