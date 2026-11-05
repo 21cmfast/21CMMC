@@ -139,6 +139,6 @@ def _check_plot_labels(obs: Observable) -> None:
         try:
             along = list(obs.axes)[-1]
             assert ax.get_xlabel() == f"{along} [{obs.axes[along]:latex_inline}]"
-            assert ax.get_ylabel() == f"{obs.quantity} [{obs.unit:latex_inline}]"
+            assert ax.get_ylabel() == f"{obs.label} [{obs.unit:latex_inline}]"
         finally:
             plt.close(ax.figure)

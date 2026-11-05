@@ -21,7 +21,7 @@ A new type subclasses :class:`Observable` and declares its axes and units:
     class GlobalSignal(Observable):
         axes: ClassVar = {"nu": u.MHz}
         unit: ClassVar = u.mK
-        quantity: ClassVar = "T21"
+        label: ClassVar = "T21"
 
 The last axis is the one interpolated along; the axes before it label groups, such as
 redshift bands, that interpolation never mixes.
@@ -96,7 +96,7 @@ class Observable:
 
     Subclasses declare the class attributes ``axes`` (axis names and their units,
     in order, the last being the one interpolated along), ``unit`` (the unit of the
-    values) and ``quantity`` (the name of what is measured, such as ``"T21"``).
+    values) and ``label`` (the name of what is measured, such as ``"T21"``).
 
     Parameters
     ----------
@@ -112,7 +112,7 @@ class Observable:
 
     axes: ClassVar[Mapping[str, u.UnitBase]] = MappingProxyType({})
     unit: ClassVar[u.UnitBase] = u.dimensionless_unscaled
-    quantity: ClassVar[str] = "value"
+    label: ClassVar[str] = "value"
     log_interp: ClassVar[bool] = False
 
     coords: Mapping[str, u.Quantity] = attrs.field(
@@ -134,7 +134,7 @@ class Observable:
         if not cls.axes:
             raise TypeError(
                 f"{cls.__name__} declares no axes; an observable type sets `axes`, "
-                "`unit` and `quantity`."
+                "`unit` and `label`."
             )
         cls.axes = MappingProxyType(dict(cls.axes))
         _TYPES[_type_name(cls)] = cls
@@ -319,17 +319,17 @@ class Observable:
             _, ax = plt.subplots()
         *group_axes, along = self.axes
         for key, idx in _groups(self.coords, group_axes, along).items():
-            label = ", ".join(
+            group_label = ", ".join(
                 f"{a} = {v:g} {self.axes[a]:latex_inline}"
                 for a, v in zip(group_axes, key, strict=True)
             )
             sigma = None if self.sigma is None else self.sigma.value[idx]
-            options = {"yerr": sigma, "label": label or None, **kwargs}
+            options = {"yerr": sigma, "label": group_label or None, **kwargs}
             ax.errorbar(
                 self.coords[along].value[idx], self.values.value[idx], **options
             )
         ax.set_xlabel(f"{along} [{self.axes[along]:latex_inline}]")
-        ax.set_ylabel(f"{self.quantity} [{self.unit:latex_inline}]")
+        ax.set_ylabel(f"{self.label} [{self.unit:latex_inline}]")
         if group_axes:
             ax.legend()
         return ax

@@ -19,7 +19,7 @@ class ToySignal(Observable):
 
     axes: ClassVar = {"nu": u.MHz}
     unit: ClassVar = u.mK
-    quantity: ClassVar = "T21"
+    label: ClassVar = "T21"
 
 
 @attrs.frozen(eq=False, kw_only=True)
@@ -28,7 +28,7 @@ class ToyBandedPower(Observable):
 
     axes: ClassVar = {"z": u.dimensionless_unscaled, "k": u.Mpc**-1}
     unit: ClassVar = u.mK**2
-    quantity: ClassVar = "delta2"
+    label: ClassVar = "delta2"
     log_interp: ClassVar = True
 
 
