@@ -174,7 +174,10 @@ def test_malformed_types_coordinates_and_masks_are_rejected(make, match):
 @pytest.mark.parametrize(
     ("example", "match"),
     [
-        (attrs.evolve(toy_signal(np.random.default_rng(11)), covariance=None), "covariance"),
+        (
+            attrs.evolve(toy_signal(np.random.default_rng(11)), covariance=None),
+            "covariance",
+        ),
         (
             ToyBandedPower(
                 coords={"z": [7.9, 10.4] * u.one, "k": [0.1, 0.2] / u.Mpc},
