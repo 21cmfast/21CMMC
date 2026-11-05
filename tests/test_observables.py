@@ -1,5 +1,6 @@
 """Tests of the observable base type and the Observation container."""
 
+from operator import setitem
 from typing import ClassVar
 
 import attrs
@@ -141,6 +142,8 @@ def test_a_missing_group_is_not_interpolated_from_another():
         ({"values": [1.0, 2.0, 3.0] * u.mK}, "3 values"),
         ({"covariance": np.eye(3) * u.mK**2}, "shape"),
         ({"covariance": [[1.0, 0.5], [0.0, 1.0]] * u.mK**2}, "symmetric"),
+        # Asymmetric at the scale of its own entries, however small they are.
+        ({"covariance": [[1e-12, 5e-13], [0.0, 1e-12]] * u.mK**2}, "symmetric"),
     ],
 )
 def test_inconsistent_observables_are_rejected(kwargs, match):
@@ -256,3 +259,69 @@ def test_observation_metadata_must_be_plain_values():
             citation="x",
             meta={"labels": ["a", "b"]},
         )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda o: setitem(o.value.values, 0, 1.0 * u.mK**2),
+        lambda o: setitem(o.value.coords["k"], 0, 1.0 / u.Mpc),
+        lambda o: setitem(o.value.coords, "k", [1.0] / u.Mpc),
+        lambda o: setitem(o.value.covariance, (0, 0), 1.0 * u.mK**4),
+        lambda o: setitem(o.meta, "doi", "other"),
+        lambda o: setitem(o.instrument["window"], (0, 0), 1.0),
+    ],
+)
+def test_observations_cannot_be_changed_after_construction(change):
+    obs = make_observation(np.random.default_rng(12))
+    before = obs.value.values.copy(), obs.instrument["window"].copy()
+    with pytest.raises((TypeError, ValueError)):
+        change(obs)
+    np.testing.assert_array_equal(obs.value.values, before[0])
+    np.testing.assert_array_equal(obs.instrument["window"], before[1])
+
+
+def test_an_observable_does_not_share_the_callers_arrays():
+    values = np.arange(3.0) * u.mK
+    obs = ToySignal(coords={"nu": [1.0, 2.0, 3.0] * u.MHz}, values=values)
+    values[0] = 99 * u.mK
+    assert obs.values[0] == 0 * u.mK
+
+
+def test_a_populated_group_is_not_overwritten(tmp_path):
+    rng = np.random.default_rng(13)
+    first, second = toy_signal(rng), toy_banded_power(rng)
+    with h5py.File(tmp_path / "obs.h5", "w") as f:
+        first.to_hdf5(f.create_group("obs"))
+        with pytest.raises(ValueError, match="not empty"):
+            second.to_hdf5(f["obs"])
+        back = Observable.from_hdf5(f["obs"])
+    assert type(back) is ToySignal
+    np.testing.assert_array_equal(back.values, first.values)
+
+
+def test_plot_options_override_the_defaults():
+    import matplotlib as mpl
+
+    mpl.use("Agg")
+    import matplotlib.pyplot as plt
+
+    ax = toy_banded_power(np.random.default_rng(14)).plot(label="data", yerr=None)
+    assert [c.get_label() for c in ax.containers] == ["data", "data"]
+    plt.close(ax.figure)
+
+
+def test_the_contract_check_skips_plotting_without_matplotlib(monkeypatch, tmp_path):
+    import importlib.util
+
+    find_spec = importlib.util.find_spec
+
+    def hide_matplotlib(name, *args):
+        return None if name == "matplotlib" else find_spec(name, *args)
+
+    def fail(*args, **kwargs):
+        raise AssertionError("plot was called")
+
+    monkeypatch.setattr(importlib.util, "find_spec", hide_matplotlib)
+    monkeypatch.setattr(ToySignal, "plot", fail)
+    assert_observable_contract(toy_signal(np.random.default_rng(15)), tmp_path)

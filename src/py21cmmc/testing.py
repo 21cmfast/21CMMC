@@ -6,6 +6,7 @@ at least two entries in some group, to :func:`assert_observable_contract`.
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import attrs
@@ -106,9 +107,9 @@ def _neighbours(obs: Observable, group_axes: list[str], along: str) -> tuple[int
 def _check_units_convert(obs: Observable) -> None:
     """Check that the observable given in other, compatible units is unchanged."""
     other = type(obs)(
-        coords={k: v.to(v.unit * 1e-3) for k, v in obs.coords.items()},
-        values=obs.values.to(obs.unit * 1e3),
-        covariance=obs.covariance.to(obs.unit**2 * 1e6),
+        coords={k: v.to(u.Unit(1e-3 * v.unit)) for k, v in obs.coords.items()},
+        values=obs.values.to(u.Unit(1e3 * obs.unit)),
+        covariance=obs.covariance.to(u.Unit(1e6 * obs.unit**2)),
     )
     _assert_same(other, obs)
 
@@ -127,7 +128,10 @@ def _check_plot_labels(obs: Observable) -> None:
     """Check that the plot labels its axes with the quantities and their units.
 
     The observable plots with or without a covariance (as a model may have none).
+    Plotting needs matplotlib, so this check is skipped without it.
     """
+    if importlib.util.find_spec("matplotlib") is None:
+        return
     import matplotlib as mpl
 
     mpl.use("Agg")

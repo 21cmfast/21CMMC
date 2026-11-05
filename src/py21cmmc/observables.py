@@ -36,6 +36,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import attrs
@@ -108,7 +109,7 @@ class Observable:
                 f"There are {n} values, but coordinates for "
                 f"{len(next(iter(coords.values())))} entries."
             )
-        object.__setattr__(self, "coords", coords)
+        object.__setattr__(self, "coords", MappingProxyType(coords))
         object.__setattr__(self, "values", values)
         if self.covariance is not None:
             cov = _to(self.covariance, self.unit**2, "covariance")
@@ -116,7 +117,8 @@ class Observable:
                 raise ValueError(
                     f"The covariance must have shape ({n}, {n}), got {cov.shape}."
                 )
-            if not np.allclose(cov.value, cov.value.T):
+            scale = np.abs(cov.value).max()
+            if not np.allclose(cov.value, cov.value.T, rtol=0, atol=1e-10 * scale):
                 raise ValueError("The covariance must be symmetric.")
             object.__setattr__(self, "covariance", cov)
 
@@ -248,7 +250,7 @@ class Observable:
                 _write_quantity(g, "covariance", self.covariance)
 
     @classmethod
-    def from_hdf5(cls, source: str | Path | h5py.Group) -> Observable:
+    def from_hdf5(cls, source: str | Path | h5py.Group) -> Self:
         """Read an observable written by :meth:`to_hdf5`.
 
         Called on :class:`Observable`, it returns whichever type was written, as long
@@ -275,7 +277,8 @@ class Observable:
         """Plot the values against the last axis, one line per group.
 
         With a covariance, each value gets an error bar of one standard deviation.
-        Keyword arguments go to :meth:`matplotlib.axes.Axes.errorbar`.
+        Keyword arguments go to :meth:`matplotlib.axes.Axes.errorbar`, and override
+        the error bars and labels set here.
         """
         import matplotlib.pyplot as plt
 
@@ -291,12 +294,9 @@ class Observable:
                 for a, v in zip(group_axes, key, strict=True)
             )
             sigma = None if self.sigma is None else self.sigma.value[idx]
+            options = {"yerr": sigma, "label": label or None, **kwargs}
             ax.errorbar(
-                self.coords[along].value[idx],
-                self.values.value[idx],
-                yerr=sigma,
-                label=label or None,
-                **kwargs,
+                self.coords[along].value[idx], self.values.value[idx], **options
             )
         ax.set_xlabel(f"{along} [{self.axes[along]:latex_inline}]")
         ax.set_ylabel(f"{self.quantity} [{self.unit:latex_inline}]")
@@ -305,12 +305,22 @@ class Observable:
         return ax
 
 
-def _as_meta(meta: Mapping[str, Any]) -> dict[str, str | int | float]:
+def _as_meta(meta: Mapping[str, Any]) -> Mapping[str, str | int | float]:
     """Check that metadata values are strings or numbers, and copy them."""
     bad = [k for k, v in meta.items() if not isinstance(v, str | int | float)]
     if bad:
         raise TypeError(f"Metadata values must be strings or numbers; {bad} are not.")
-    return dict(meta)
+    return MappingProxyType(dict(meta))
+
+
+def _as_instrument(instrument: Mapping[str, Any]) -> Mapping[str, u.Quantity]:
+    """Copy instrument arrays into read-only quantities."""
+    out = {}
+    for k, v in instrument.items():
+        q = u.Quantity(v, dtype=float, copy=True)
+        q.setflags(write=False)
+        out[k] = q
+    return MappingProxyType(out)
 
 
 @attrs.frozen(eq=False, kw_only=True)
@@ -336,7 +346,9 @@ class Observation[T: Observable]:
     meta: Mapping[str, str | int | float] = attrs.field(
         factory=dict, converter=_as_meta
     )
-    instrument: Mapping[str, u.Quantity] = attrs.field(factory=dict, converter=_as_dict)
+    instrument: Mapping[str, u.Quantity] = attrs.field(
+        factory=dict, converter=_as_instrument
+    )
 
     @property
     def covariance(self) -> u.Quantity | None:
@@ -353,10 +365,10 @@ class Observation[T: Observable]:
                 meta.attrs[k] = v
             instrument = g.create_group("instrument")
             for k, v in self.instrument.items():
-                _write_quantity(instrument, k, u.Quantity(v))
+                _write_quantity(instrument, k, v)
 
     @classmethod
-    def from_hdf5(cls, source: str | Path | h5py.Group) -> Observation:
+    def from_hdf5(cls, source: str | Path | h5py.Group) -> Self:
         """Read an observation written by :meth:`to_hdf5`."""
         with _group(source, "r") as g:
             return cls(
@@ -393,11 +405,13 @@ def _to(q: Any, unit: u.UnitBase, what: str) -> u.Quantity:
     if not isinstance(q, u.Quantity):
         raise TypeError(f"The {what} must be a quantity in {unit}, got {type(q)}.")
     try:
-        return q.to(unit).astype(float)
+        out = q.to(unit).astype(float, copy=True)
     except u.UnitConversionError:
         raise u.UnitConversionError(
             f"The {what} are in {q.unit}, which cannot be converted to {unit}."
         ) from None
+    out.setflags(write=False)
+    return out
 
 
 def _write_quantity(g: h5py.Group, name: str, q: u.Quantity) -> None:
@@ -423,6 +437,10 @@ def _from_attr(v: Any) -> str | int | float:
 def _group(target: str | Path | h5py.Group, mode: str) -> Iterator[h5py.Group]:
     """Open ``target`` as an HDF5 group: a file path is opened, a group used as is."""
     if isinstance(target, h5py.Group):
+        if mode == "w" and (len(target) or len(target.attrs)):
+            raise ValueError(
+                f"The HDF5 group {target.name!r} is not empty; write into a new group."
+            )
         yield target
         return
     with h5py.File(target, mode) as f:
