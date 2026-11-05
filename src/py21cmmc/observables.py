@@ -414,8 +414,6 @@ def _read_quantity(g: h5py.Group, name: str) -> u.Quantity:
 
 def _from_attr(v: Any) -> str | int | float:
     """Turn an HDF5 attribute back into a plain string or number."""
-    if isinstance(v, bytes):
-        return v.decode()
     if isinstance(v, np.generic):
         return v.item()
     return v

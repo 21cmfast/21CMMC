@@ -149,6 +149,47 @@ def test_inconsistent_observables_are_rejected(kwargs, match):
         ToySignal(**{**args, **kwargs})
 
 
+@pytest.mark.parametrize(
+    ("make", "match"),
+    [
+        (
+            lambda: Observable(coords={"x": [1.0] * u.one}, values=[1.0] * u.one),
+            "declares no axes",
+        ),
+        (
+            lambda: ToyBandedPower(
+                coords={"z": [8.0, 8.0] * u.one, "k": [0.1] / u.Mpc},
+                values=[1.0, 2.0] * u.mK**2,
+            ),
+            "different lengths",
+        ),
+        (lambda: toy_signal(np.random.default_rng(10)).mask([True]), "one entry per"),
+    ],
+)
+def test_malformed_types_coordinates_and_masks_are_rejected(make, match):
+    with pytest.raises((TypeError, ValueError), match=match):
+        make()
+
+
+@pytest.mark.parametrize(
+    ("example", "match"),
+    [
+        (attrs.evolve(toy_signal(np.random.default_rng(11)), covariance=None), "covariance"),
+        (
+            ToyBandedPower(
+                coords={"z": [7.9, 10.4] * u.one, "k": [0.1, 0.2] / u.Mpc},
+                values=[1.0, 2.0] * u.mK**2,
+                covariance=np.eye(2) * u.mK**4,
+            ),
+            "at least two entries",
+        ),
+    ],
+)
+def test_the_contract_check_refuses_an_example_it_cannot_use(example, match, tmp_path):
+    with pytest.raises(AssertionError, match=match):
+        assert_observable_contract(example, tmp_path)
+
+
 def test_a_file_is_only_read_as_an_imported_type(tmp_path):
     """The stored type name selects among imported types; it never imports code."""
     path = tmp_path / "obs.h5"

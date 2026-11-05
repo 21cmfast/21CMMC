@@ -124,16 +124,20 @@ def _check_hdf5_round_trip(obs: Observable, path: Path) -> None:
 
 
 def _check_plot_labels(obs: Observable) -> None:
-    """Check that the plot labels its axes with the quantities and their units."""
+    """Check that the plot labels its axes with the quantities and their units.
+
+    The observable plots with or without a covariance (as a model may have none).
+    """
     import matplotlib as mpl
 
     mpl.use("Agg")
     import matplotlib.pyplot as plt
 
-    ax = obs.plot()
-    try:
-        along = list(obs.axes)[-1]
-        assert ax.get_xlabel() == f"{along} [{obs.axes[along]:latex_inline}]"
-        assert ax.get_ylabel() == f"{obs.quantity} [{obs.unit:latex_inline}]"
-    finally:
-        plt.close(ax.figure)
+    for example in (obs, attrs.evolve(obs, covariance=None)):
+        ax = example.plot()
+        try:
+            along = list(obs.axes)[-1]
+            assert ax.get_xlabel() == f"{along} [{obs.axes[along]:latex_inline}]"
+            assert ax.get_ylabel() == f"{obs.quantity} [{obs.unit:latex_inline}]"
+        finally:
+            plt.close(ax.figure)
