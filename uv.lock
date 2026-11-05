@@ -76,7 +76,7 @@ tests = [
 requires-dist = [
     { name = "21cmfast", marker = "extra == '21cmfast'", specifier = ">=4.3.1,<4.4" },
     { name = "astropy", specifier = ">=6.0" },
-    { name = "attrs", specifier = ">=23.1" },
+    { name = "attrs", specifier = ">=24.1" },
     { name = "h5py", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.8" },
     { name = "numpy" },

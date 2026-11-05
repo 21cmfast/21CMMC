@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from astropy import units as u
 
-from py21cmmc.observables import Observable, Observation
+from py21cmmc.observables import Observable, Observation, _groups
 from py21cmmc.testing import assert_observable_contract
 
 
@@ -80,8 +80,7 @@ def test_interpolation_is_exact_for_a_linear_function(make, f):
     *groups, along = obs.axes
     rng = np.random.default_rng(2)
     targets = []
-    for key in sorted(set(obs._group_keys(obs.coords, groups))):
-        idx = np.flatnonzero([k == key for k in obs._group_keys(obs.coords, groups)])
+    for key, idx in _groups(obs.coords, groups, along).items():
         x = obs.coords[along][idx]
         new = rng.uniform(x.value.min(), x.value.max(), 5) * x.unit
         targets.append(
@@ -157,8 +156,9 @@ def test_inconsistent_observables_are_rejected(kwargs, match):
     [
         (
             lambda: Observable(coords={"x": [1.0] * u.one}, values=[1.0] * u.one),
-            "declares no axes",
+            "has no axes",
         ),
+        (lambda: type("NoAxes", (Observable,), {}), "declares no axes"),
         (
             lambda: ToyBandedPower(
                 coords={"z": [8.0, 8.0] * u.one, "k": [0.1] / u.Mpc},

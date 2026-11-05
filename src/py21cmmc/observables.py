@@ -44,6 +44,8 @@ import h5py
 import numpy as np
 from astropy import units as u
 
+from ._units import to_unit
+
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
@@ -55,9 +57,37 @@ def _type_name(cls: type) -> str:
     return f"{cls.__module__}.{cls.__qualname__}"
 
 
-def _as_dict(coords: Mapping[str, Any]) -> dict[str, Any]:
-    """Copy ``coords`` into a plain dict."""
-    return dict(coords)
+def _convert_coords(coords: Mapping[str, Any], obs: Observable) -> Mapping[str, Any]:
+    """Convert the coordinates of ``obs`` to its axis units, read-only."""
+    return MappingProxyType(type(obs)._coords_in_units(coords))
+
+
+def _convert_values(values: Any, obs: Observable) -> u.Quantity:
+    """Convert the values of ``obs`` to its unit, as a read-only 1D quantity."""
+    return to_unit(values, obs.unit, "values").ravel()
+
+
+def _convert_covariance(cov: Any, obs: Observable) -> u.Quantity | None:
+    """Convert the covariance of ``obs`` to its unit squared, read-only."""
+    return None if cov is None else to_unit(cov, obs.unit**2, "covariance")
+
+
+def _keys(coords: Mapping[str, u.Quantity], group_axes: list[str]) -> list[tuple]:
+    """Return each entry's group: its coordinates on every axis but the last."""
+    if not group_axes:
+        return [()] * len(next(iter(coords.values())))
+    return list(zip(*(coords[a].value.tolist() for a in group_axes), strict=True))
+
+
+def _groups(
+    coords: Mapping[str, u.Quantity], group_axes: list[str], along: str
+) -> dict[tuple, np.ndarray]:
+    """Return the indices of each group's entries, sorted along the last axis."""
+    groups: dict[tuple, list[int]] = {}
+    for i, key in enumerate(_keys(coords, group_axes)):
+        groups.setdefault(key, []).append(i)
+    x = coords[along].value
+    return {k: np.array(sorted(idx, key=x.__getitem__)) for k, idx in groups.items()}
 
 
 @attrs.frozen(eq=False, kw_only=True)
@@ -80,58 +110,73 @@ class Observable:
         ``None`` if not known.
     """
 
-    axes: ClassVar[Mapping[str, u.UnitBase]] = {}
+    axes: ClassVar[Mapping[str, u.UnitBase]] = MappingProxyType({})
     unit: ClassVar[u.UnitBase] = u.dimensionless_unscaled
     quantity: ClassVar[str] = "value"
     log_interp: ClassVar[bool] = False
 
-    coords: Mapping[str, u.Quantity] = attrs.field(converter=_as_dict)
-    values: u.Quantity = attrs.field()
-    covariance: u.Quantity | None = attrs.field(default=None)
+    coords: Mapping[str, u.Quantity] = attrs.field(
+        converter=attrs.Converter(_convert_coords, takes_self=True)
+    )
+    values: u.Quantity = attrs.field(
+        converter=attrs.Converter(_convert_values, takes_self=True)
+    )
+    covariance: u.Quantity | None = attrs.field(
+        default=None, converter=attrs.Converter(_convert_covariance, takes_self=True)
+    )
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Register the type, so that :meth:`from_hdf5` can find it by name."""
+        """Check that the type declares its axes, and register it by name.
+
+        The registry is how :meth:`from_hdf5` finds the type of a stored observable.
+        """
         super().__init_subclass__(**kwargs)
+        if not cls.axes:
+            raise TypeError(
+                f"{cls.__name__} declares no axes; an observable type sets `axes`, "
+                "`unit` and `quantity`."
+            )
+        cls.axes = MappingProxyType(dict(cls.axes))
         _TYPES[_type_name(cls)] = cls
 
-    def __attrs_post_init__(self) -> None:
-        """Convert every array to its declared unit, and check their shapes."""
-        if not self.axes:
-            raise TypeError(
-                f"{type(self).__name__} declares no axes; subclass Observable and set "
-                "`axes`, `unit` and `quantity`."
-            )
-        values = _to(self.values, self.unit, "values").ravel()
-        n = values.size
-        coords = self._convert_coords(self.coords)
-        if len(next(iter(coords.values()))) != n:
+    @values.validator
+    def _check_values(self, att: attrs.Attribute, values: u.Quantity) -> None:
+        """Check that there is one value per entry of the coordinates."""
+        n = len(next(iter(self.coords.values())))
+        if values.size != n:
             raise ValueError(
-                f"There are {n} values, but coordinates for "
-                f"{len(next(iter(coords.values())))} entries."
+                f"There are {values.size} values, but coordinates for {n} entries."
             )
-        object.__setattr__(self, "coords", MappingProxyType(coords))
-        object.__setattr__(self, "values", values)
-        if self.covariance is not None:
-            cov = _to(self.covariance, self.unit**2, "covariance")
-            if cov.shape != (n, n):
-                raise ValueError(
-                    f"The covariance must have shape ({n}, {n}), got {cov.shape}."
-                )
-            scale = np.abs(cov.value).max()
-            if not np.allclose(cov.value, cov.value.T, rtol=0, atol=1e-10 * scale):
-                raise ValueError("The covariance must be symmetric.")
-            object.__setattr__(self, "covariance", cov)
+
+    @covariance.validator
+    def _check_covariance(self, att: attrs.Attribute, cov: u.Quantity | None) -> None:
+        """Check that the covariance is a symmetric matrix over the values."""
+        if cov is None:
+            return
+        n = len(self)
+        if cov.shape != (n, n):
+            raise ValueError(
+                f"The covariance must have shape ({n}, {n}), got {cov.shape}."
+            )
+        scale = np.abs(cov.value).max()
+        if not np.allclose(cov.value, cov.value.T, rtol=0, atol=1e-10 * scale):
+            raise ValueError("The covariance must be symmetric.")
 
     @classmethod
-    def _convert_coords(cls, coords: Mapping[str, Any]) -> dict[str, u.Quantity]:
+    def _coords_in_units(cls, coords: Mapping[str, Any]) -> dict[str, u.Quantity]:
         """Return ``coords`` as 1D quantities in the axis units, of equal lengths."""
+        if not cls.axes:
+            raise TypeError(
+                f"{cls.__name__} has no axes: create an observable of a type that "
+                "declares them."
+            )
         if set(coords) != set(cls.axes):
             raise ValueError(
                 f"{cls.__name__} has axes {list(cls.axes)}, got coordinates for "
                 f"{list(coords)}."
             )
         out = {
-            name: _to(coords[name], unit, f"coordinate {name!r}").ravel()
+            name: to_unit(coords[name], unit, f"coordinate {name!r}").ravel()
             for name, unit in cls.axes.items()
         }
         lengths = {name: c.size for name, c in out.items()}
@@ -180,7 +225,7 @@ class Observable:
         covariance is carried through exactly: interpolation is a linear map ``W``
         of the values, so the new covariance is ``W C W^T``.
         """
-        target = self._convert_coords(coords)
+        target = self._coords_in_units(coords)
         weights = self._interpolation_weights(target)
         cov = None
         if self.covariance is not None:
@@ -192,11 +237,7 @@ class Observable:
     def _interpolation_weights(self, target: Mapping[str, u.Quantity]) -> np.ndarray:
         """Return the matrix ``W`` mapping these values onto ``target`` coordinates."""
         *group_axes, along = self.axes
-        groups: dict[tuple[float, ...], np.ndarray] = {}
-        keys = self._group_keys(self.coords, group_axes)
-        for key in dict.fromkeys(keys):
-            idx = np.flatnonzero([k == key for k in keys])
-            groups[key] = idx[np.argsort(self.coords[along].value[idx])]
+        groups = _groups(self.coords, group_axes, along)
 
         def scale(x: np.ndarray) -> np.ndarray:
             """Return the variable interpolated in: the coordinate, or its logarithm."""
@@ -204,7 +245,7 @@ class Observable:
 
         x_new = scale(target[along].value)
         weights = np.zeros((len(x_new), len(self)))
-        for j, key in enumerate(self._group_keys(target, group_axes)):
+        for j, key in enumerate(_keys(target, group_axes)):
             match = [g for g in groups if np.allclose(g, key, rtol=1e-10, atol=0)]
             if not match:
                 raise ValueError(
@@ -228,14 +269,6 @@ class Observable:
             weights[j, idx[hi - 1]] = 1 - t
             weights[j, idx[hi]] = t
         return weights
-
-    @staticmethod
-    def _group_keys(
-        coords: Mapping[str, u.Quantity], group_axes: list[str]
-    ) -> list[tuple[float, ...]]:
-        """Return each entry's group: its coordinates on every axis but the last."""
-        n = len(next(iter(coords.values())))
-        return [tuple(float(coords[a].value[i]) for a in group_axes) for i in range(n)]
 
     def to_hdf5(self, target: str | Path | h5py.Group) -> None:
         """Write the observable to an HDF5 file, or into a group of an open file."""
@@ -285,10 +318,7 @@ class Observable:
         if ax is None:
             _, ax = plt.subplots()
         *group_axes, along = self.axes
-        keys = self._group_keys(self.coords, group_axes)
-        for key in dict.fromkeys(keys):
-            idx = np.flatnonzero([k == key for k in keys])
-            idx = idx[np.argsort(self.coords[along].value[idx])]
+        for key, idx in _groups(self.coords, group_axes, along).items():
             label = ", ".join(
                 f"{a} = {v:g} {self.axes[a]:latex_inline}"
                 for a, v in zip(group_axes, key, strict=True)
@@ -317,9 +347,8 @@ def _as_instrument(instrument: Mapping[str, Any]) -> Mapping[str, u.Quantity]:
     """Copy instrument arrays into read-only quantities."""
     out = {}
     for k, v in instrument.items():
-        q = u.Quantity(v, dtype=float, copy=True)
-        q.setflags(write=False)
-        out[k] = q
+        q = u.Quantity(v)
+        out[k] = to_unit(q, q.unit, f"instrument array {k!r}")
     return MappingProxyType(out)
 
 
@@ -398,20 +427,6 @@ class Observation[T: Observable]:
                 f"The reader returned a {type(obs).__name__}, not an Observation."
             )
         return obs
-
-
-def _to(q: Any, unit: u.UnitBase, what: str) -> u.Quantity:
-    """Return ``q`` as a float quantity in ``unit``, or raise naming ``what``."""
-    if not isinstance(q, u.Quantity):
-        raise TypeError(f"The {what} must be a quantity in {unit}, got {type(q)}.")
-    try:
-        out = q.to(unit).astype(float, copy=True)
-    except u.UnitConversionError:
-        raise u.UnitConversionError(
-            f"The {what} are in {q.unit}, which cannot be converted to {unit}."
-        ) from None
-    out.setflags(write=False)
-    return out
 
 
 def _write_quantity(g: h5py.Group, name: str, q: u.Quantity) -> None:

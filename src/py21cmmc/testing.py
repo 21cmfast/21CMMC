@@ -13,7 +13,7 @@ import attrs
 import numpy as np
 from astropy import units as u
 
-from .observables import Observable
+from .observables import Observable, _groups
 
 
 def assert_observable_contract(obs: Observable, tmp_path: Path) -> None:
@@ -95,11 +95,8 @@ def _check_interpolation_is_linear(obs: Observable) -> None:
 
 def _neighbours(obs: Observable, group_axes: list[str], along: str) -> tuple[int, int]:
     """Return two entries of one group that are adjacent along the last axis."""
-    keys = obs._group_keys(obs.coords, group_axes)
-    for key in dict.fromkeys(keys):
-        idx = np.flatnonzero([k == key for k in keys])
+    for idx in _groups(obs.coords, group_axes, along).values():
         if len(idx) > 1:
-            idx = idx[np.argsort(obs.coords[along].value[idx])]
             return int(idx[0]), int(idx[1])
     raise AssertionError("The example needs a group with at least two entries.")
 

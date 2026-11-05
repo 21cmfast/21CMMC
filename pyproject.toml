@@ -25,7 +25,7 @@ classifiers = [
 # Dependencies are added with the code that needs them (M1 onwards).
 dependencies = [
     "astropy>=6.0",
-    "attrs>=23.1",
+    "attrs>=24.1",
     "h5py>=3.8",
     "numpy",
 ]
