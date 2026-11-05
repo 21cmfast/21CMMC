@@ -24,6 +24,9 @@ classifiers = [
 ]
 # Dependencies are added with the code that needs them (M1 onwards).
 dependencies = [
+    "astropy>=6.0",
+    "attrs>=23.1",
+    "h5py>=3.8",
     "numpy",
 ]
 dynamic = [
@@ -35,6 +38,9 @@ dynamic = [
 21cmfast = [
     "21cmFAST>=4.3.1,<4.4",
 ]
+plot = [
+    "matplotlib>=3.8",
+]
 
 [project.urls]
 Repository = "https://github.com/21cmfast/21CMMC"
@@ -43,6 +49,7 @@ Changelog = "https://github.com/21cmfast/21CMMC/releases"
 
 [dependency-groups]
 tests = [
+    "matplotlib>=3.8",
     "pytest>=8",
     "pytest-cov",
 ]
