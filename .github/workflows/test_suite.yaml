@@ -1,8 +1,8 @@
 name: Tests
 
-# The fast tier: lint, the tests that don't need 21cmFAST, and a build check. Runs on
-# every push (except bare tag pushes) and pull request. Tests that need 21cmFAST are
-# marked `nightly` and run in nightly.yaml.
+# The fast tier: lint, the tests that don't need 21cmFAST, the docs and a build
+# check. Runs on every push (except bare tag pushes) and pull request. Tests that
+# need 21cmFAST are marked `nightly` and run in nightly.yaml.
 on:
   push:
     tags-ignore:
@@ -50,6 +50,24 @@ jobs:
           flags: fast
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  docs:
+    name: Docs
+    # Runs every tutorial, so that a change that breaks one fails here. The job runs
+    # code from the pull request, so its token is read-only and not kept by git.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - name: Install
+        run: uv sync --group docs
+      - name: Build
+        run: uv run python -m sphinx -W --keep-going -b html docs docs/_build/html
 
   build:
     name: Build check

@@ -25,6 +25,7 @@ classifiers = [
 # Dependencies are added with the code that needs them (M1 onwards).
 dependencies = [
     "numpy",
+    "yabf",
 ]
 dynamic = [
     "version",
@@ -49,6 +50,9 @@ tests = [
 docs = [
     "sphinx",
     "furo",
+    "ipykernel",
+    "matplotlib",
+    "myst-nb",
 ]
 dev = [
     {include-group = "tests"},
@@ -56,6 +60,10 @@ dev = [
     "pre-commit",
     "ruff",
 ]
+
+# The likelihoods of yabf v3 are not released yet: use the branch that adds them.
+[tool.uv.sources]
+yabf = { git = "https://github.com/21cmfast/yabf", branch = "claude/m1.6-likelihoods" }
 
 [tool.setuptools_scm]
 version_file = "src/py21cmmc/_version.py"
