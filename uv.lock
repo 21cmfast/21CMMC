@@ -2829,8 +2829,8 @@ wheels = [
 
 [[package]]
 name = "yabf"
-version = "2.1.5.dev115+g4d029147c"
-source = { git = "https://github.com/21cmfast/yabf?branch=claude%2Fm1.6-likelihoods#4d029147c063275ed4bf2740d1d97c07b6fd5132" }
+version = "2.1.5.dev119+g06be0ae72"
+source = { git = "https://github.com/21cmfast/yabf?branch=claude%2Fm1.6-likelihoods#06be0ae728b10403f8a9223f3ac6b9de116e8595" }
 dependencies = [
     { name = "click" },
     { name = "emcee" },
