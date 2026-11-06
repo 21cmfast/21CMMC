@@ -27,8 +27,6 @@ docs/faqs/\.ipynb_checkpoints/
 
 docs/tutorials/\.ipynb_checkpoints/
 
-docs/tutorials/data/
-
 \.tox/
 
 \.coverage

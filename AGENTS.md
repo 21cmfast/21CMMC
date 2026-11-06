@@ -18,6 +18,11 @@ they run in the nightly workflow (`pytest -m nightly`).
   past issues, pull requests or earlier behaviour.
 - **The README is short and to the point.**
 - **User-facing documentation never refers to internal decisions** or how we got here.
+- **New user-facing functionality comes with a tutorial**, or an update to one, in
+  `docs/tutorials/` (MyST notebooks, run on every docs build). Reviewers start from
+  the tutorials, so show what the feature is for on a small, physical example, with
+  plots where they help. Code in a tutorial follows the same rules as the package:
+  people copy it.
 - **Code comments may explain an internal decision** where that helps the next
   reader, linking the issue if there is one. Never use jargon that only you (the
   agent) know from the current session.

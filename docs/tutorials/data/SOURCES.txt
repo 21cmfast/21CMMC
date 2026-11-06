@@ -1,0 +1,11 @@
+Data used by the tutorials, as shipped with 21cmMC v1 (src/py21cmmc/data on v1.x).
+
+LF_lfuncs_z6.npz, LF_sigmas_z6.npz
+    The UV luminosity function at z = 6 and its errors: the default HST data of
+    21cmMC v1, which its documentation attributes to Bouwens et al. 2015, 2016 and
+    Oesch et al. 2017, as compiled for Park et al. 2019 (arXiv:1809.08995).
+
+NeutralFractionsForPDF.npy, NeutralFractionPDF_SmallHII.npy
+    The distribution of the IGM neutral fraction at z = 7.1 from the damping wing of
+    ULAS J1120+0641 (Greig et al. 2017, arXiv:1606.00441), on a grid of neutral
+    fractions.
