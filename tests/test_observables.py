@@ -215,10 +215,6 @@ def make_observation(rng):
         value=toy_banded_power(rng),
         citation="Doe et al. (2026), ApJ 1, 1",
         meta={"doi": "10.0000/example", "version": 2, "h": 0.6766},
-        instrument={
-            "window": rng.uniform(size=(10, 30)) * u.one,
-            "band_edges": [7.5, 8.3, 10.0, 10.8] * u.one,
-        },
     )
 
 
@@ -232,10 +228,6 @@ def test_an_observation_round_trips_through_hdf5(tmp_path):
     assert back.citation == obs.citation
     assert back.meta == obs.meta
     assert {type(v) for v in back.meta.values()} == {str, int, float}
-    assert set(back.instrument) == set(obs.instrument)
-    for k, v in obs.instrument.items():
-        np.testing.assert_array_equal(back.instrument[k], v)
-        assert back.instrument[k].unit == v.unit
 
 
 def test_an_observation_is_read_by_any_reader_function(tmp_path):
@@ -269,16 +261,14 @@ def test_observation_metadata_must_be_plain_values():
         lambda o: setitem(o.value.coords, "k", [1.0] / u.Mpc),
         lambda o: setitem(o.value.covariance, (0, 0), 1.0 * u.mK**4),
         lambda o: setitem(o.meta, "doi", "other"),
-        lambda o: setitem(o.instrument["window"], (0, 0), 1.0),
     ],
 )
 def test_observations_cannot_be_changed_after_construction(change):
     obs = make_observation(np.random.default_rng(12))
-    before = obs.value.values.copy(), obs.instrument["window"].copy()
+    before = obs.value.values.copy()
     with pytest.raises((TypeError, ValueError)):
         change(obs)
-    np.testing.assert_array_equal(obs.value.values, before[0])
-    np.testing.assert_array_equal(obs.instrument["window"], before[1])
+    np.testing.assert_array_equal(obs.value.values, before)
 
 
 def test_an_observable_does_not_share_the_callers_arrays():

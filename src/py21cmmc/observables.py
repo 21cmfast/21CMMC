@@ -26,9 +26,8 @@ A new type subclasses :class:`Observable` and declares its axes and units:
 The last axis is the one interpolated along; the axes before it label groups, such as
 redshift bands, that interpolation never mixes.
 
-An :class:`Observation` is a measured observable with its citation, metadata and
-instrument description (window functions, chunk edges). It is stored and read with
-HDF5, never with pickle.
+An :class:`Observation` is a measured observable with its citation and metadata. It
+is stored and read with HDF5, never with pickle.
 """
 
 from __future__ import annotations
@@ -343,18 +342,9 @@ def _as_meta(meta: Mapping[str, Any]) -> Mapping[str, str | int | float]:
     return MappingProxyType(dict(meta))
 
 
-def _as_instrument(instrument: Mapping[str, Any]) -> Mapping[str, u.Quantity]:
-    """Copy instrument arrays into read-only quantities."""
-    out = {}
-    for k, v in instrument.items():
-        q = u.Quantity(v)
-        out[k] = to_unit(q, q.unit, f"instrument array {k!r}")
-    return MappingProxyType(out)
-
-
 @attrs.frozen(eq=False, kw_only=True)
 class Observation[T: Observable]:
-    """A measured observable, with its citation, metadata and instrument.
+    """A measured observable, with its citation and metadata.
 
     Parameters
     ----------
@@ -365,18 +355,12 @@ class Observation[T: Observable]:
     meta
         Further metadata, such as a DOI, a version or redshift labels, as strings or
         numbers.
-    instrument
-        Arrays describing the instrument, such as window functions or chunk edges, by
-        name.
     """
 
     value: T = attrs.field(validator=attrs.validators.instance_of(Observable))
     citation: str = attrs.field(validator=attrs.validators.instance_of(str))
     meta: Mapping[str, str | int | float] = attrs.field(
         factory=dict, converter=_as_meta
-    )
-    instrument: Mapping[str, u.Quantity] = attrs.field(
-        factory=dict, converter=_as_instrument
     )
 
     @property
@@ -392,9 +376,6 @@ class Observation[T: Observable]:
             meta = g.create_group("meta")
             for k, v in self.meta.items():
                 meta.attrs[k] = v
-            instrument = g.create_group("instrument")
-            for k, v in self.instrument.items():
-                _write_quantity(instrument, k, v)
 
     @classmethod
     def from_hdf5(cls, source: str | Path | h5py.Group) -> Self:
@@ -404,9 +385,6 @@ class Observation[T: Observable]:
                 value=Observable.from_hdf5(g["value"]),
                 citation=str(g.attrs["citation"]),
                 meta={k: _from_attr(v) for k, v in g["meta"].attrs.items()},
-                instrument={
-                    k: _read_quantity(g["instrument"], k) for k in g["instrument"]
-                },
             )
 
     @classmethod
