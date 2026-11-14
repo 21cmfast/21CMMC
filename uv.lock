@@ -36,6 +36,9 @@ sdist = { url = "https://files.pythonhosted.org/packages/85/06/67c1618a333a58453
 name = "21cmmc"
 source = { editable = "." }
 dependencies = [
+    { name = "astropy" },
+    { name = "attrs" },
+    { name = "h5py" },
     { name = "numpy" },
 ]
 
@@ -43,10 +46,14 @@ dependencies = [
 21cmfast = [
     { name = "21cmfast" },
 ]
+plot = [
+    { name = "matplotlib" },
+]
 
 [package.dev-dependencies]
 dev = [
     { name = "furo" },
+    { name = "matplotlib" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -60,6 +67,7 @@ docs = [
     { name = "sphinx", version = "9.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
 ]
 tests = [
+    { name = "matplotlib" },
     { name = "pytest" },
     { name = "pytest-cov" },
 ]
@@ -67,13 +75,18 @@ tests = [
 [package.metadata]
 requires-dist = [
     { name = "21cmfast", marker = "extra == '21cmfast'", specifier = ">=4.3.1,<4.4" },
+    { name = "astropy", specifier = ">=6.0" },
+    { name = "attrs", specifier = ">=24.1" },
+    { name = "h5py", specifier = ">=3.8" },
+    { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.8" },
     { name = "numpy" },
 ]
-provides-extras = ["21cmfast"]
+provides-extras = ["21cmfast", "plot"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "furo" },
+    { name = "matplotlib", specifier = ">=3.8" },
     { name = "pre-commit" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov" },
@@ -85,6 +98,7 @@ docs = [
     { name = "sphinx" },
 ]
 tests = [
+    { name = "matplotlib", specifier = ">=3.8" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov" },
 ]
